@@ -1,0 +1,80 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+*.local
+
+# Rust/Tauri
+src-tauri/target/
+data/
+
+# Python (removed, but just in case)
+__pycache__/
+.venv/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+!/src/lib/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+ENV/
+env/
+.ruff_cache/
+
+# IDE
+.idea/
+!.vscode/extensions.json
+*.swp
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+log/
+
+# Test coverage
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary
+temp-vite/
+*.pid
+*.lock
+release/
+
+# Git worktrees
+.worktrees/
+
+.omc/
+.next/
+package-lock.json
+*.db
+*.db-shm
+*.db-wal
