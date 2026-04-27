@@ -1,0 +1,30 @@
+#!/bin/sh
+# pre-commit hook: run make check before allowing commits
+# make check runs: tsc --noEmit, eslint, prettier --check, cargo fmt --check, cargo clippy
+
+set -e
+
+echo "→ [pre-commit] Running make check..."
+
+# Only run frontend checks if there are staged frontend files
+# (skip rust checks if only frontend files changed, and vice versa)
+FRONTEND_CHANGED=$(git diff --cached --name-only -- 'src/*' 'package.json' '*.ts' '*.tsx' '*.css' 'vite.config.ts' 'tsconfig.json' | wc -l)
+BACKEND_CHANGED=$(git diff --cached --name-only -- 'src-tauri/*' | wc -l)
+
+if [ "$FRONTEND_CHANGED" -gt 0 ] || [ "$BACKEND_CHANGED" -gt 0 ]; then
+    if [ "$FRONTEND_CHANGED" -gt 0 ]; then
+        echo "   Frontend changes detected — running tsc + eslint + prettier..."
+        npx tsc --noEmit
+        npx eslint . --max-warnings=0
+        npx prettier --check "src/**/*.{ts,tsx,css,json}"
+    fi
+
+    if [ "$BACKEND_CHANGED" -gt 0 ]; then
+        echo "   Backend changes detected — running cargo fmt --check + cargo clippy..."
+        cd src-tauri && cargo fmt -- --check && cargo clippy -- -D warnings
+    fi
+
+    echo "→ [pre-commit] All checks passed. Commit allowed."
+else
+    echo "→ [pre-commit] No relevant changes. Skipping checks."
+fi
