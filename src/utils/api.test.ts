@@ -171,8 +171,6 @@ describe("api account commands", () => {
     await api.accountTransactions("1");
     expect(mockedInvoke).toHaveBeenCalledWith("account_transactions", {
       id: "1",
-      fromDate: null,
-      toDate: null,
     });
   });
 });

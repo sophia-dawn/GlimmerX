@@ -63,9 +63,9 @@ describe("date utilities", () => {
   });
 
   describe("formatDateTime", () => {
-    it("formats date-time consistently", () => {
+    it("formats date-time in Chinese locale", () => {
       const result = formatDateTime("2026-04-13T12:30:45Z");
-      expect(result).toMatch(/^2026-04-13 \d{2}:30:45$/);
+      expect(result).toMatch(/^2026年4月13日 \d{2}:30:45$/);
     });
   });
 

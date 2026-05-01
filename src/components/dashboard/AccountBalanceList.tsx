@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -177,10 +176,9 @@ export function AccountBalanceList() {
                           : null;
 
                         return (
-                          <Link
+                          <div
                             key={account.id}
-                            to={`/accounts/${account.id}`}
-                            className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
+                            className="flex items-center justify-between p-2 rounded-lg bg-muted/50 transition-colors"
                           >
                             <span className="font-medium truncate">
                               {account.name}
@@ -194,9 +192,8 @@ export function AccountBalanceList() {
                                   {t(statusKey)}
                                 </span>
                               )}
-                              <ChevronDown className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity rotate-[-90deg]" />
                             </div>
-                          </Link>
+                          </div>
                         );
                       })}
                     </div>

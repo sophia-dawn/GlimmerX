@@ -35,8 +35,7 @@ import {
 } from "@/components/ui/select";
 import { FileWarning, Trash2 } from "lucide-react";
 import { open as dialogOpen, save } from "@tauri-apps/plugin-dialog";
-import { documentDir } from "@tauri-apps/api/path";
-import { resolve } from "@tauri-apps/api/path";
+import { documentDir, homeDir, resolve } from "@tauri-apps/api/path";
 
 const DEFAULT_DB_FILENAME = "glimmerx.db";
 
@@ -103,7 +102,12 @@ export function UnlockPage() {
       const docDir = await documentDir();
       defaultPath = await resolve(docDir, DEFAULT_DB_FILENAME);
     } catch {
-      // fallback to default filename if path resolution fails
+      try {
+        const home = await homeDir();
+        defaultPath = await resolve(home, DEFAULT_DB_FILENAME);
+      } catch {
+        void 0;
+      }
     }
     const path = await save({
       title: t("unlock.selectDbPath"),
@@ -123,7 +127,11 @@ export function UnlockPage() {
       const docDir = await documentDir();
       defaultPath = docDir;
     } catch {
-      // no default if path resolution fails
+      try {
+        defaultPath = await homeDir();
+      } catch {
+        void 0;
+      }
     }
     const path = await dialogOpen({
       title: t("unlock.selectDbFile"),

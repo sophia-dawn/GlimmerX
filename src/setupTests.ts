@@ -47,6 +47,37 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+// Global mock for react-i18next - provides complete interface
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      const keys = key.split(".");
+      let value: unknown = zh;
+      for (const k of keys) {
+        value = (value as Record<string, unknown>)?.[k];
+      }
+      if (typeof value === "string") {
+        if (options) {
+          return Object.entries(options).reduce(
+            (str, [k, v]) => str.replace(new RegExp(`{{${k}}}`, "g"), String(v)),
+            value,
+          );
+        }
+        return value;
+      }
+      return key;
+    },
+    i18n: {
+      language: "zh",
+      changeLanguage: vi.fn(),
+    },
+  }),
+  initReactI18next: {
+    type: "3rdParty",
+    init: vi.fn(),
+  },
+}));
+
 // Initialize i18n for tests
 i18n.use(initReactI18next).init({
   resources: {

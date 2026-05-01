@@ -22,9 +22,7 @@ help:
 	@echo "  → Output: release/ (unified directory)"
 	@echo ""
 	@echo "  Portable (便携版):"
-	@echo "  make portable         Build portable for current platform"
 	@echo "  make portable-windows Windows: single exe"
-	@echo "  make portable-linux   Linux: AppImage"
 	@echo "  → Output: release/"
 	@echo ""
 	@echo "  make clean        Remove build artifacts"
@@ -95,8 +93,7 @@ fmt-md:
 test: test-frontend test-backend
 
 test-frontend:
-	@echo "→ Frontend tests (not yet configured)"
-	@echo "   Run 'npx vitest' when tests are added"
+	npx vitest run
 
 test-backend:
 	cd src-tauri && cargo test
@@ -177,28 +174,13 @@ release-mac:
 	$(MAKE) _collect-release
 
 # ── Portable (便携版) ────────────────────────────────────────────
-
-portable:
-	@OS=$$(uname -s); \
-	if echo "$$OS" | grep -qiE 'MINGW|MSYS|CYGWIN|Windows_NT'; then \
-		$(MAKE) portable-windows; \
-	elif [ "$$OS" = "Linux" ]; then \
-		$(MAKE) portable-linux; \
-	else \
-		echo "Portable not available for $$OS"; exit 1; \
-	fi
-
 portable-windows:
 	@echo "→ Building Windows portable exe"
 	npm run tauri build -- --no-bundle
 	@mkdir -p release
-	@cp src-tauri/target/release/glimmerx.exe release/glimmerx-portable.exe
-	@echo "✓ Output: release/glimmerx-portable.exe"
+	@cp src-tauri/target/release/glimmerx.exe release/Glimmerx-portable.exe
+	@echo "✓ Output: release/Glimmerx-portable.exe"
 
-portable-linux:
-	@echo "→ Building Linux portable AppImage"
-	npm run tauri build -- --bundles appimage
-	$(MAKE) _collect-release
 
 # ── Clean ─────────────────────────────────────────────────────
 clean:
