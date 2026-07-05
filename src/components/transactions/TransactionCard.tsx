@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Pencil, Trash2, ArrowRight } from "lucide-react";
@@ -15,7 +15,7 @@ interface TransactionCardProps {
   onDelete?: (transaction: TransactionListItemType) => void;
 }
 
-export function TransactionCard({
+export const TransactionCard = memo(function TransactionCard({
   transaction,
   onEdit,
   onDelete,
@@ -145,4 +145,4 @@ export function TransactionCard({
       </div>
     </div>
   );
-}
+});

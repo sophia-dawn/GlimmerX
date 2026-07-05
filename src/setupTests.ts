@@ -59,7 +59,8 @@ vi.mock("react-i18next", () => ({
       if (typeof value === "string") {
         if (options) {
           return Object.entries(options).reduce(
-            (str, [k, v]) => str.replace(new RegExp(`{{${k}}}`, "g"), String(v)),
+            (str, [k, v]) =>
+              str.replace(new RegExp(`{{${k}}}`, "g"), String(v)),
             value,
           );
         }

@@ -1,4 +1,4 @@
-import { useRef, useEffect, memo } from "react";
+import { useRef, useEffect, memo, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
@@ -24,18 +24,25 @@ export const VirtualTransactionList = memo(function VirtualTransactionList({
   const { t } = useTranslation();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: (index) => {
+  const estimateSize = useCallback(
+    (index: number) => {
       const item = items[index];
       if (!item) return 64;
       return item.type === "date-header" ? 44 : 64;
     },
+    [items],
+  );
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize,
     overscan: 10,
   });
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const observerCallbackRef = useRef(fetchNextPage);
+  observerCallbackRef.current = fetchNextPage;
 
   useEffect(() => {
     if (!hasNextPage || isFetchingNextPage) return;
@@ -43,14 +50,14 @@ export const VirtualTransactionList = memo(function VirtualTransactionList({
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
+        if (entry?.isIntersecting) {
+          observerCallbackRef.current();
         }
       },
       {
         root: scrollContainerRef.current,
         threshold: 0.1,
-        rootMargin: "100px",
+        rootMargin: "200px",
       },
     );
 
@@ -59,7 +66,7 @@ export const VirtualTransactionList = memo(function VirtualTransactionList({
     }
 
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage]);
 
   const virtualItems = virtualizer.getVirtualItems();
 
@@ -103,11 +110,7 @@ export const VirtualTransactionList = memo(function VirtualTransactionList({
       </div>
 
       {hasNextPage && items.length > 0 && (
-        <div
-          ref={sentinelRef}
-          className="h-4"
-          style={{ marginTop: `${Math.max(0, items.length - 5) * 64}px` }}
-        />
+        <div ref={sentinelRef} className="h-4" />
       )}
 
       {isFetchingNextPage && (

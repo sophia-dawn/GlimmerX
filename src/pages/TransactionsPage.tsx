@@ -78,7 +78,7 @@ export function TransactionsPage() {
   // Filter state (without page - page managed by infinite query)
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<EnhancedTransactionFilter>({
-    pageSize: 20,
+    pageSize: 50,
     sortBy: "date",
     sortOrder: "desc",
   });
@@ -117,9 +117,13 @@ export function TransactionsPage() {
   });
 
   // Extract and merge data
-  const pages = infiniteQuery.data?.pages ?? [];
-  const allDateGroups = mergeDateGroups(pages);
-  const flattenedItems = flattenToVirtualItems(allDateGroups);
+  const queryData = infiniteQuery.data;
+  const pages = useMemo(() => queryData?.pages ?? [], [queryData]);
+  const allDateGroups = useMemo(() => mergeDateGroups(pages), [pages]);
+  const flattenedItems = useMemo(
+    () => flattenToVirtualItems(allDateGroups),
+    [allDateGroups],
+  );
 
   // Handlers
   const handleFilterChange = useCallback(
@@ -130,7 +134,7 @@ export function TransactionsPage() {
   );
 
   const handleClearFilter = useCallback(() => {
-    setFilter({ pageSize: 20, sortBy: "date", sortOrder: "desc" });
+    setFilter({ pageSize: 50, sortBy: "date", sortOrder: "desc" });
     setSearchQuery("");
   }, []);
 

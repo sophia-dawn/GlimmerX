@@ -214,7 +214,8 @@ export function TransactionForm({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!canSubmit) return;
 
     const data: CreateTransactionInput = {
@@ -246,209 +247,211 @@ export function TransactionForm({
           <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>{t("transactions.date")}</Label>
-            <DatePicker
-              value={date}
-              onChange={setDate}
-              placeholder={t("transactions.date")}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="transaction-description">
-              {t("transactions.description")}
-            </Label>
-            <Input
-              id="transaction-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("transactions.descriptionPlaceholder")}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="transaction-category">
-              {t("transactions.category")}
-              <span className="text-muted-foreground text-xs ml-1">
-                ({t("transactions.categoryOptional")})
-              </span>
-            </Label>
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger id="transaction-category">
-                <SelectValue placeholder={t("transactions.selectCategory")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_CATEGORY_VALUE}>
-                  {t("transactions.noCategory")}
-                </SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {category.icon ? `${category.icon} ` : ""}
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>{t("transactions.postings")}</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowHelp(!showHelp)}
-                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <HelpCircle className="h-3 w-3 mr-1" />
-                {t("transactions.help.toggle")}
-                {showHelp ? (
-                  <ChevronUp className="h-3 w-3 ml-1" />
-                ) : (
-                  <ChevronDown className="h-3 w-3 ml-1" />
-                )}
-              </Button>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{t("transactions.date")}</Label>
+              <DatePicker
+                value={date}
+                onChange={setDate}
+                placeholder={t("transactions.date")}
+              />
             </div>
 
-            {showHelp && (
-              <div className="p-3 rounded-md border bg-muted/50 text-sm space-y-2">
-                <p className="font-medium">{t("transactions.help.title")}</p>
-                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li>{t("transactions.help.rule1")}</li>
-                  <li>{t("transactions.help.rule2")}</li>
-                  <li>{t("transactions.help.rule3")}</li>
-                </ul>
-                <div className="mt-2 p-2 rounded bg-background/50">
-                  <p className="font-medium text-xs mb-1">
-                    {t("transactions.help.exampleTitle")}
-                  </p>
-                  <div className="text-xs space-y-1 text-muted-foreground">
-                    <p>{t("transactions.help.example1")}</p>
-                    <p>{t("transactions.help.example2")}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="transaction-description">
+                {t("transactions.description")}
+              </Label>
+              <Input
+                id="transaction-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t("transactions.descriptionPlaceholder")}
+              />
+            </div>
 
-            {postings.map((posting, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-2 p-2 border rounded-md bg-muted/30"
-              >
-                <Select
-                  value={posting.accountId}
-                  onValueChange={(value) =>
-                    updatePosting(index, "accountId", value)
-                  }
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue
-                      placeholder={t("transactions.selectAccount")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.map((account) => (
-                      <SelectItem key={account.id} value={account.id}>
-                        {account.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2">
+              <Label htmlFor="transaction-category">
+                {t("transactions.category")}
+                <span className="text-muted-foreground text-xs ml-1">
+                  ({t("transactions.categoryOptional")})
+                </span>
+              </Label>
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger id="transaction-category">
+                  <SelectValue placeholder={t("transactions.selectCategory")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CATEGORY_VALUE}>
+                    {t("transactions.noCategory")}
+                  </SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.icon ? `${category.icon} ` : ""}
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder={t("transactions.amount")}
-                  value={posting.amount}
-                  onChange={(e) =>
-                    updatePosting(index, "amount", e.target.value)
-                  }
-                  className={cn(
-                    "w-[120px] tabular-nums",
-                    precisionWarnings.has(index) && "border-yellow-500",
-                    zeroCentsWarnings.has(index) && "border-red-500",
-                  )}
-                />
-                {precisionWarnings.has(index) && (
-                  <span className="text-xs text-yellow-600 ml-1 whitespace-nowrap">
-                    {t("transactions.precisionWarning")}
-                  </span>
-                )}
-                {zeroCentsWarnings.has(index) && (
-                  <span className="text-xs text-red-600 ml-1 whitespace-nowrap">
-                    {t("errors.transaction.amountTooSmall")}
-                  </span>
-                )}
-
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>{t("transactions.postings")}</Label>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  onClick={() => removePosting(index)}
-                  disabled={postings.length <= 2}
-                  className="shrink-0"
-                  aria-label={t("common.remove")}
+                  size="sm"
+                  onClick={() => setShowHelp(!showHelp)}
+                  className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <HelpCircle className="h-3 w-3 mr-1" />
+                  {t("transactions.help.toggle")}
+                  {showHelp ? (
+                    <ChevronUp className="h-3 w-3 ml-1" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  )}
                 </Button>
               </div>
-            ))}
 
+              {showHelp && (
+                <div className="p-3 rounded-md border bg-muted/50 text-sm space-y-2">
+                  <p className="font-medium">{t("transactions.help.title")}</p>
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>{t("transactions.help.rule1")}</li>
+                    <li>{t("transactions.help.rule2")}</li>
+                    <li>{t("transactions.help.rule3")}</li>
+                  </ul>
+                  <div className="mt-2 p-2 rounded bg-background/50">
+                    <p className="font-medium text-xs mb-1">
+                      {t("transactions.help.exampleTitle")}
+                    </p>
+                    <div className="text-xs space-y-1 text-muted-foreground">
+                      <p>{t("transactions.help.example1")}</p>
+                      <p>{t("transactions.help.example2")}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {postings.map((posting, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-2 p-2 border rounded-md bg-muted/30"
+                >
+                  <Select
+                    value={posting.accountId}
+                    onValueChange={(value) =>
+                      updatePosting(index, "accountId", value)
+                    }
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue
+                        placeholder={t("transactions.selectAccount")}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder={t("transactions.amount")}
+                    value={posting.amount}
+                    onChange={(e) =>
+                      updatePosting(index, "amount", e.target.value)
+                    }
+                    className={cn(
+                      "w-[120px] tabular-nums",
+                      precisionWarnings.has(index) && "border-yellow-500",
+                      zeroCentsWarnings.has(index) && "border-red-500",
+                    )}
+                  />
+                  {precisionWarnings.has(index) && (
+                    <span className="text-xs text-yellow-600 ml-1 whitespace-nowrap">
+                      {t("transactions.precisionWarning")}
+                    </span>
+                  )}
+                  {zeroCentsWarnings.has(index) && (
+                    <span className="text-xs text-red-600 ml-1 whitespace-nowrap">
+                      {t("errors.transaction.amountTooSmall")}
+                    </span>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removePosting(index)}
+                    disabled={postings.length <= 2}
+                    className="shrink-0"
+                    aria-label={t("common.remove")}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addPosting}
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                {t("transactions.addPosting")}
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-md border bg-card">
+              <span className="text-sm text-muted-foreground">
+                {t("transactions.balanceCheck")}
+              </span>
+              <span
+                className={cn(
+                  "text-sm font-medium",
+                  isBalanced ? "text-green-600" : "text-red-600",
+                )}
+              >
+                {isBalanced
+                  ? t("transactions.balanced")
+                  : t("transactions.unbalanced", {
+                      diff: formatAmount(Math.abs(totalCents)),
+                    })}
+              </span>
+            </div>
+
+            {hasDuplicateAccounts && (
+              <div className="flex items-center gap-2 p-3 rounded-md border bg-destructive/10 text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm">
+                  {t("transactions.errors.duplicateAccount")}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              onClick={addPosting}
-              className="w-full"
+              onClick={() => onOpenChange(false)}
             >
-              <Plus className="h-4 w-4 mr-1" />
-              {t("transactions.addPosting")}
+              {t("common.cancel")}
             </Button>
-          </div>
-
-          <div className="flex items-center justify-between p-3 rounded-md border bg-card">
-            <span className="text-sm text-muted-foreground">
-              {t("transactions.balanceCheck")}
-            </span>
-            <span
-              className={cn(
-                "text-sm font-medium",
-                isBalanced ? "text-green-600" : "text-red-600",
-              )}
-            >
-              {isBalanced
-                ? t("transactions.balanced")
-                : t("transactions.unbalanced", {
-                    diff: formatAmount(Math.abs(totalCents)),
-                  })}
-            </span>
-          </div>
-
-          {hasDuplicateAccounts && (
-            <div className="flex items-center gap-2 p-3 rounded-md border bg-destructive/10 text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              <span className="text-sm">
-                {t("transactions.errors.duplicateAccount")}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {isLoading ? t("common.processing") : t("common.save")}
-          </Button>
-        </DialogFooter>
+            <Button type="submit" disabled={!canSubmit}>
+              {isLoading ? t("common.processing") : t("common.save")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

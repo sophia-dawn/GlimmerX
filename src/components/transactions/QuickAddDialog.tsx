@@ -151,7 +151,8 @@ export function QuickAddDialog({
     hasValidDate &&
     !mutation.isPending;
 
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!canSubmit) return;
 
     const input: QuickAddInput = {
@@ -204,287 +205,303 @@ export function QuickAddDialog({
           <DialogTitle>{t("quickAdd.title")}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            {modeButtons.map((btn) => (
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              {modeButtons.map((btn) => (
+                <Button
+                  key={btn.mode}
+                  type="button"
+                  variant={mode === btn.mode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setMode(btn.mode)}
+                  className={cn(
+                    "flex-1 gap-1",
+                    mode === btn.mode &&
+                      btn.mode === "expense" &&
+                      "bg-red-500 hover:bg-red-600",
+                    mode === btn.mode &&
+                      btn.mode === "income" &&
+                      "bg-green-500 hover:bg-green-600",
+                    mode === btn.mode &&
+                      btn.mode === "transfer" &&
+                      "bg-blue-500 hover:bg-blue-600",
+                    mode !== btn.mode && btn.colorClass,
+                  )}
+                >
+                  {btn.icon}
+                  {btn.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                {mode === "expense" && t(`quickAdd.help.expenseTitle`)}
+                {mode === "income" && t(`quickAdd.help.incomeTitle`)}
+                {mode === "transfer" && t(`quickAdd.help.transferTitle`)}
+              </span>
               <Button
-                key={btn.mode}
                 type="button"
-                variant={mode === btn.mode ? "default" : "outline"}
+                variant="ghost"
                 size="sm"
-                onClick={() => setMode(btn.mode)}
-                className={cn(
-                  "flex-1 gap-1",
-                  mode === btn.mode &&
-                    btn.mode === "expense" &&
-                    "bg-red-500 hover:bg-red-600",
-                  mode === btn.mode &&
-                    btn.mode === "income" &&
-                    "bg-green-500 hover:bg-green-600",
-                  mode === btn.mode &&
-                    btn.mode === "transfer" &&
-                    "bg-blue-500 hover:bg-blue-600",
-                  mode !== btn.mode && btn.colorClass,
+                onClick={() => setShowHelp(!showHelp)}
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <HelpCircle className="h-3 w-3 mr-1" />
+                {t("quickAdd.help.toggle")}
+                {showHelp ? (
+                  <ChevronUp className="h-3 w-3 ml-1" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 ml-1" />
                 )}
-              >
-                {btn.icon}
-                {btn.label}
               </Button>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              {mode === "expense" && t(`quickAdd.help.expenseTitle`)}
-              {mode === "income" && t(`quickAdd.help.incomeTitle`)}
-              {mode === "transfer" && t(`quickAdd.help.transferTitle`)}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowHelp(!showHelp)}
-              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <HelpCircle className="h-3 w-3 mr-1" />
-              {t("quickAdd.help.toggle")}
-              {showHelp ? (
-                <ChevronUp className="h-3 w-3 ml-1" />
-              ) : (
-                <ChevronDown className="h-3 w-3 ml-1" />
-              )}
-            </Button>
-          </div>
-
-          {showHelp && (
-            <div className="p-3 rounded-md border bg-muted/50 text-sm">
-              {mode === "expense" && (
-                <p className="text-muted-foreground">
-                  {t("quickAdd.help.expenseDesc")}
-                </p>
-              )}
-              {mode === "income" && (
-                <p className="text-muted-foreground">
-                  {t("quickAdd.help.incomeDesc")}
-                </p>
-              )}
-              {mode === "transfer" && (
-                <p className="text-muted-foreground">
-                  {t("quickAdd.help.transferDesc")}
-                </p>
-              )}
             </div>
-          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="quick-add-amount">{t("transactions.amount")}</Label>
-            <Input
-              id="quick-add-amount"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="tabular-nums"
-            />
-          </div>
+            {showHelp && (
+              <div className="p-3 rounded-md border bg-muted/50 text-sm">
+                {mode === "expense" && (
+                  <p className="text-muted-foreground">
+                    {t("quickAdd.help.expenseDesc")}
+                  </p>
+                )}
+                {mode === "income" && (
+                  <p className="text-muted-foreground">
+                    {t("quickAdd.help.incomeDesc")}
+                  </p>
+                )}
+                {mode === "transfer" && (
+                  <p className="text-muted-foreground">
+                    {t("quickAdd.help.transferDesc")}
+                  </p>
+                )}
+              </div>
+            )}
 
-          {mode === "expense" && (
             <div className="space-y-2">
-              <Label htmlFor="source-account">
-                {t("quickAdd.sourceAccount")}
+              <Label htmlFor="quick-add-amount">
+                {t("transactions.amount")}
               </Label>
-              <Select
-                value={sourceAccountId}
-                onValueChange={setSourceAccountId}
-              >
-                <SelectTrigger id="source-account">
-                  <SelectValue placeholder={t("transactions.selectAccount")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {assetAccounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                id="quick-add-amount"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="tabular-nums"
+              />
             </div>
-          )}
 
-          {mode === "expense" && (
-            <div className="space-y-2">
-              <Label htmlFor="expense-category">
-                {t("transactions.category")}
-                <span className="text-muted-foreground text-xs ml-1">
-                  ({t("transactions.categoryOptional")})
-                </span>
-              </Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger id="expense-category">
-                  <SelectValue placeholder={t("transactions.selectCategory")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_CATEGORY_VALUE}>
-                    {t("transactions.noCategory")}
-                  </SelectItem>
-                  {expenseCategories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.icon ? `${category.icon} ` : ""}
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {mode === "income" && (
-            <div className="space-y-2">
-              <Label htmlFor="destination-account">
-                {t("quickAdd.destinationAccount")}
-              </Label>
-              <Select
-                value={destinationAccountId}
-                onValueChange={setDestinationAccountId}
-              >
-                <SelectTrigger id="destination-account">
-                  <SelectValue placeholder={t("transactions.selectAccount")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {assetAccounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {mode === "income" && (
-            <div className="space-y-2">
-              <Label htmlFor="income-category">
-                {t("transactions.category")}
-                <span className="text-muted-foreground text-xs ml-1">
-                  ({t("transactions.categoryOptional")})
-                </span>
-              </Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger id="income-category">
-                  <SelectValue placeholder={t("transactions.selectCategory")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_CATEGORY_VALUE}>
-                    {t("transactions.noCategory")}
-                  </SelectItem>
-                  {incomeCategories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.icon ? `${category.icon} ` : ""}
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {mode === "transfer" && (
-            <div className="space-y-2">
-              <Label htmlFor="transfer-source">
-                {t("quickAdd.sourceAccount")}
-              </Label>
-              <Select
-                value={sourceAccountId}
-                onValueChange={setSourceAccountId}
-              >
-                <SelectTrigger id="transfer-source">
-                  <SelectValue placeholder={t("transactions.selectAccount")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {assetAccounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {mode === "transfer" && (
-            <div className="space-y-2">
-              <Label htmlFor="transfer-destination">
-                {t("quickAdd.destinationAccount")}
-              </Label>
-              <Select
-                value={destinationAccountId}
-                onValueChange={setDestinationAccountId}
-              >
-                <SelectTrigger id="transfer-destination">
-                  <SelectValue placeholder={t("transactions.selectAccount")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {assetAccounts
-                    .filter((a) => a.id !== sourceAccountId)
-                    .map((account) => (
+            {mode === "expense" && (
+              <div className="space-y-2">
+                <Label htmlFor="source-account">
+                  {t("quickAdd.sourceAccount")}
+                </Label>
+                <Select
+                  value={sourceAccountId}
+                  onValueChange={setSourceAccountId}
+                >
+                  <SelectTrigger id="source-account">
+                    <SelectValue
+                      placeholder={t("transactions.selectAccount")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assetAccounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.name}
                       </SelectItem>
                     ))}
-                </SelectContent>
-              </Select>
-              {sourceAccountId === destinationAccountId &&
-                destinationAccountId.length > 0 && (
-                  <p className="text-xs text-destructive">
-                    {t("quickAdd.sameAccountError")}
-                  </p>
-                )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {mode === "expense" && (
+              <div className="space-y-2">
+                <Label htmlFor="expense-category">
+                  {t("transactions.category")}
+                  <span className="text-muted-foreground text-xs ml-1">
+                    ({t("transactions.categoryOptional")})
+                  </span>
+                </Label>
+                <Select value={categoryId} onValueChange={setCategoryId}>
+                  <SelectTrigger id="expense-category">
+                    <SelectValue
+                      placeholder={t("transactions.selectCategory")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_CATEGORY_VALUE}>
+                      {t("transactions.noCategory")}
+                    </SelectItem>
+                    {expenseCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.icon ? `${category.icon} ` : ""}
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {mode === "income" && (
+              <div className="space-y-2">
+                <Label htmlFor="destination-account">
+                  {t("quickAdd.destinationAccount")}
+                </Label>
+                <Select
+                  value={destinationAccountId}
+                  onValueChange={setDestinationAccountId}
+                >
+                  <SelectTrigger id="destination-account">
+                    <SelectValue
+                      placeholder={t("transactions.selectAccount")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assetAccounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {mode === "income" && (
+              <div className="space-y-2">
+                <Label htmlFor="income-category">
+                  {t("transactions.category")}
+                  <span className="text-muted-foreground text-xs ml-1">
+                    ({t("transactions.categoryOptional")})
+                  </span>
+                </Label>
+                <Select value={categoryId} onValueChange={setCategoryId}>
+                  <SelectTrigger id="income-category">
+                    <SelectValue
+                      placeholder={t("transactions.selectCategory")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_CATEGORY_VALUE}>
+                      {t("transactions.noCategory")}
+                    </SelectItem>
+                    {incomeCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.icon ? `${category.icon} ` : ""}
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {mode === "transfer" && (
+              <div className="space-y-2">
+                <Label htmlFor="transfer-source">
+                  {t("quickAdd.sourceAccount")}
+                </Label>
+                <Select
+                  value={sourceAccountId}
+                  onValueChange={setSourceAccountId}
+                >
+                  <SelectTrigger id="transfer-source">
+                    <SelectValue
+                      placeholder={t("transactions.selectAccount")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assetAccounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {mode === "transfer" && (
+              <div className="space-y-2">
+                <Label htmlFor="transfer-destination">
+                  {t("quickAdd.destinationAccount")}
+                </Label>
+                <Select
+                  value={destinationAccountId}
+                  onValueChange={setDestinationAccountId}
+                >
+                  <SelectTrigger id="transfer-destination">
+                    <SelectValue
+                      placeholder={t("transactions.selectAccount")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assetAccounts
+                      .filter((a) => a.id !== sourceAccountId)
+                      .map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {sourceAccountId === destinationAccountId &&
+                  destinationAccountId.length > 0 && (
+                    <p className="text-xs text-destructive">
+                      {t("quickAdd.sameAccountError")}
+                    </p>
+                  )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="quick-add-description">
+                {t("transactions.description")}
+                <span className="text-muted-foreground text-xs ml-1">
+                  ({t("common.optional")})
+                </span>
+              </Label>
+              <Input
+                id="quick-add-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t("transactions.descriptionPlaceholder")}
+              />
             </div>
-          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="quick-add-description">
-              {t("transactions.description")}
-              <span className="text-muted-foreground text-xs ml-1">
-                ({t("common.optional")})
-              </span>
-            </Label>
-            <Input
-              id="quick-add-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("transactions.descriptionPlaceholder")}
-            />
+            <div className="space-y-2">
+              <Label>{t("transactions.date")}</Label>
+              <DatePicker
+                value={date}
+                onChange={setDate}
+                placeholder={t("transactions.date")}
+              />
+            </div>
+
+            {submitError && (
+              <p className="text-sm text-destructive">{submitError}</p>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <Label>{t("transactions.date")}</Label>
-            <DatePicker
-              value={date}
-              onChange={setDate}
-              placeholder={t("transactions.date")}
-            />
-          </div>
-
-          {submitError && (
-            <p className="text-sm text-destructive">{submitError}</p>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {mutation.isPending ? t("common.processing") : t("common.save")}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={!canSubmit}>
+              {mutation.isPending ? t("common.processing") : t("common.save")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
