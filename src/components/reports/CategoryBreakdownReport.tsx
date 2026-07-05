@@ -206,7 +206,12 @@ export function CategoryBreakdownReport() {
                       return formatAmount(Number(value));
                     }}
                   />
-                  <Legend />
+                  <Legend
+                    layout="horizontal"
+                    verticalAlign="bottom"
+                    align="center"
+                    wrapperStyle={{ paddingTop: "12px", fontSize: "12px" }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>

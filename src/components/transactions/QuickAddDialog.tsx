@@ -279,6 +279,15 @@ export function QuickAddDialog({
             )}
 
             <div className="space-y-2">
+              <Label>{t("transactions.date")}</Label>
+              <DatePicker
+                value={date}
+                onChange={setDate}
+                placeholder={t("transactions.date")}
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="quick-add-amount">
                 {t("transactions.amount")}
               </Label>
@@ -472,15 +481,6 @@ export function QuickAddDialog({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={t("transactions.descriptionPlaceholder")}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>{t("transactions.date")}</Label>
-              <DatePicker
-                value={date}
-                onChange={setDate}
-                placeholder={t("transactions.date")}
               />
             </div>
 

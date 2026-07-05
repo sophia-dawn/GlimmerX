@@ -87,7 +87,12 @@ export function CategoryBreakdownChart() {
                   formatAmount((value as number) * 100, DEFAULT_CURRENCY)
                 }
               />
-              <Legend />
+              <Legend
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
+                wrapperStyle={{ paddingTop: "12px", fontSize: "12px" }}
+              />
             </PieChart>
           </ResponsiveContainer>
         )}

@@ -17,7 +17,7 @@
 
 ### 🐛 Bug #1: 支出分类饼图图例交叉覆盖
 
-**状态**: 🔴 Open
+**状态**: 🟢 Fixed
 
 **发现时间**: 2026-05-05
 
@@ -48,10 +48,11 @@
 > (待补充截图)
 
 **修复方案**:
-> (待分析)
+> Customize `<Legend>` with horizontal wrapping layout (`layout="horizontal"`, `verticalAlign="bottom"`, `align="center"`, `wrapperStyle` padding)
 
 **相关代码**:
-> (待定位：首页和报表页面的支出分类饼图组件)
+> - `src/components/dashboard/CategoryBreakdownChart.tsx:90`
+> - `src/components/reports/CategoryBreakdownReport.tsx:209`
 
 **修复提交**: (修复后填写 commit hash)
 
@@ -59,7 +60,7 @@
 
 ### 🐛 Bug #2: 交易表单字段顺序不一致
 
-**状态**: 🔴 Open
+**状态**: 🟢 Fixed
 
 **发现时间**: 2026-05-05
 
@@ -91,13 +92,10 @@
 > (待补充截图对比)
 
 **修复方案**:
-> 统一字段顺序，建议采用以下顺序之一：
-> 1. 时间 → 类型 → 账户 → 分类 → 金额 → 备注
-> 2. 或按照用户使用频率排序
+> 在快速交易中将日期字段移到第二位（模式选择器之后、金额之前），与新建交易/编辑交易的字段顺序保持一致
 
 **相关代码**:
-> - 快速交易组件
-> - 新建交易/编辑交易表单组件
+> - `src/components/transactions/QuickAddDialog.tsx:281-288`
 
 **修复提交**: (修复后填写 commit hash)
 
@@ -151,8 +149,8 @@
 ## 统计
 
 - **总计**: 2
-- **待修复**: 2
+- **待修复**: 0
 - **修复中**: 0
-- **已修复**: 0
+- **已修复**: 2
 
-_最后更新: 2026-05-05_
+_最后更新: 2026-07-05_
