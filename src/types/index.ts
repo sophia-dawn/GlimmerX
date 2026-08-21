@@ -66,13 +66,13 @@ export interface BudgetStatus extends Budget {
 
 export interface CreateBudgetInput {
   categoryId: string;
-  amount: number; // cents
+  amount: string; // decimal string, e.g. "500.00"; converted to cents by backend
   period: BudgetPeriod;
   rollover?: boolean;
 }
 
 export interface UpdateBudgetInput {
-  amount?: number;
+  amount?: string;
   period?: BudgetPeriod;
   rollover?: boolean;
 }
@@ -212,7 +212,7 @@ export interface TransactionDto {
 
 export interface CreatePostingInput {
   accountId: string;
-  amount: number; // cents
+  amount: string; // decimal string, e.g. "35.00"; converted to cents by backend
 }
 
 export interface CreateTransactionInput {
@@ -263,8 +263,9 @@ export interface TransactionListItem {
 export interface PaginationInfo {
   page: number;
   pageSize: number;
-  totalCount: number;
-  totalPages: number;
+  /** Unknown for infinite-scroll lists; use hasNext instead. */
+  totalCount?: number;
+  totalPages?: number;
   hasNext: boolean;
   hasPrev: boolean;
 }

@@ -997,4 +997,53 @@ mod tests {
         let delivery_status = statuses.iter().find(|s| s.category_name == "外卖").unwrap();
         assert_eq!(delivery_status.spent, 2000);
     }
+
+    #[test]
+    fn test_list_budget_statuses_december() {
+        let (_dir, conn) = test_conn();
+        let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
+        create_budget(&conn, &cat_id, 10000, &BudgetPeriod::Monthly, false).unwrap();
+
+        let statuses = list_budget_statuses(&conn, 2024, 12).unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].spent, 0);
+    }
+
+    #[test]
+    fn test_list_budgets_invalid_period_row() {
+        let (_dir, conn) = test_conn();
+        let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
+        conn.execute_batch("PRAGMA ignore_check_constraints = ON;").unwrap();
+        conn.execute(
+            "INSERT INTO budgets (id, category_id, amount, period, rollover, created_at, updated_at)
+             VALUES ('budget-bad', ?1, 1000, 'bad-period', 0, '2024-01-01T00:00:00+08:00', '2024-01-01T00:00:00+08:00')",
+            [&cat_id],
+        )
+        .unwrap();
+
+        assert!(list_budgets(&conn).is_err());
+    }
+
+    #[test]
+    fn test_list_budget_statuses_invalid_period_row() {
+        let (_dir, conn) = test_conn();
+        let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
+        conn.execute_batch("PRAGMA ignore_check_constraints = ON;").unwrap();
+        conn.execute(
+            "INSERT INTO budgets (id, category_id, amount, period, rollover, created_at, updated_at)
+             VALUES ('budget-bad-2', ?1, 1000, 'bad-period', 0, '2024-01-01T00:00:00+08:00', '2024-01-01T00:00:00+08:00')",
+            [&cat_id],
+        )
+        .unwrap();
+
+        assert!(list_budget_statuses(&conn, 2024, 1).is_err());
+    }
+
+    #[test]
+    fn test_create_budget_missing_table() {
+        let dir = TempDir::new().unwrap();
+        let conn = Connection::open(dir.path().join("bare.db")).unwrap();
+        let result = create_budget(&conn, "cat-1", 1000, &BudgetPeriod::Monthly, false);
+        assert!(result.is_err());
+    }
 }

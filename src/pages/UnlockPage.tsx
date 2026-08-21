@@ -192,7 +192,6 @@ export function UnlockPage() {
     try {
       // If currently unlocked, close existing database first
       if (isUnlocked) {
-        console.log("[UnlockPage] closing current database before switching");
         try {
           await dbLock();
         } catch (lockError) {

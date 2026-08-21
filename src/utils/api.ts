@@ -36,7 +36,6 @@ import type { AccountBalanceItem } from "@/types";
 import type {
   ReportFilter,
   StandardReportDto,
-  BudgetExecutionReportDto,
   CategoryBreakdownReportDto,
   BalanceSheetReportDto,
   TrendReportDto,
@@ -72,11 +71,8 @@ export async function invokeCommand<T>(
       }
     : args;
 
-  console.log(`[invoke] ${command} start, args:`, safeArgs);
   try {
     const result = await invoke<T>(command, args);
-    const elapsed = Date.now() - startTime;
-    console.log(`[invoke] ${command} success (${elapsed}ms)`);
     return result;
   } catch (err: unknown) {
     const elapsed = Date.now() - startTime;
@@ -491,16 +487,6 @@ export async function reportStandard(
   filter: ReportFilter,
 ): Promise<StandardReportDto> {
   return invokeCommand<StandardReportDto>("report_standard", { filter });
-}
-
-export async function reportBudgetExecution(
-  filter: ReportFilter,
-  budgetIds?: string[],
-): Promise<BudgetExecutionReportDto> {
-  return invokeCommand<BudgetExecutionReportDto>("report_budget_execution", {
-    filter,
-    budgetIds,
-  });
 }
 
 export async function reportCategoryBreakdown(

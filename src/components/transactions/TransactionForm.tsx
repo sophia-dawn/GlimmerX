@@ -229,11 +229,24 @@ export function TransactionForm({
           : categoryId,
       postings: postings.map((p) => ({
         accountId: p.accountId,
-        amount: decimalToCents(p.amount) ?? 0,
+        amount: p.amount,
       })),
     };
 
     onSubmit(data);
+  };
+
+  const handleDialogInteractOutside = (e: Event) => {
+    if ("detail" in e) {
+      const event = (e as CustomEvent).detail?.originalEvent as
+        | PointerEvent
+        | undefined;
+      if (event?.target instanceof Element) {
+        if (event.target.closest('[data-slot="select-content"]')) {
+          e.preventDefault();
+        }
+      }
+    }
   };
 
   const dialogTitle = isEditing
@@ -242,7 +255,10 @@ export function TransactionForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[40%] sm:min-w-[420px] max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-[40%] sm:min-w-[420px] max-h-[90vh] overflow-y-auto"
+        onInteractOutside={handleDialogInteractOutside}
+      >
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>

@@ -1,5 +1,3 @@
-#![allow(dead_code)] // P1/P2 DTOs not yet wired up
-
 use std::collections::HashMap;
 
 use rusqlite::{params, Connection};
@@ -1266,63 +1264,6 @@ pub fn get_account_balance_trend_report(
     })
 }
 
-fn format_period(date: &str, format: &str) -> String {
-    let parts: Vec<&str> = date.split('-').collect();
-    if parts.len() != 3 {
-        return date.to_string();
-    }
-    let year: i32 = parts[0].parse().unwrap_or(0);
-    let month: u32 = parts[1].parse().unwrap_or(0);
-    let day: u32 = parts[2].parse().unwrap_or(1);
-
-    match format {
-        "%Y" => format!("{}", year),
-        "%Y-%m" => format!("{}-{:02}", year, month),
-        "%Y-%W" => {
-            let days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-            let is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-            let day_of_year: i32 = days_in_month[..(month as usize - 1)].iter().sum::<i32>()
-                + if is_leap && month > 2 { 1 } else { 0 }
-                + day as i32;
-
-            let jan4_dow: i32 = {
-                let y = year - 1;
-                (26 * 14 / 10 + 4 + y + y / 4 + 5 * (y / 100) + y / 400) % 7
-            };
-            let adjustment = 8 - jan4_dow;
-            let week: i32 = if day_of_year < adjustment {
-                let prev_dec31_doy: i32 = if is_leap { 366 } else { 365 };
-                let prev_jan4_dow: i32 = {
-                    let y = year - 2;
-                    (26 * 14 / 10 + 4 + y + y / 4 + 5 * (y / 100) + y / 400) % 7
-                };
-                let prev_adj = 8 - prev_jan4_dow;
-                let prev_last_week: i32 = (prev_dec31_doy - prev_adj + 6) / 7;
-                if prev_last_week > 52 {
-                    53
-                } else {
-                    prev_last_week
-                }
-            } else {
-                (day_of_year - adjustment + 6) / 7
-            };
-
-            if week > 52 {
-                let dec31_doy: i32 = if is_leap { 366 } else { 365 };
-                let last_week: i32 = (dec31_doy - adjustment + 6) / 7;
-                if last_week > 52 {
-                    format!("{}-W{:02}", year, 53)
-                } else {
-                    format!("{}-W{:02}", year + 1, 1)
-                }
-            } else {
-                format!("{}-W{:02}", year, week)
-            }
-        }
-        _ => date.to_string(),
-    }
-}
-
 pub fn get_audit_report(conn: &Connection) -> Result<AuditReportDto, String> {
     let balance_check = get_balance_check_result(conn)?;
     let category_check = get_category_check_result(conn)?;
@@ -1474,7 +1415,11 @@ fn get_account_usage_stats(conn: &Connection) -> Result<Vec<AccountUsageStat>, S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::accounts::{create_account_with_path, CreateAccountFullInput};
+    use crate::db::categories::{create_category, CategoryType};
+    use crate::db::transactions::{create_transaction, PostingInput};
     use rusqlite::Connection;
+    use rusqlite::params;
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -1596,5 +1541,677 @@ mod tests {
                 panic!("get_category_breakdown_report returned error: {}", e);
             }
         }
+    }
+
+    struct SeededIds {
+        cash: String,
+        credit_card: String,
+        food_account: String,
+        food_category: String,
+        transport_category: String,
+    }
+
+    fn net_worth_input() -> CreateAccountFullInput {
+        CreateAccountFullInput {
+            description: None,
+            account_number: None,
+            iban: None,
+            is_active: true,
+            include_net_worth: true,
+        }
+    }
+
+    fn seed_data(conn: &Connection) -> SeededIds {
+        let cash = create_account_with_path(conn, "Assets/Cash", "CNY", Some(&net_worth_input()))
+            .unwrap();
+        let credit_card =
+            create_account_with_path(conn, "Liabilities/CreditCard", "CNY", Some(&net_worth_input()))
+                .unwrap();
+        let salary_account = create_account_with_path(conn, "Income/Salary", "CNY", None).unwrap();
+        let food_account = create_account_with_path(conn, "Expenses/Food", "CNY", None).unwrap();
+        let transport_account =
+            create_account_with_path(conn, "Expenses/Transport", "CNY", None).unwrap();
+
+        let salary_category = create_category(conn, "Salary", &CategoryType::Income, None).unwrap();
+        let food_category = create_category(conn, "Food", &CategoryType::Expense, None).unwrap();
+        let transport_category =
+            create_category(conn, "Transport", &CategoryType::Expense, None).unwrap();
+
+        // 2024-01-05 salary of 100000 cents (1000.00)
+        create_transaction(
+            conn,
+            "2024-01-05",
+            "Salary Jan",
+            Some(&salary_category),
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: 100000,
+                },
+                PostingInput {
+                    account_id: salary_account.clone(),
+                    amount: -100000,
+                },
+            ],
+        )
+        .unwrap();
+        // 2024-01-10 lunch 3500
+        create_transaction(
+            conn,
+            "2024-01-10",
+            "Lunch",
+            Some(&food_category),
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: -3500,
+                },
+                PostingInput {
+                    account_id: food_account.clone(),
+                    amount: 3500,
+                },
+            ],
+        )
+        .unwrap();
+        // 2024-01-20 metro 1200
+        create_transaction(
+            conn,
+            "2024-01-20",
+            "Metro",
+            Some(&transport_category),
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: -1200,
+                },
+                PostingInput {
+                    account_id: transport_account.clone(),
+                    amount: 1200,
+                },
+            ],
+        )
+        .unwrap();
+        // 2024-01-25 credit card purchase 8000 (liability credit posting)
+        create_transaction(
+            conn,
+            "2024-01-25",
+            "Online",
+            Some(&food_category),
+            &[
+                PostingInput {
+                    account_id: credit_card.clone(),
+                    amount: -8000,
+                },
+                PostingInput {
+                    account_id: food_account.clone(),
+                    amount: 8000,
+                },
+            ],
+        )
+        .unwrap();
+        // 2024-02-10 dinner 5000
+        create_transaction(
+            conn,
+            "2024-02-10",
+            "Dinner",
+            Some(&food_category),
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: -5000,
+                },
+                PostingInput {
+                    account_id: food_account.clone(),
+                    amount: 5000,
+                },
+            ],
+        )
+        .unwrap();
+        // Unbalanced transaction (single posting on cash) for audit coverage
+        conn.execute(
+            "INSERT INTO transactions (id, date, description, category_id, is_reconciled, deleted_at, created_at, updated_at)
+             VALUES ('tx-unbalanced', '2024-01-30', 'Broken', NULL, 0, NULL, '2024-01-30T00:00:00+08:00', '2024-01-30T00:00:00+08:00')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO postings (id, transaction_id, account_id, amount, sequence, created_at)
+             VALUES ('p-unbalanced', 'tx-unbalanced', ?1, 100, 0, '2024-01-30T00:00:00+08:00')",
+            params![cash],
+        )
+        .unwrap();
+
+        SeededIds {
+            cash,
+            credit_card,
+            food_account,
+            food_category,
+            transport_category,
+        }
+    }
+
+    fn custom_filter(start: &str, end: &str) -> ReportFilter {
+        ReportFilter {
+            date_range_preset: DateRangePreset::Custom,
+            start_date: Some(start.to_string()),
+            end_date: Some(end.to_string()),
+            period_granularity: PeriodGranularity::Daily,
+            account_ids: None,
+            category_ids: None,
+        }
+    }
+
+    #[test]
+    fn test_display_and_period_format() {
+        assert_eq!(PeriodGranularity::Daily.to_string(), "daily");
+        assert_eq!(PeriodGranularity::Weekly.to_string(), "weekly");
+        assert_eq!(PeriodGranularity::Monthly.to_string(), "monthly");
+        assert_eq!(PeriodGranularity::Yearly.to_string(), "yearly");
+        assert_eq!(get_period_format(&PeriodGranularity::Daily), "%Y-%m-%d");
+        assert_eq!(get_period_format(&PeriodGranularity::Weekly), "%Y-%W");
+        assert_eq!(get_period_format(&PeriodGranularity::Monthly), "%Y-%m");
+        assert_eq!(get_period_format(&PeriodGranularity::Yearly), "%Y");
+    }
+
+    #[test]
+    fn test_resolve_date_range_all_presets() {
+        let presets = [
+            DateRangePreset::CurrentMonth,
+            DateRangePreset::LastMonth,
+            DateRangePreset::CurrentYear,
+            DateRangePreset::LastYear,
+            DateRangePreset::Last3Months,
+            DateRangePreset::Last6Months,
+            DateRangePreset::Last12Months,
+            DateRangePreset::Custom,
+        ];
+        for preset in presets {
+            let filter = ReportFilter {
+                date_range_preset: preset,
+                start_date: None,
+                end_date: None,
+                period_granularity: PeriodGranularity::Monthly,
+                account_ids: None,
+                category_ids: None,
+            };
+            let (start, end) = resolve_date_range(&filter);
+            assert!(start.len() == 10 && end.len() == 10);
+        }
+    }
+
+    #[test]
+    fn test_get_standard_report_with_data() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let filter = custom_filter("2024-01-01", "2024-01-31");
+        let dto = get_standard_report(&conn, &filter).unwrap();
+        assert_eq!(dto.period_income, 100000);
+        assert_eq!(dto.period_expense, 12700);
+        assert_eq!(dto.prev_income, 0);
+        assert_eq!(dto.prev_expense, 0);
+        assert_eq!(dto.income_change_pct, 100.0);
+        assert_eq!(dto.expense_change_pct, 100.0);
+        assert_eq!(dto.net_worth_trend.len(), 5);
+        assert_eq!(dto.net_worth_trend[0].net_worth, 100000);
+        assert_eq!(dto.net_worth_trend[4].net_worth, 87400);
+        assert_eq!(dto.account_changes.len(), 2);
+        let cash_change = dto
+            .account_changes
+            .iter()
+            .find(|c| c.account_id == seeded.cash)
+            .unwrap();
+        assert_eq!(cash_change.end_balance, 95400);
+        let cc_change = dto
+            .account_changes
+            .iter()
+            .find(|c| c.account_id == seeded.credit_card)
+            .unwrap();
+        assert_eq!(cc_change.end_balance, -8000);
+    }
+
+    #[test]
+    fn test_get_standard_report_empty_period_change_pct_zero() {
+        let conn = setup_test_db();
+        seed_data(&conn);
+
+        // No data in this range -> both diffs are zero -> 0.0% change
+        let filter = custom_filter("2025-01-01", "2025-01-31");
+        let dto = get_standard_report(&conn, &filter).unwrap();
+        assert_eq!(dto.income_change_pct, 0.0);
+        assert_eq!(dto.expense_change_pct, 0.0);
+    }
+
+    #[test]
+    fn test_get_standard_report_account_filter() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let mut filter = custom_filter("2024-01-01", "2024-01-31");
+        filter.account_ids = Some(vec![seeded.food_account.clone()]);
+        let dto = get_standard_report(&conn, &filter).unwrap();
+        assert_eq!(dto.period_income, 0);
+        assert_eq!(dto.period_expense, 11500);
+        assert_eq!(dto.account_changes.len(), 0);
+    }
+
+    #[test]
+    fn test_get_standard_report_all_presets() {
+        let conn = setup_test_db();
+        seed_data(&conn);
+        for preset in [
+            DateRangePreset::CurrentMonth,
+            DateRangePreset::LastMonth,
+            DateRangePreset::CurrentYear,
+            DateRangePreset::LastYear,
+            DateRangePreset::Last3Months,
+            DateRangePreset::Last6Months,
+            DateRangePreset::Last12Months,
+            DateRangePreset::Custom,
+        ] {
+            let filter = ReportFilter {
+                date_range_preset: preset,
+                start_date: Some("2024-01-01".to_string()),
+                end_date: Some("2024-01-31".to_string()),
+                period_granularity: PeriodGranularity::Monthly,
+                account_ids: None,
+                category_ids: None,
+            };
+            assert!(get_standard_report(&conn, &filter).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_get_standard_report_current_month_change_pct() {
+        let conn = setup_test_db();
+        let (month_start, month_end) = current_month_bounds();
+        let (prev_start, prev_end) = last_month_bounds();
+
+        let cash = create_account_with_path(&conn, "Assets/Cash2", "CNY", Some(&net_worth_input()))
+            .unwrap();
+        let income = create_account_with_path(&conn, "Income/Salary2", "CNY", None).unwrap();
+        let expense = create_account_with_path(&conn, "Expenses/Food2", "CNY", None).unwrap();
+
+        // Previous month: income 50000, expense 10000
+        create_transaction(
+            &conn,
+            &prev_start,
+            "Prev Salary",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: 50000,
+                },
+                PostingInput {
+                    account_id: income.clone(),
+                    amount: -50000,
+                },
+            ],
+        )
+        .unwrap();
+        create_transaction(
+            &conn,
+            &prev_end,
+            "Prev Food",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: -10000,
+                },
+                PostingInput {
+                    account_id: expense.clone(),
+                    amount: 10000,
+                },
+            ],
+        )
+        .unwrap();
+        // Current month: income 60000, expense 12000
+        create_transaction(
+            &conn,
+            &month_start,
+            "Cur Salary",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: 60000,
+                },
+                PostingInput {
+                    account_id: income.clone(),
+                    amount: -60000,
+                },
+            ],
+        )
+        .unwrap();
+        create_transaction(
+            &conn,
+            &month_end,
+            "Cur Food",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: -12000,
+                },
+                PostingInput {
+                    account_id: expense.clone(),
+                    amount: 12000,
+                },
+            ],
+        )
+        .unwrap();
+
+        let filter = ReportFilter {
+            date_range_preset: DateRangePreset::CurrentMonth,
+            start_date: None,
+            end_date: None,
+            period_granularity: PeriodGranularity::Monthly,
+            account_ids: None,
+            category_ids: None,
+        };
+        let dto = get_standard_report(&conn, &filter).unwrap();
+        assert_eq!(dto.period_income, 60000);
+        assert_eq!(dto.period_expense, 12000);
+        assert_eq!(dto.prev_income, 50000);
+        assert_eq!(dto.prev_expense, 10000);
+        assert!((dto.income_change_pct - 20.0).abs() < 0.001);
+        assert!((dto.expense_change_pct - 20.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_get_month_comparison_with_data() {
+        let conn = setup_test_db();
+        seed_data(&conn);
+
+        let dto = get_month_comparison(&conn, "2024-01", "2024-02").unwrap();
+        assert_eq!(dto.month1_income, 100000);
+        assert_eq!(dto.month1_expense, 12700);
+        assert_eq!(dto.month2_income, 0);
+        assert_eq!(dto.month2_expense, 5000);
+        assert_eq!(dto.income_diff, -100000);
+        assert_eq!(dto.expense_diff, -7700);
+        assert!((dto.income_change_pct - -100.0).abs() < 0.001);
+        assert!((dto.expense_change_pct - (-7700.0 / 12700.0 * 100.0)).abs() < 0.001);
+        assert_eq!(dto.category_comparison.len(), 2);
+        let food = dto
+            .category_comparison
+            .iter()
+            .find(|c| c.category_name == "Food")
+            .unwrap();
+        assert_eq!(food.month1_amount, 11500);
+        assert_eq!(food.month2_amount, 5000);
+        let transport = dto
+            .category_comparison
+            .iter()
+            .find(|c| c.category_name == "Transport")
+            .unwrap();
+        assert_eq!(transport.change_pct, -100.0);
+    }
+
+    #[test]
+    fn test_get_month_comparison_new_data_branches() {
+        let conn = setup_test_db();
+        seed_data(&conn);
+
+        // month1 has no data, month2 introduces income/expense -> 100.0%
+        let dto = get_month_comparison(&conn, "2024-03", "2024-01").unwrap();
+        assert_eq!(dto.income_change_pct, 100.0);
+        assert_eq!(dto.expense_change_pct, 100.0);
+
+        // both months empty -> 0.0%
+        let dto = get_month_comparison(&conn, "2024-03", "2024-04").unwrap();
+        assert_eq!(dto.income_change_pct, 0.0);
+        assert_eq!(dto.expense_change_pct, 0.0);
+    }
+
+    #[test]
+    fn test_get_month_comparison_invalid_month() {
+        let conn = setup_test_db();
+        assert!(get_month_comparison(&conn, "2024", "2024-02").is_err());
+        assert!(get_month_comparison(&conn, "abcd-01", "2024-02").is_err());
+    }
+
+    #[test]
+    fn test_get_trend_report_with_data() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let filter = custom_filter("2024-01-01", "2024-01-31");
+        let dto = get_trend_report(&conn, &filter).unwrap();
+        assert_eq!(dto.granularity, "daily");
+        assert_eq!(dto.data_points.len(), 5);
+        assert_eq!(dto.total_income, 100000);
+        assert_eq!(dto.total_expense, 12700);
+        assert_eq!(dto.total_net, 87300);
+
+        // Category filter + monthly granularity
+        let mut filtered = custom_filter("2024-01-01", "2024-01-31");
+        filtered.period_granularity = PeriodGranularity::Monthly;
+        filtered.category_ids = Some(vec![seeded.food_category.clone()]);
+        let dto = get_trend_report(&conn, &filtered).unwrap();
+        assert_eq!(dto.data_points.len(), 1);
+        assert_eq!(dto.data_points[0].period, "2024-01");
+        assert_eq!(dto.total_income, 0);
+        assert_eq!(dto.total_expense, 11500);
+
+        // Weekly and yearly granularities
+        let mut weekly = custom_filter("2024-01-01", "2024-01-31");
+        weekly.period_granularity = PeriodGranularity::Weekly;
+        assert!(get_trend_report(&conn, &weekly).is_ok());
+
+        let mut yearly = custom_filter("2024-01-01", "2024-01-31");
+        yearly.period_granularity = PeriodGranularity::Yearly;
+        let dto = get_trend_report(&conn, &yearly).unwrap();
+        assert_eq!(dto.data_points.len(), 1);
+        assert_eq!(dto.data_points[0].period, "2024");
+    }
+
+    #[test]
+    fn test_get_category_breakdown_report_with_data() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let filter = custom_filter("2024-01-01", "2024-01-31");
+        let dto = get_category_breakdown_report(&conn, &filter, "expense").unwrap();
+        assert_eq!(dto.total_amount, 12700);
+        assert_eq!(dto.categories.len(), 2);
+        let food = dto
+            .categories
+            .iter()
+            .find(|c| c.category_name == "Food")
+            .unwrap();
+        assert_eq!(food.amount, 11500);
+        assert!((food.percentage - 11500.0 / 12700.0 * 100.0).abs() < 0.001);
+        assert_eq!(food.transaction_count, 2);
+
+        let income_dto = get_category_breakdown_report(&conn, &filter, "income").unwrap();
+        assert_eq!(income_dto.total_amount, 100000);
+        assert_eq!(income_dto.categories.len(), 1);
+        assert_eq!(income_dto.categories[0].category_name, "Salary");
+        assert_eq!(income_dto.categories[0].percentage, 100.0);
+
+        // Category filter
+        let mut filtered = custom_filter("2024-01-01", "2024-01-31");
+        filtered.category_ids = Some(vec![seeded.transport_category.clone()]);
+        let dto = get_category_breakdown_report(&conn, &filtered, "expense").unwrap();
+        assert_eq!(dto.total_amount, 1200);
+        assert_eq!(dto.categories.len(), 1);
+    }
+
+    #[test]
+    fn test_get_balance_sheet_report_with_data() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let dto = get_balance_sheet_report(&conn, "2024-01-31").unwrap();
+        assert_eq!(dto.snapshot_date, "2024-01-31");
+        assert_eq!(dto.assets.len(), 1);
+        assert_eq!(dto.assets[0].account_id, seeded.cash);
+        assert_eq!(dto.assets[0].balance, 95400);
+        assert_eq!(dto.liabilities.len(), 1);
+        assert_eq!(dto.liabilities[0].account_id, seeded.credit_card);
+        assert_eq!(dto.liabilities[0].balance, -8000);
+        assert_eq!(dto.total_assets, 95400);
+        assert_eq!(dto.total_liabilities, -8000);
+        assert_eq!(dto.net_worth, 87400);
+    }
+
+    #[test]
+    fn test_get_year_summary_report_with_data() {
+        let conn = setup_test_db();
+        seed_data(&conn);
+
+        let dto = get_year_summary_report(&conn, 2024).unwrap();
+        assert_eq!(dto.year, 2024);
+        assert_eq!(dto.total_income, 100000);
+        assert_eq!(dto.total_expense, 17700);
+        assert_eq!(dto.net, 82300);
+        assert_eq!(dto.monthly_breakdown.len(), 12);
+        assert_eq!(dto.monthly_breakdown[0].month, 1);
+        assert_eq!(dto.monthly_breakdown[0].income, 100000);
+        assert_eq!(dto.monthly_breakdown[0].expense, 12700);
+        assert_eq!(dto.monthly_breakdown[1].expense, 5000);
+        assert_eq!(dto.top_income_categories.len(), 1);
+        assert_eq!(dto.top_income_categories[0].category_name, "Salary");
+        assert_eq!(dto.top_income_categories[0].percentage, 100.0);
+        assert_eq!(dto.top_expense_categories.len(), 2);
+        assert_eq!(dto.top_expense_categories[0].category_name, "Food");
+        assert_eq!(dto.top_expense_categories[0].amount, 16500);
+        assert_eq!(dto.top_expense_categories[1].category_name, "Transport");
+    }
+
+    #[test]
+    fn test_get_account_transactions_report_with_data() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let filter = custom_filter("2024-01-01", "2024-01-31");
+        let dto = get_account_transactions_report(&conn, &seeded.cash, &filter, 1, 10).unwrap();
+        assert_eq!(dto.account_id, seeded.cash);
+        assert_eq!(dto.account_name, "Cash");
+        assert_eq!(dto.total_count, 4);
+        assert_eq!(dto.total_pages, 1);
+        assert_eq!(dto.transactions.len(), 4);
+        assert_eq!(dto.total_inflow, 100100);
+        assert_eq!(dto.total_outflow, 4700);
+        assert_eq!(dto.net_change, 95400);
+
+        let salary = dto
+            .transactions
+            .iter()
+            .find(|t| t.description == "Salary Jan")
+            .unwrap();
+        assert_eq!(salary.amount, 100000);
+        assert!(salary.is_inflow);
+        assert_eq!(salary.counter_account_name.as_deref(), Some("Salary"));
+        assert_eq!(salary.category_name.as_deref(), Some("Salary"));
+    }
+
+    #[test]
+    fn test_get_account_transactions_report_pagination() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let filter = custom_filter("2024-01-01", "2024-01-31");
+        let dto = get_account_transactions_report(&conn, &seeded.cash, &filter, 1, 2).unwrap();
+        assert_eq!(dto.total_pages, 2);
+        assert_eq!(dto.transactions.len(), 2);
+
+        // page_size 0 -> division by zero handled with fallback page count
+        let dto = get_account_transactions_report(&conn, &seeded.cash, &filter, 1, 0).unwrap();
+        assert_eq!(dto.total_pages, 1);
+        assert_eq!(dto.transactions.len(), 0);
+    }
+
+    #[test]
+    fn test_get_account_balance_trend_report_with_data() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let filter = custom_filter("2024-01-01", "2024-01-31");
+        let dto = get_account_balance_trend_report(&conn, &seeded.cash, &filter).unwrap();
+        assert_eq!(dto.account_name, "Cash");
+        assert_eq!(dto.granularity, "daily");
+        assert_eq!(dto.data_points.len(), 4);
+        assert_eq!(dto.data_points[0].balance, 100000);
+        assert_eq!(dto.data_points[3].balance, 95400);
+
+        let mut monthly = custom_filter("2024-01-01", "2024-01-31");
+        monthly.period_granularity = PeriodGranularity::Monthly;
+        let dto = get_account_balance_trend_report(&conn, &seeded.cash, &monthly).unwrap();
+        assert_eq!(dto.data_points.len(), 1);
+        assert_eq!(dto.data_points[0].period, "2024-01");
+        assert_eq!(dto.data_points[0].balance, 95400);
+
+        // Unknown account -> error
+        assert!(get_account_balance_trend_report(&conn, "missing", &filter).is_err());
+    }
+
+    #[test]
+    fn test_get_audit_report_with_data() {
+        let conn = setup_test_db();
+        seed_data(&conn);
+
+        let dto = get_audit_report(&conn).unwrap();
+        assert_eq!(dto.balance_check.total_transactions, 6);
+        assert_eq!(dto.balance_check.balanced_count, 5);
+        assert_eq!(dto.balance_check.unbalanced_count, 1);
+        assert!(!dto.balance_check.unbalanced_has_more);
+        assert_eq!(dto.balance_check.unbalanced_transactions.len(), 1);
+        assert_eq!(
+            dto.balance_check.unbalanced_transactions[0].transaction_id,
+            "tx-unbalanced"
+        );
+        assert_eq!(dto.balance_check.unbalanced_transactions[0].sum, 100);
+
+        assert_eq!(dto.category_check.uncategorized_transactions, 1);
+        assert_eq!(dto.category_check.uncategorized_list.len(), 1);
+        assert!(!dto.category_check.uncategorized_has_more);
+
+        assert_eq!(dto.account_usage.len(), 5);
+        let cash_stat = dto
+            .account_usage
+            .iter()
+            .find(|s| s.account_name == "Cash")
+            .unwrap();
+        assert_eq!(cash_stat.posting_count, 5);
+        assert_eq!(cash_stat.total_debit, 100100);
+        assert_eq!(cash_stat.total_credit, 9700);
+    }
+
+    #[test]
+    fn test_get_audit_report_more_than_limit() {
+        let conn = setup_test_db();
+        let seeded = seed_data(&conn);
+
+        let mut tx_stmt = conn
+            .prepare(
+                "INSERT INTO transactions (id, date, description, category_id, is_reconciled, deleted_at, created_at, updated_at)
+                 VALUES (?1, '2024-03-01', 'Broken', NULL, 0, NULL, '2024-03-01T00:00:00+08:00', '2024-03-01T00:00:00+08:00')",
+            )
+            .unwrap();
+        let mut posting_stmt = conn
+            .prepare(
+                "INSERT INTO postings (id, transaction_id, account_id, amount, sequence, created_at)
+                 VALUES (?1, ?2, ?3, 100, 0, '2024-03-01T00:00:00+08:00')",
+            )
+            .unwrap();
+        for i in 0..105 {
+            let tx_id = format!("tx-unbalanced-{}", i);
+            tx_stmt.execute(params![&tx_id]).unwrap();
+            posting_stmt
+                .execute(params![format!("p-{}", i), &tx_id, &seeded.cash])
+                .unwrap();
+        }
+
+        let dto = get_audit_report(&conn).unwrap();
+        assert!(dto.balance_check.unbalanced_has_more);
+        assert_eq!(dto.balance_check.unbalanced_transactions.len(), 100);
+        assert_eq!(dto.balance_check.unbalanced_count, 106);
+        assert!(dto.category_check.uncategorized_has_more);
+        assert_eq!(dto.category_check.uncategorized_list.len(), 100);
+        assert_eq!(dto.category_check.uncategorized_transactions, 106);
     }
 }

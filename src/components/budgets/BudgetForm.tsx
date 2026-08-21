@@ -85,21 +85,21 @@ export function BudgetForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const amountCents = Math.round(parseFloat(amount) * 100);
-    if (amountCents <= 0) return;
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) return;
 
     if (mode === "create" && !categoryId) return;
 
     if (mode === "create") {
       await onSubmit({
         categoryId,
-        amount: amountCents,
+        amount,
         period,
         rollover,
       });
     } else {
       await onSubmit({
-        amount: amountCents,
+        amount,
         period,
         rollover,
       });

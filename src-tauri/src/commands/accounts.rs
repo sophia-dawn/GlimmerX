@@ -882,6 +882,12 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_decimal_to_cents_empty_string() {
+        assert_eq!(parse_decimal_to_cents("").unwrap(), 0);
+        assert_eq!(parse_decimal_to_cents("   ").unwrap(), 0);
+    }
+
+    #[test]
     fn test_parse_decimal_to_cents_dot_only() {
         let result = parse_decimal_to_cents(".5");
         assert!(result.is_ok());
@@ -935,5 +941,510 @@ mod tests {
         assert!(schema
             .valid_liability_types
             .contains(&"mortgage".to_string()));
+    }
+}
+
+#[cfg(test)]
+mod ipc_tests {
+    use super::*;
+    use crate::db::{Database, RecentDbs};
+    use std::sync::Mutex;
+    use tempfile::TempDir;
+
+    fn mock_app_with_db(
+        db: Database,
+    ) -> (
+        tauri::App<tauri::test::MockRuntime>,
+        tauri::WebviewWindow<tauri::test::MockRuntime>,
+    ) {
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                database: Mutex::new(Some(db)),
+                recent_dbs: Mutex::new(RecentDbs::empty()),
+            })
+            .invoke_handler(tauri::generate_handler![
+                account_create,
+                account_list,
+                account_update,
+                account_delete,
+                account_balance,
+                account_balances_batch,
+                account_transfer,
+                account_batch_create,
+                account_transactions,
+                account_meta_set,
+                account_meta_get,
+                account_meta_batch_set,
+                account_meta_schema,
+            ])
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        (app, webview)
+    }
+
+    fn invoke(
+        webview: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+        cmd: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, serde_json::Value> {
+        let req = tauri::webview::InvokeRequest {
+            cmd: cmd.into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: "http://tauri.localhost".parse().unwrap(),
+            body: tauri::ipc::InvokeBody::Json(body),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.to_string(),
+        };
+        tauri::test::get_ipc_response(webview, req)
+            .map(|b| b.deserialize::<serde_json::Value>().unwrap())
+    }
+
+    fn test_db() -> (TempDir, Database) {
+        let dir = TempDir::new().unwrap();
+        let db = Database::create(&dir.path().join("test.db"), "secret").unwrap();
+        (dir, db)
+    }
+
+    fn create_account(
+        webview: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+        name: &str,
+        initial_balance: Option<&str>,
+    ) -> serde_json::Value {
+        let mut body = serde_json::json!({ "input": { "name": name } });
+        if let Some(balance) = initial_balance {
+            body["input"]["initial_balance"] = serde_json::json!(balance);
+        }
+        invoke(webview, "account_create", body).expect("account_create should succeed")
+    }
+
+    #[test]
+    fn test_account_crud_and_balance_via_ipc() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        // create asset account with opening balance (decimal string)
+        let created = create_account(&webview, "Assets/Cash", Some("1000.00"));
+        let id = created["id"].as_str().unwrap().to_string();
+        assert_eq!(created["name"], serde_json::json!("Cash"));
+        assert_eq!(created["account_type"], serde_json::json!("asset"));
+
+        // opening balance is reflected in account_balance (cents)
+        let balance: i64 = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_balance",
+                serde_json::json!({ "id": id }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(balance, 100000);
+
+        // batch balance
+        let balances: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_balances_batch",
+                serde_json::json!({ "ids": [id] }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(balances.len(), 1);
+
+        // meta set/get
+        invoke(
+            &webview,
+            "account_meta_set",
+            serde_json::json!({ "accountId": id, "key": "bank", "value": "ICBC" }),
+        )
+        .unwrap();
+        let metas: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_meta_get",
+                serde_json::json!({ "accountId": id }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(metas.len(), 1);
+        assert_eq!(metas[0]["value"], serde_json::json!("ICBC"));
+
+        // update name
+        let updated = invoke(
+            &webview,
+            "account_update",
+            serde_json::json!({ "id": id, "input": { "name": "Assets/Wallet" } }),
+        )
+        .expect("update should succeed");
+        assert_eq!(updated["name"], serde_json::json!("Assets/Wallet"));
+
+        // transfer between two accounts (amount in cents)
+        let to = create_account(&webview, "Assets/Bank", None);
+        let to_id = to["id"].as_str().unwrap().to_string();
+        let tx_id = invoke(
+            &webview,
+            "account_transfer",
+            serde_json::json!({
+                "fromId": id,
+                "toId": to_id,
+                "amount": 20000,
+                "description": "ATM transfer"
+            }),
+        )
+        .expect("transfer should succeed");
+        assert!(!tx_id.as_str().unwrap().is_empty());
+
+        let from_balance: i64 = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_balance",
+                serde_json::json!({ "id": id }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(from_balance, 80000);
+
+        // list contains both accounts
+        let list: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(&webview, "account_list", serde_json::json!({})).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(list.len(), 2);
+
+        // batch create
+        let batch: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_batch_create",
+                serde_json::json!({
+                    "inputs": [
+                        { "name": "Expenses/Food", "initialBalance": "50.00" },
+                        { "name": "Expenses/Transport", "initialBalance": "20.00" }
+                    ]
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(batch.len(), 2);
+
+        // delete account with no transactions fails
+        let err = invoke(
+            &webview,
+            "account_delete",
+            serde_json::json!({ "id": to_id }),
+        )
+        .expect_err("deleting account with transactions must fail");
+        assert!(!err.as_str().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_account_create_rejects_equity_path() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let err = invoke(
+            &webview,
+            "account_create",
+            serde_json::json!({ "input": { "name": "Equity/Owner" } }),
+        )
+        .expect_err("equity account creation must be rejected");
+        assert_eq!(err.as_str().unwrap(), "errors.accountSystemManaged");
+    }
+
+    #[test]
+    fn test_account_delete_empty_account() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let created = create_account(&webview, "Assets/Empty", None);
+        let id = created["id"].as_str().unwrap().to_string();
+
+        invoke(
+            &webview,
+            "account_delete",
+            serde_json::json!({ "id": id }),
+        )
+        .unwrap();
+
+        let list: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(&webview, "account_list", serde_json::json!({})).unwrap(),
+        )
+        .unwrap();
+        assert!(list.is_empty());
+    }
+
+    #[test]
+    fn test_account_create_with_meta_and_initial_balance() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let created = invoke(
+            &webview,
+            "account_create",
+            serde_json::json!({
+                "input": {
+                    "name": "Assets/Savings",
+                    "initial_balance": "1000.00",
+                    "equity_account_name": "Equity",
+                    "opening_balance_name": "Opening Balances",
+                    "initial_balance_date": "2024-01-01",
+                    "meta": { "account_role": "ccAsset" },
+                    "isActive": true,
+                    "include_net_worth": true
+                }
+            }),
+        )
+        .expect("account_create with meta and balance should succeed");
+        assert_eq!(created["name"], serde_json::json!("Savings"));
+        assert_eq!(created["initial_balance"], serde_json::json!(100000));
+        assert_eq!(created["initial_balance_date"], serde_json::json!("2024-01-01"));
+        assert_eq!(created["meta"].as_array().unwrap().len(), 1);
+        assert_eq!(created["meta"][0]["key"], serde_json::json!("account_role"));
+
+        // Balance includes the opening balance
+        let balance: i64 = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_balance",
+                serde_json::json!({ "id": created["id"] }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(balance, 100000);
+    }
+
+    #[test]
+    fn test_account_update_with_meta_and_balance() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let created = invoke(
+            &webview,
+            "account_create",
+            serde_json::json!({ "input": { "name": "Assets/Card" } }),
+        )
+        .expect("account_create should succeed");
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let updated = invoke(
+            &webview,
+            "account_update",
+            serde_json::json!({
+                "id": id,
+                "input": {
+                    "name": "Assets/Card2",
+                    "initial_balance": "500.00",
+                    "meta": { "account_role": "ccAsset" }
+                }
+            }),
+        )
+        .expect("account_update with meta and balance should succeed");
+        assert_eq!(updated["name"], serde_json::json!("Assets/Card2"));
+        assert_eq!(updated["initial_balance"], serde_json::json!(50000));
+    }
+
+    #[test]
+    fn test_account_batch_create_without_initial_balance() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let batch: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_batch_create",
+                serde_json::json!({
+                    "inputs": [
+                        { "name": "Expenses/Books" },
+                        { "name": "Expenses/Games" }
+                    ]
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(batch.len(), 2);
+        assert_eq!(batch[0]["name"], serde_json::json!("Books"));
+    }
+
+    #[test]
+    fn test_parse_decimal_to_cents_too_many_decimals() {
+        let result = parse_decimal_to_cents("1.234");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_account_create_name_with_only_equity_prefix() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let err = invoke(
+            &webview,
+            "account_create",
+            serde_json::json!({ "input": { "name": "Equities/X" } }),
+        )
+        .expect_err("equities prefix must be rejected");
+        assert_eq!(err.as_str().unwrap(), "errors.accountSystemManaged");
+    }
+
+    #[test]
+    fn test_account_create_zero_initial_balance() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let created = invoke(
+            &webview,
+            "account_create",
+            serde_json::json!({ "input": { "name": "Assets/Zero", "initial_balance": "0.00" } }),
+        )
+        .expect("zero initial balance should succeed");
+        assert_eq!(created["initial_balance"], serde_json::json!(null));
+    }
+
+    #[test]
+    fn test_account_update_empty_meta_map() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let created = create_account(&webview, "Assets/WithMeta", None);
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let updated = invoke(
+            &webview,
+            "account_update",
+            serde_json::json!({ "id": id, "input": { "meta": {} } }),
+        )
+        .expect("update with empty meta should succeed");
+        assert_eq!(updated["name"], serde_json::json!("WithMeta"));
+    }
+
+    #[test]
+    fn test_account_update_income_with_initial_balance() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let created = invoke(
+            &webview,
+            "account_create",
+            serde_json::json!({ "input": { "name": "Income/Salary" } }),
+        )
+        .expect("create income account should succeed");
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let updated = invoke(
+            &webview,
+            "account_update",
+            serde_json::json!({ "id": id, "input": { "initial_balance": "100.00" } }),
+        )
+        .expect("update income with initial_balance should succeed but skip opening balance");
+        assert_eq!(updated["initial_balance"], serde_json::json!(null));
+    }
+
+    #[test]
+    fn test_account_batch_create_with_initial_balance() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let batch: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_batch_create",
+                serde_json::json!({
+                    "inputs": [
+                        { "name": "Assets/Savings", "initialBalance": "500.00" },
+                        { "name": "Expenses/Rent", "initialBalance": "0" }
+                    ]
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(batch.len(), 2);
+        let names: Vec<&str> = batch.iter().map(|a| a["name"].as_str().unwrap()).collect();
+        assert!(names.contains(&"Savings"));
+        assert!(names.contains(&"Rent"));
+    }
+
+    #[test]
+    fn test_account_transactions_and_meta_commands() {
+        let (_dir, db) = test_db();
+        let (_app, webview) = mock_app_with_db(db);
+
+        let from = invoke(
+            &webview,
+            "account_create",
+            serde_json::json!({ "input": { "name": "Assets/From" } }),
+        )
+        .unwrap();
+        let to = invoke(
+            &webview,
+            "account_create",
+            serde_json::json!({ "input": { "name": "Assets/To" } }),
+        )
+        .unwrap();
+        let from_id = from["id"].as_str().unwrap().to_string();
+        let to_id = to["id"].as_str().unwrap().to_string();
+
+        invoke(
+            &webview,
+            "account_transfer",
+            serde_json::json!({
+                "fromId": from_id,
+                "toId": to_id,
+                "amount": 20000,
+                "description": "Move"
+            }),
+        )
+        .unwrap();
+
+        // account_transactions with date range
+        let txns: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_transactions",
+                serde_json::json!({
+                    "id": from_id,
+                    "fromDate": "2024-01-01",
+                    "toDate": "2099-12-31"
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(txns.len(), 1);
+
+        // account_meta_batch_set then get
+        invoke(
+            &webview,
+            "account_meta_batch_set",
+            serde_json::json!({
+                "accountId": from_id,
+                "metas": [["bank", "ICBC"], ["notes", "hi"]]
+            }),
+        )
+        .unwrap();
+        let metas: Vec<serde_json::Value> = serde_json::from_value(
+            invoke(
+                &webview,
+                "account_meta_get",
+                serde_json::json!({ "accountId": from_id }),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(metas.len(), 2);
+
+        // account_meta_schema
+        let schema = invoke(&webview, "account_meta_schema", serde_json::json!({})).unwrap();
+        assert!(!schema["valid_account_roles"].as_array().unwrap().is_empty());
+        assert!(!schema["valid_liability_types"].as_array().unwrap().is_empty());
     }
 }

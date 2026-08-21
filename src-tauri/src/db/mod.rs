@@ -157,24 +157,7 @@ impl Drop for Database {
         // Handle mutex poisoning gracefully - if mutex is poisoned,
         // another thread panicked while holding it, but we can still recover
         if let Ok(guard) = self.conn.lock() {
-            let result = guard.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
-            if let Err(e) = result {
-                eprintln!(
-                    "[Database::drop] checkpoint failed for {}: {}",
-                    self.path.display(),
-                    e
-                );
-            } else {
-                eprintln!(
-                    "[Database::drop] checkpoint succeeded for {}",
-                    self.path.display()
-                );
-            }
-        } else {
-            eprintln!(
-                "[Database::drop] mutex poisoned, cannot checkpoint for {}",
-                self.path.display()
-            );
+            let _ = guard.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
         }
     }
 }
@@ -303,5 +286,22 @@ mod tests {
         // Verify new password works
         let db2 = Database::open(&env.path, "new_password").unwrap();
         assert_eq!(db2.path, env.path);
+    }
+
+    #[test]
+    fn test_debug_format() {
+        let env = test_env();
+        let db = Database::create(&env.path, "secret").unwrap();
+        let debug = format!("{:?}", db);
+        assert!(debug.contains("Database"));
+        assert!(debug.contains(env.path.to_str().unwrap()));
+    }
+
+    #[test]
+    fn test_create_fails_on_missing_directory() {
+        let env = test_env();
+        let path = env._dir.path().join("no-such-dir").join("test.db");
+        let result = Database::create(&path, "secret");
+        assert!(result.is_err());
     }
 }

@@ -48,25 +48,6 @@ export interface StandardReportDto {
   accountChanges: AccountChange[];
 }
 
-export interface BudgetExecutionItem {
-  budgetId: string;
-  categoryId: string;
-  categoryName: string; // Used as display name
-  budgetedAmount: number;
-  spentAmount: number;
-  remainingAmount: number;
-  percentage: number;
-  isOverBudget: boolean;
-}
-
-export interface BudgetExecutionReportDto {
-  totalBudgeted: number;
-  totalSpent: number;
-  totalRemaining: number;
-  overBudgetCount: number;
-  budgetItems: BudgetExecutionItem[];
-}
-
 export interface CategoryBreakdownItem {
   categoryId: string;
   categoryName: string;

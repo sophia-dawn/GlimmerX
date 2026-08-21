@@ -2,8 +2,6 @@
 //!
 //! Provides structures and functions for importing transactions from CSV files.
 
-#![allow(dead_code)]
-
 use csv::ReaderBuilder;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -116,25 +114,8 @@ pub fn import_csv(
 
     let mut result = ImportResult::default();
     let mut pending_reconciled: Vec<(String, bool)> = Vec::new();
-
-    println!(
-        "[import] Processing {} transactions from CSV",
-        transactions.len()
-    );
-
     for (txn_id, txn_rows) in transactions {
-        println!(
-            "[import] Transaction {}: {} postings",
-            txn_id,
-            txn_rows.len()
-        );
-
         if txn_rows.len() < 2 {
-            println!(
-                "[import] ERROR: Transaction {} has only {} postings (min 2 required)",
-                txn_id,
-                txn_rows.len()
-            );
             result.errors.push(ImportError {
                 row_number: 0,
                 transaction_id: txn_id.clone(),
@@ -146,10 +127,6 @@ pub fn import_csv(
 
         let sum: i64 = txn_rows.iter().map(|r| r.amount).sum();
         if sum != 0 {
-            println!(
-                "[import] ERROR: Transaction {} is unbalanced, sum = {}",
-                txn_id, sum
-            );
             result.errors.push(ImportError {
                 row_number: 0,
                 transaction_id: txn_id.clone(),
@@ -160,10 +137,6 @@ pub fn import_csv(
         }
 
         if txn_rows.iter().any(|r| r.account_type == "equity") {
-            println!(
-                "[import] ERROR: Transaction {} contains equity account (restricted)",
-                txn_id
-            );
             result.errors.push(ImportError {
                 row_number: 0,
                 transaction_id: txn_id.clone(),
@@ -178,24 +151,12 @@ pub fn import_csv(
         let mut failed = false;
 
         for row in &txn_rows {
-            println!(
-                "[import]   Looking for account: {} ({})",
-                row.account, row.account_type
-            );
             let account = find_account_by_type_and_name(conn, &row.account_type, &row.account)
                 .map_err(|e| e.to_string())?;
 
             match account {
                 Some(acc) => {
-                    println!(
-                        "[import]   Found account {} (id={}, is_active={})",
-                        row.account, acc.id, acc.is_active
-                    );
                     if !acc.is_active {
-                        println!(
-                            "[import] ERROR: Account {} ({}) is inactive",
-                            row.account, row.account_type
-                        );
                         result.errors.push(ImportError {
                             row_number: 0,
                             transaction_id: txn_id.clone(),
@@ -218,17 +179,9 @@ pub fn import_csv(
                     });
                 }
                 None if options.create_missing_accounts => {
-                    println!(
-                        "[import]   Account {} ({}) not found, creating...",
-                        row.account, row.account_type
-                    );
                     let path = format!("{}/{}", row.account_type, row.account);
                     let new_id = create_account_with_path(conn, &path, &row.currency, None)
                         .map_err(|e| e.to_string())?;
-                    println!(
-                        "[import]   Created account {} with id={}",
-                        row.account, new_id
-                    );
                     postings.push(DbPostingInput {
                         account_id: new_id,
                         amount: row.amount,
@@ -240,10 +193,6 @@ pub fn import_csv(
                     result.created_accounts.push(row.account.clone());
                 }
                 None => {
-                    println!(
-                        "[import] ERROR: Account {} ({}) not found",
-                        row.account, row.account_type
-                    );
                     result.errors.push(ImportError {
                         row_number: 0,
                         transaction_id: txn_id.clone(),
@@ -260,7 +209,6 @@ pub fn import_csv(
         }
 
         if failed {
-            println!("[import] Transaction {} SKIPPED due to errors", txn_id);
             continue;
         }
 
@@ -278,11 +226,6 @@ pub fn import_csv(
                 .unwrap_or(false);
 
             if exists {
-                println!(
-                    "[import] Transaction {} SKIPPED as duplicate (hash={})",
-                    txn_id,
-                    &hash[..8]
-                );
                 result.skipped_count += 1;
                 continue;
             }
@@ -291,7 +234,6 @@ pub fn import_csv(
         let category_id: Option<String> = match first_row.category.as_ref() {
             None => None,
             Some(cat_name) => {
-                println!("[import]   Looking for category: {}", cat_name);
                 let found: Option<String> = conn
                     .query_row(
                         "SELECT id FROM categories WHERE name = ?1",
@@ -300,23 +242,9 @@ pub fn import_csv(
                     )
                     .optional()
                     .map_err(|e| e.to_string())?;
-                match found {
-                    Some(id) => {
-                        println!("[import]   Found category {} with id={}", cat_name, id);
-                        Some(id)
-                    }
-                    None => {
-                        println!(
-                            "[import]   Category {} not found, using null category_id",
-                            cat_name
-                        );
-                        None
-                    }
-                }
+                found
             }
         };
-
-        println!("[import] Creating transaction {}...", txn_id);
         let created_id = create_transaction(
             conn,
             &first_row.date,
@@ -324,19 +252,7 @@ pub fn import_csv(
             category_id.as_deref(),
             &postings,
         )
-        .map_err(|e| {
-            println!(
-                "[import] ERROR: Failed to create transaction {}: {}",
-                txn_id, e
-            );
-            e.to_string()
-        })?;
-
-        println!(
-            "[import] Transaction {} created successfully (new_id={})",
-            txn_id, created_id
-        );
-
+        .map_err(|e| e.to_string())?;
         let now = now_rfc3339();
         conn.execute(
             "INSERT INTO transaction_hashes (transaction_id, content_hash, import_source, imported_at, created_at)
@@ -359,20 +275,6 @@ pub fn import_csv(
 
     if !pending_reconciled.is_empty() {
         update_reconciled_status(conn, &pending_reconciled)?;
-    }
-
-    println!("[import] ===== IMPORT SUMMARY =====");
-    println!("[import] Imported: {} transactions", result.imported_count);
-    println!(
-        "[import] Skipped (duplicates): {} transactions",
-        result.skipped_count
-    );
-    println!("[import] Errors: {} transactions", result.error_count);
-    if result.error_count > 0 {
-        println!("[import] Error details:");
-        for err in &result.errors {
-            println!("[import]   - {}: {}", err.transaction_id, err.message);
-        }
     }
 
     Ok(result)
@@ -468,4 +370,371 @@ fn update_reconciled_status(conn: &Connection, updates: &[(String, bool)]) -> Re
         .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::accounts::{create_account_with_path, find_account_by_type_and_name};
+    use crate::db::categories::{create_category, CategoryType};
+    use crate::db::transactions::PostingInput;
+    use crate::db::Database;
+    use rusqlite::params;
+    use std::fs;
+    use tempfile::TempDir;
+
+    const HEADER: &str =
+        "transaction_id,date,description,currency,account,account_type,amount,category,reconciled\n";
+
+    fn setup_db() -> Database {
+        let dir = tempfile::TempDir::new().unwrap();
+        Database::create(&dir.path().join("test.db"), "secret").unwrap()
+    }
+
+    fn write_csv(dir: &TempDir, name: &str, content: &str) -> std::path::PathBuf {
+        let path = dir.path().join(name);
+        fs::write(&path, content).unwrap();
+        path
+    }
+
+    fn valid_txn_csv() -> String {
+        format!(
+            "{}txn-1,2024-02-01,Lunch,CNY,Cash,asset,-2500,,false\ntxn-1,2024-02-01,Lunch,CNY,Food,expense,2500,,false\n",
+            HEADER
+        )
+    }
+
+    fn import_options(create_missing: bool, skip_duplicates: bool) -> ImportOptions {
+        ImportOptions {
+            create_missing_accounts: create_missing,
+            skip_duplicates,
+        }
+    }
+
+    #[test]
+    fn test_compute_transaction_hash_sorted() {
+        let h1 = compute_transaction_hash(
+            "2024-02-01",
+            "Lunch",
+            &[
+                HashPostingInput {
+                    account: "Cash".into(),
+                    amount: -2500,
+                },
+                HashPostingInput {
+                    account: "Food".into(),
+                    amount: 2500,
+                },
+            ],
+        );
+        let h2 = compute_transaction_hash(
+            "2024-02-01",
+            "Lunch",
+            &[
+                HashPostingInput {
+                    account: "Food".into(),
+                    amount: 2500,
+                },
+                HashPostingInput {
+                    account: "Cash".into(),
+                    amount: -2500,
+                },
+            ],
+        );
+        assert_eq!(h1, h2, "hash must not depend on posting order");
+
+        let h3 = compute_transaction_hash(
+            "2024-02-01",
+            "Dinner",
+            &[
+                HashPostingInput {
+                    account: "Cash".into(),
+                    amount: -2500,
+                },
+                HashPostingInput {
+                    account: "Food".into(),
+                    amount: 2500,
+                },
+            ],
+        );
+        assert_ne!(h1, h3, "different description must change hash");
+    }
+
+    #[test]
+    fn test_import_csv_creates_missing_accounts() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(&dir, "in.csv", &valid_txn_csv());
+
+        let result = import_csv(&mut conn, &path, &import_options(true, true)).unwrap();
+        assert_eq!(result.imported_count, 1);
+        assert_eq!(result.skipped_count, 0);
+        assert_eq!(result.error_count, 0);
+        assert_eq!(result.created_accounts.len(), 2);
+
+        // Accounts were auto-created
+        assert!(find_account_by_type_and_name(&conn, "asset", "Cash")
+            .unwrap()
+            .is_some());
+        assert!(find_account_by_type_and_name(&conn, "expense", "Food")
+            .unwrap()
+            .is_some());
+
+        // Transaction was created with a hash entry
+        let tx_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM transactions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(tx_count, 1);
+        let hash_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM transaction_hashes", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(hash_count, 1);
+    }
+
+    #[test]
+    fn test_import_csv_existing_accounts_category_and_reconciled() {
+        let db = setup_db();
+        {
+            let conn = db.get_conn().unwrap();
+            create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+            create_account_with_path(&conn, "Expenses/Food", "CNY", None).unwrap();
+            create_category(&conn, "Dining", &CategoryType::Expense, None).unwrap();
+        }
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(
+            &dir,
+            "in.csv",
+            &format!(
+                "{}txn-1,2024-02-01,Lunch,CNY,Cash,asset,-2500,Dining,true\ntxn-1,2024-02-01,Lunch,CNY,Food,expense,2500,Dining,true\n",
+                HEADER
+            ),
+        );
+
+        let result = import_csv(&mut conn, &path, &import_options(false, false)).unwrap();
+        assert_eq!(result.imported_count, 1);
+        assert!(result.created_accounts.is_empty());
+
+        let (category_id, is_reconciled): (Option<String>, i64) = conn
+            .query_row(
+                "SELECT category_id, is_reconciled FROM transactions WHERE description = 'Lunch'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert!(category_id.is_some());
+        assert_eq!(is_reconciled, 1);
+    }
+
+    #[test]
+    fn test_import_csv_skip_duplicates() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(&dir, "in.csv", &valid_txn_csv());
+
+        let first = import_csv(&mut conn, &path, &import_options(true, true)).unwrap();
+        assert_eq!(first.imported_count, 1);
+
+        let second = import_csv(&mut conn, &path, &import_options(true, true)).unwrap();
+        assert_eq!(second.imported_count, 0);
+        assert_eq!(second.skipped_count, 1);
+        assert_eq!(second.error_count, 0);
+    }
+
+    #[test]
+    fn test_import_csv_without_skip_duplicates() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(&dir, "in.csv", &valid_txn_csv());
+
+        let first = import_csv(&mut conn, &path, &import_options(true, false)).unwrap();
+        assert_eq!(first.imported_count, 1);
+        // Without skip_duplicates the second import still fails on the unique
+        // content hash constraint.
+        let err = import_csv(&mut conn, &path, &import_options(true, false)).unwrap_err();
+        assert!(err.contains("UNIQUE constraint"));
+        let tx_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM transactions", [], |r| r.get(0))
+            .unwrap();
+        // The failed hash insert leaves the already-created transaction row.
+        assert_eq!(tx_count, 2);
+    }
+
+    #[test]
+    fn test_import_csv_empty_file() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(&dir, "empty.csv", HEADER);
+
+        let err = import_csv(&mut conn, &path, &import_options(true, false)).unwrap_err();
+        assert_eq!(err, "errors.import.emptyFile");
+    }
+
+    #[test]
+    fn test_import_csv_parse_error() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(
+            &dir,
+            "bad.csv",
+            "transaction_id,date,description,currency,account,account_type,amount,category,reconciled\n\
+             txn-1,2024-02-01,Lunch,CNY,Cash,asset,not-a-number,,false\n",
+        );
+
+        let err = import_csv(&mut conn, &path, &import_options(true, false)).unwrap_err();
+        assert!(err.contains("CSV parse error"));
+    }
+
+    #[test]
+    fn test_import_csv_unreadable_file() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("does-not-exist.csv");
+
+        let err = import_csv(&mut conn, &path, &import_options(true, false)).unwrap_err();
+        assert!(err.contains("Cannot read file"));
+    }
+
+    #[test]
+    fn test_import_csv_min_postings_error() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(
+            &dir,
+            "in.csv",
+            &format!("{}txn-1,2024-02-01,Lunch,CNY,Cash,asset,-2500,,false\n", HEADER),
+        );
+
+        let result = import_csv(&mut conn, &path, &import_options(true, false)).unwrap();
+        assert_eq!(result.imported_count, 0);
+        assert_eq!(result.error_count, 1);
+        assert_eq!(result.errors[0].message, "errors.transactionMinPostings");
+    }
+
+    #[test]
+    fn test_import_csv_unbalanced_error() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(
+            &dir,
+            "in.csv",
+            &format!(
+                "{}txn-1,2024-02-01,Lunch,CNY,Cash,asset,-2500,,false\ntxn-1,2024-02-01,Lunch,CNY,Food,expense,1000,,false\n",
+                HEADER
+            ),
+        );
+
+        let result = import_csv(&mut conn, &path, &import_options(true, false)).unwrap();
+        assert_eq!(result.error_count, 1);
+        assert_eq!(result.imported_count, 0);
+        assert!(result.errors[0].message.contains("errors.transactionUnbalanced"));
+    }
+
+    #[test]
+    fn test_import_csv_equity_restricted() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(
+            &dir,
+            "in.csv",
+            &format!(
+                "{}txn-1,2024-02-01,Opening,CNY,Owner,equity,-10000,,false\ntxn-1,2024-02-01,Opening,CNY,Cash,asset,10000,,false\n",
+                HEADER
+            ),
+        );
+
+        let result = import_csv(&mut conn, &path, &import_options(true, false)).unwrap();
+        assert_eq!(result.error_count, 1);
+        assert!(result.errors[0]
+            .message
+            .contains("errors.transaction.equityAccountRestricted"));
+    }
+
+    #[test]
+    fn test_import_csv_account_not_found() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(&dir, "in.csv", &valid_txn_csv());
+
+        let result = import_csv(&mut conn, &path, &import_options(false, false)).unwrap();
+        assert_eq!(result.error_count, 1);
+        assert_eq!(result.imported_count, 0);
+        assert!(result.errors[0].message.contains("errors.accountNotFound"));
+    }
+
+    #[test]
+    fn test_import_csv_inactive_account() {
+        let db = setup_db();
+        {
+            let conn = db.get_conn().unwrap();
+            create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+            create_account_with_path(&conn, "Expenses/Food", "CNY", None).unwrap();
+            conn.execute(
+                "UPDATE accounts SET is_active = 0 WHERE name = 'Cash'",
+                [],
+            )
+            .unwrap();
+        }
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        let path = write_csv(&dir, "in.csv", &valid_txn_csv());
+
+        let result = import_csv(&mut conn, &path, &import_options(false, false)).unwrap();
+        assert_eq!(result.error_count, 1);
+        assert_eq!(result.imported_count, 0);
+        assert!(result.errors[0].message.contains("errors.account.inactive"));
+    }
+
+    #[test]
+    fn test_ensure_existing_hashes_empty() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        assert_eq!(ensure_existing_hashes(&mut conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_ensure_existing_hashes_migrates_in_batches() {
+        let db = setup_db();
+        {
+            let conn = db.get_conn().unwrap();
+            let cash = create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+            let food = create_account_with_path(&conn, "Expenses/Food", "CNY", None).unwrap();
+            for i in 0..501 {
+                crate::db::transactions::create_transaction(
+                    &conn,
+                    "2024-01-01",
+                    &format!("Tx {}", i),
+                    None,
+                    &[
+                        PostingInput {
+                            account_id: cash.clone(),
+                            amount: -100,
+                        },
+                        PostingInput {
+                            account_id: food.clone(),
+                            amount: 100,
+                        },
+                    ],
+                )
+                .unwrap();
+            }
+        }
+
+        let mut conn = db.get_conn().unwrap();
+        let migrated = ensure_existing_hashes(&mut conn).unwrap();
+        assert_eq!(migrated, 501);
+
+        // Second call finds hashes already present
+        assert_eq!(ensure_existing_hashes(&mut conn).unwrap(), 0);
+    }
 }

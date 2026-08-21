@@ -21,8 +21,6 @@ const queryClient = new QueryClient();
 function AppRoutes() {
   const { isUnlocked } = useDbStore();
 
-  console.log("[App] AppRoutes render, isUnlocked:", isUnlocked);
-
   return (
     <Routes>
       <Route path="/unlock" element={<UnlockPage />} />
@@ -51,35 +49,23 @@ function App() {
   const { t } = useTranslation();
   const {
     isInitializing,
-    isUnlocked,
     setInitialized,
     checkExistingDb,
     restoreUnlockState,
   } = useDbStore();
 
-  console.log(
-    "[App] render, isInitializing:",
-    isInitializing,
-    "isUnlocked:",
-    isUnlocked,
-  );
-
   useEffect(() => {
     const init = async () => {
-      console.log("[App] init start");
       const restored = await restoreUnlockState();
-      console.log("[App] restoreUnlockState result:", restored);
       if (!restored) {
         await checkExistingDb();
       }
       setInitialized();
-      console.log("[App] init complete");
     };
     init();
   }, [checkExistingDb, restoreUnlockState, setInitialized]);
 
   if (isInitializing) {
-    console.log("[App] showing loading screen");
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="text-muted-foreground">{t("common.loading")}</div>
@@ -87,7 +73,6 @@ function App() {
     );
   }
 
-  console.log("[App] rendering main app");
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

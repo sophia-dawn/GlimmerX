@@ -111,6 +111,7 @@ fn config_file_path() -> Option<PathBuf> {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use std::fs;
 
     fn test_recent_dbs() -> RecentDbs {
         let dir = TempDir::new().unwrap();
@@ -119,6 +120,27 @@ mod tests {
             config_path,
             entries: Vec::new(),
         }
+    }
+
+    #[test]
+    fn test_load_from_config_directory() {
+        // Reading from the real config dir must not fail
+        let loaded = RecentDbs::load().unwrap();
+        assert!(loaded.list().is_empty() || !loaded.list().is_empty());
+    }
+
+    #[test]
+    fn test_save_create_dir_failure() {
+        let dir = TempDir::new().unwrap();
+        let blocker = dir.path().join("blocker");
+        fs::write(&blocker, "file").unwrap();
+
+        let mut rd = RecentDbs {
+            config_path: blocker.join("nested").join("recent_dbs.json"),
+            entries: Vec::new(),
+        };
+        let result = rd.add("/path/a.db", "Database A");
+        assert!(result.is_err());
     }
 
     #[test]

@@ -41,8 +41,6 @@ export function TransactionDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
-  console.log("[TransactionDetailPage] render, id:", id);
-
   const {
     data: transaction,
     isLoading,
@@ -50,23 +48,11 @@ export function TransactionDetailPage() {
   } = useQuery({
     queryKey: ["transactionDetail", id],
     queryFn: async () => {
-      console.log(
-        "[TransactionDetailPage] fetching transactionDetail, id:",
-        id,
-      );
       const result = await transactionDetail(id ?? "");
-      console.log("[TransactionDetailPage] transactionDetail result:", result);
       return result;
     },
     enabled: !!id,
     ...QUERY_CONFIG.FINANCIAL,
-  });
-
-  console.log("[TransactionDetailPage] query state:", {
-    isLoading,
-    isError: !!error,
-    error: error?.message ?? error,
-    hasData: !!transaction,
   });
 
   const { data: accounts } = useQuery({

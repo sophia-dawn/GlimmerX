@@ -1,23 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
+import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { QuickAddDialog } from "@/components/transactions/QuickAddDialog";
 import { HeaderProvider } from "@/contexts/HeaderContext";
 
 export function AppShell() {
-  const location = useLocation();
-  const queryClient = useQueryClient();
-  const prevPathRef = useRef(location.pathname);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
-
-  useEffect(() => {
-    if (prevPathRef.current !== location.pathname) {
-      prevPathRef.current = location.pathname;
-      queryClient.invalidateQueries();
-    }
-  }, [location.pathname, queryClient]);
 
   const openQuickAdd = useCallback(() => setQuickAddOpen(true), []);
 

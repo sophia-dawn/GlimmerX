@@ -102,6 +102,7 @@ pub fn get_dashboard_summary(
              JOIN accounts a ON a.id = p.account_id
              JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type = '{}' AND p.amount < 0
+             AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2",
             account_type::INCOME
         ),
@@ -118,6 +119,7 @@ pub fn get_dashboard_summary(
              JOIN accounts a ON a.id = p.account_id
              JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type = '{}' AND p.amount > 0
+             AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2",
             account_type::EXPENSE
         ),
@@ -133,6 +135,7 @@ pub fn get_dashboard_summary(
              JOIN accounts a ON a.id = p.account_id
              JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type = '{}' AND p.amount < 0
+             AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2",
             account_type::INCOME
         ),
@@ -148,6 +151,7 @@ pub fn get_dashboard_summary(
              JOIN accounts a ON a.id = p.account_id
              JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type = '{}' AND p.amount > 0
+             AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2",
             account_type::EXPENSE
         ),
@@ -156,9 +160,11 @@ pub fn get_dashboard_summary(
     )?;
 
     let mut stmt = conn.prepare(&format!(
-        "SELECT a.id, a.type, COALESCE(SUM(p.amount), 0) as balance
+        "SELECT a.id, a.type,
+                COALESCE(SUM(CASE WHEN t.deleted_at IS NULL THEN p.amount ELSE 0 END), 0) as balance
              FROM accounts a
              LEFT JOIN postings p ON p.account_id = a.id
+             LEFT JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type IN ('{}', '{}') AND a.is_active = 1
              GROUP BY a.id, a.type",
         account_type::ASSET,
@@ -239,7 +245,7 @@ pub fn get_monthly_chart(
             FROM transactions t
             JOIN postings p ON p.transaction_id = t.id
             JOIN accounts a ON a.id = p.account_id
-            WHERE t.date >= ?1 AND t.date <= ?2
+            WHERE t.deleted_at IS NULL AND t.date >= ?1 AND t.date <= ?2
             GROUP BY t.date
             ORDER BY t.date",
             account_type::INCOME,
@@ -336,6 +342,7 @@ pub fn get_category_breakdown(
          LEFT JOIN postings p ON p.transaction_id = t.id
          LEFT JOIN accounts a ON a.id = p.account_id
          WHERE c.type = ?1
+         AND (t.id IS NULL OR t.deleted_at IS NULL)
          AND (t.date IS NULL OR (t.date >= ?2 AND t.date <= ?3))
          AND (p.amount IS NULL OR {})
          AND (a.type IS NULL OR a.type = ?1)
@@ -419,7 +426,7 @@ pub fn get_top_expenses(
              JOIN postings p ON p.transaction_id = t.id
              JOIN accounts a ON a.id = p.account_id
              LEFT JOIN categories c ON c.id = t.category_id
-             WHERE a.type = '{}' AND p.amount > 0
+             WHERE a.type = '{}' AND p.amount > 0 AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2
              ORDER BY p.amount DESC
              LIMIT ?3",
@@ -496,6 +503,8 @@ mod tests {
                 date        TEXT NOT NULL,
                 description TEXT NOT NULL,
                 category_id TEXT REFERENCES categories(id),
+                is_reconciled INTEGER NOT NULL DEFAULT 0,
+                deleted_at  TEXT,
                 created_at  TEXT NOT NULL,
                 updated_at  TEXT NOT NULL
             );
@@ -816,5 +825,53 @@ mod tests {
         assert_eq!(summary.total_assets, 10000);
         assert_eq!(summary.total_liabilities, -5000);
         assert_eq!(summary.net_worth, 5000);
+    }
+
+    #[test]
+    fn test_monthly_chart_december() {
+        let (_dir, conn) = test_conn();
+        insert_account(&conn, &make_account("工资", "income", false)).unwrap();
+        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+
+        let chart = get_monthly_chart(&conn, 2024, 12).unwrap();
+        assert_eq!(chart.days.len(), 31); // December has 31 days
+    }
+
+    #[test]
+    fn test_monthly_chart_invalid_month() {
+        let (_dir, conn) = test_conn();
+        assert!(get_monthly_chart(&conn, 2024, 13).is_err());
+        assert!(get_monthly_chart(&conn, 2024, 0).is_err());
+    }
+
+    #[test]
+    fn test_category_breakdown_december() {
+        let (_dir, conn) = test_conn();
+        create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
+        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+
+        let breakdown = get_category_breakdown(&conn, 2024, 12, CategoryType::Expense).unwrap();
+        assert_eq!(breakdown.month, 12);
+        assert_eq!(breakdown.total_amount, 0);
+    }
+
+    #[test]
+    fn test_top_expenses_december() {
+        let (_dir, conn) = test_conn();
+        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+
+        let top = get_top_expenses(&conn, 2024, 12, 10).unwrap();
+        assert_eq!(top.month, 12);
+        assert!(top.expenses.is_empty());
+    }
+
+    #[test]
+    fn test_dashboard_queries_missing_table() {
+        let dir = TempDir::new().unwrap();
+        let conn = Connection::open(dir.path().join("bare.db")).unwrap();
+        assert!(get_dashboard_summary(&conn, "2024-01-01", "2024-01-31", "2024-01-01", "2024-12-31").is_err());
+        assert!(get_monthly_chart(&conn, 2024, 1).is_err());
+        assert!(get_category_breakdown(&conn, 2024, 1, CategoryType::Expense).is_err());
+        assert!(get_top_expenses(&conn, 2024, 1, 10).is_err());
     }
 }

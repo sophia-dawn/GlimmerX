@@ -466,7 +466,10 @@ pub fn get_opening_balance_for_account(
 /// Get the current balance for an account (SUM of postings.amount, in cents).
 pub fn get_account_balance(conn: &Connection, id: &str) -> Result<i64, AppError> {
     let balance: i64 = conn.query_row(
-        "SELECT COALESCE(SUM(amount), 0) FROM postings WHERE account_id = ?1",
+        "SELECT COALESCE(SUM(p.amount), 0)
+         FROM postings p
+         JOIN transactions t ON t.id = p.transaction_id
+         WHERE p.account_id = ?1 AND t.deleted_at IS NULL",
         [id],
         |row| row.get(0),
     )?;
@@ -485,10 +488,11 @@ pub fn get_account_balances_batch(
 
     let placeholders: Vec<String> = ids.iter().map(|_| "?".to_string()).collect();
     let sql = format!(
-        "SELECT account_id, COALESCE(SUM(amount), 0) as balance 
-         FROM postings 
-         WHERE account_id IN ({}) 
-         GROUP BY account_id",
+        "SELECT p.account_id, COALESCE(SUM(p.amount), 0) as balance
+         FROM postings p
+         JOIN transactions t ON t.id = p.transaction_id
+         WHERE p.account_id IN ({}) AND t.deleted_at IS NULL
+         GROUP BY p.account_id",
         placeholders.join(", ")
     );
 
@@ -870,7 +874,11 @@ pub fn get_account_transactions(
         sql.push_str(" AND t.date >= ?2");
     }
     if to_date.is_some() {
-        sql.push_str(" AND t.date <= ?3");
+        sql.push_str(if from_date.is_some() {
+            " AND t.date <= ?3"
+        } else {
+            " AND t.date <= ?2"
+        });
     }
     sql.push_str(" ORDER BY t.date DESC, t.id DESC");
 
@@ -986,6 +994,7 @@ mod tests {
                 date        TEXT NOT NULL,
                 description TEXT NOT NULL,
                 category_id TEXT,
+                deleted_at  TEXT,
                 created_at  TEXT NOT NULL,
                 updated_at  TEXT NOT NULL
             );
@@ -1507,5 +1516,261 @@ mod tests {
         assert_eq!(balances.len(), 1);
         assert_eq!(balances[0].0, id1);
         assert_eq!(balances[0].1, 1000);
+    }
+
+    #[test]
+    fn test_create_account_with_path_invalid_root() {
+        let (_dir, conn) = test_conn();
+        let result = create_account_with_path(&conn, "Foo/Cash", "CNY", None);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AppError::ValidationError(msg) => assert!(msg.contains("Invalid account root type")),
+            other => panic!("Expected ValidationError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_create_account_with_path_duplicate_blocked() {
+        let (_dir, conn) = test_conn();
+        create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+        let result = create_account_with_path(&conn, "Assets/Cash", "CNY", None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_update_account_optional_fields() {
+        let (_dir, conn) = test_conn();
+        let id = insert_account(&conn, &make_account("Cash", "asset")).unwrap();
+
+        // Set optional fields
+        update_account(
+            &conn,
+            &UpdateAccountParams {
+                id: &id,
+                name: None,
+                description: Some("desc"),
+                account_number: Some(Some("6222-0001")),
+                iban: Some(Some("CN-IBAN-1")),
+                is_active: Some(false),
+                include_net_worth: Some(false),
+            },
+        )
+        .unwrap();
+        let updated = find_account(&conn, &id).unwrap().unwrap();
+        assert_eq!(updated.description, "desc");
+        assert_eq!(updated.account_number.as_deref(), Some("6222-0001"));
+        assert!(!updated.is_active);
+
+        // Clear optional fields
+        update_account(
+            &conn,
+            &UpdateAccountParams {
+                id: &id,
+                name: None,
+                description: None,
+                account_number: Some(None),
+                iban: Some(None),
+                is_active: None,
+                include_net_worth: None,
+            },
+        )
+        .unwrap();
+        let updated = find_account(&conn, &id).unwrap().unwrap();
+        assert!(updated.account_number.is_none());
+        assert!(updated.iban.is_none());
+
+        // No-op update returns early
+        update_account(
+            &conn,
+            &UpdateAccountParams {
+                id: &id,
+                name: None,
+                description: None,
+                account_number: None,
+                iban: None,
+                is_active: None,
+                include_net_worth: None,
+            },
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_update_account_name_conflict_blocked() {
+        let (_dir, conn) = test_conn();
+        let id1 = insert_account(&conn, &make_account("Cash", "asset")).unwrap();
+        insert_account(&conn, &make_account("Bank", "asset")).unwrap();
+
+        let result = update_account(
+            &conn,
+            &UpdateAccountParams {
+                id: &id1,
+                name: Some("Bank"),
+                description: None,
+                account_number: None,
+                iban: None,
+                is_active: None,
+                include_net_worth: None,
+            },
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_account_missing_blocked() {
+        let (_dir, conn) = test_conn();
+        let result = delete_account(&conn, "missing");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_account_system_blocked() {
+        let (_dir, conn) = test_conn();
+        conn.execute(
+            "INSERT INTO accounts (id, name, type, currency, description, is_system, created_at, updated_at)
+             VALUES ('sys-1', 'Equity', 'equity', 'CNY', '', 1, '2024-01-01T00:00:00+08:00', '2024-01-01T00:00:00+08:00')",
+            [],
+        )
+        .unwrap();
+        let result = delete_account(&conn, "sys-1");
+        assert!(result.is_err());
+        assert!(find_account(&conn, "sys-1").unwrap().is_some());
+    }
+
+    #[test]
+    fn test_delete_account_with_opening_balance() {
+        let (_dir, conn) = test_conn();
+        let id = create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+        create_opening_balance(&conn, &id, 100000, "Equity", "Opening Balances", None).unwrap();
+
+        delete_account(&conn, &id).unwrap();
+        assert!(find_account(&conn, &id).unwrap().is_none());
+        let tx_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM transactions WHERE description = 'Opening Balance'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(tx_count, 0);
+    }
+
+    #[test]
+    fn test_create_transfer_validation() {
+        let (_dir, conn) = test_conn();
+        let id1 = insert_account(&conn, &make_account("Cash", "asset")).unwrap();
+        let id2 = insert_account(&conn, &make_account("Bank", "asset")).unwrap();
+
+        // Non-positive amount
+        let result = create_transfer(&conn, &id1, &id2, 0, "x");
+        assert!(result.is_err());
+
+        // Same account
+        let result = create_transfer(&conn, &id1, &id1, 100, "x");
+        assert!(result.is_err());
+
+        // Different currencies
+        conn.execute(
+            "UPDATE accounts SET currency = 'USD' WHERE id = ?1",
+            [&id2],
+        )
+        .unwrap();
+        let result = create_transfer(&conn, &id1, &id2, 100, "x");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_account_transactions_date_filters() {
+        let (_dir, conn) = test_conn();
+        let id1 = insert_account(&conn, &make_account("Cash", "asset")).unwrap();
+        let id2 = insert_account(&conn, &make_account("Food", "expense")).unwrap();
+
+        let now = crate::utils::time::now_rfc3339();
+        conn.execute(
+            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
+             VALUES ('tx-1', '2024-01-15', 'Lunch', NULL, ?1, ?1)",
+            [&now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO postings (id, transaction_id, account_id, amount, created_at)
+             VALUES ('p-1', 'tx-1', ?1, -1000, ?2)",
+            params![&id1, &now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO postings (id, transaction_id, account_id, amount, created_at)
+             VALUES ('p-2', 'tx-1', ?1, 1000, ?2)",
+            params![&id2, &now],
+        )
+        .unwrap();
+
+        let only_from = get_account_transactions(&conn, &id1, Some("2024-01-01"), None).unwrap();
+        assert_eq!(only_from.len(), 1);
+        let only_to = get_account_transactions(&conn, &id1, None, Some("2024-01-31")).unwrap();
+        assert_eq!(only_to.len(), 1);
+        let both = get_account_transactions(&conn, &id1, Some("2024-01-01"), Some("2024-01-31"))
+            .unwrap();
+        assert_eq!(both.len(), 1);
+        let none = get_account_transactions(&conn, &id1, None, None).unwrap();
+        assert_eq!(none.len(), 1);
+    }
+
+    #[test]
+    fn test_create_opening_balance_updates_existing() {
+        let (_dir, conn) = test_conn();
+        let id = create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+
+        create_opening_balance(&conn, &id, 100000, "Equity", "Opening Balances", None).unwrap();
+        create_opening_balance(&conn, &id, 200000, "Equity", "Opening Balances", None).unwrap();
+
+        let (balance, _date) = get_opening_balance_for_account(&conn, &id)
+            .unwrap()
+            .expect("opening balance should exist");
+        assert_eq!(balance, 200000);
+
+        // Zero amount deletes the opening balance
+        create_opening_balance(&conn, &id, 0, "Equity", "Opening Balances", None).unwrap();
+        assert!(get_opening_balance_for_account(&conn, &id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_opening_balance_liability_negative() {
+        let (_dir, conn) = test_conn();
+        let id = create_account_with_path(&conn, "Liabilities/Card", "CNY", None).unwrap();
+        create_opening_balance(&conn, &id, 50000, "Equity", "Opening Balances", None).unwrap();
+        let (balance, _date) = get_opening_balance_for_account(&conn, &id)
+            .unwrap()
+            .expect("opening balance should exist");
+        assert_eq!(balance, -50000);
+    }
+
+    #[test]
+    fn test_batch_create_accounts() {
+        let (_dir, conn) = test_conn();
+        let records = batch_create_accounts(
+            &conn,
+            vec![
+                BatchAccountInput {
+                    name: "Assets/Cash".to_string(),
+                    currency: "CNY".to_string(),
+                    initial_balance: Some(100000),
+                    description: Some("main".to_string()),
+                    account_number: Some("0001".to_string()),
+                },
+                BatchAccountInput {
+                    name: "Expenses/Food".to_string(),
+                    currency: "CNY".to_string(),
+                    initial_balance: None,
+                    description: None,
+                    account_number: None,
+                },
+            ],
+        )
+        .unwrap();
+        assert_eq!(records.len(), 2);
+
+        // Empty inputs -> empty result
+        assert!(batch_create_accounts(&conn, vec![]).unwrap().is_empty());
     }
 }

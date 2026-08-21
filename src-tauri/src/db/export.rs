@@ -6,8 +6,6 @@
 //! - BufWriter for all file writes to reduce syscalls
 //! - Leverages SQL ORDER BY for transaction grouping (no redundant in-memory sort)
 
-#![allow(dead_code)]
-
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -517,5 +515,18 @@ mod tests {
         assert!(content.contains("open Income:Salary"));
         assert!(content.contains("Salary payment"));
         assert!(content.contains("5000.00 CNY"));
+    }
+
+    #[test]
+    fn test_convert_account_to_beancount_unknown_type() {
+        // Unknown account types fall back to the raw type prefix
+        assert_eq!(
+            convert_account_to_beancount("Cash", "unknown"),
+            "unknown:Cash"
+        );
+        assert_eq!(
+            convert_account_to_beancount("Cash/Sub", "asset"),
+            "Assets:Cash:Sub"
+        );
     }
 }

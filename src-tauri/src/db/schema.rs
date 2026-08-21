@@ -39,7 +39,8 @@ pub fn init_schema(conn: &Connection) -> Result<(), AppError> {
         CREATE INDEX IF NOT EXISTS idx_account_meta_account ON account_meta(account_id);
 
         -- 交易
-        -- **软删除设计**: deleted_at 字段支持交易撤销恢复
+        -- deleted_at 字段为未来软删除/撤销扩展保留。
+        -- 当前实现为硬删除（DELETE），所有统计查询仍过滤 deleted_at IS NULL 以保证一致性。
         -- ** reconciliation 设计**: is_reconciled 标记已核对的交易
         CREATE TABLE IF NOT EXISTS transactions (
             id          TEXT PRIMARY KEY,

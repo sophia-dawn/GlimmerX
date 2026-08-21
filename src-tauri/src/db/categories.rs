@@ -289,7 +289,7 @@ pub fn preview_delete(conn: &Connection, id: &str) -> Result<DeletePreview, AppE
     )?;
 
     let transaction_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM transactions WHERE category_id = ?1",
+        "SELECT COUNT(*) FROM transactions WHERE category_id = ?1 AND deleted_at IS NULL",
         [id],
         |row| row.get(0),
     )?;
@@ -380,6 +380,7 @@ mod tests {
                 date        TEXT NOT NULL,
                 description TEXT NOT NULL,
                 category_id TEXT REFERENCES categories(id),
+                deleted_at  TEXT,
                 created_at  TEXT NOT NULL,
                 updated_at  TEXT NOT NULL
             );

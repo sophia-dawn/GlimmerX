@@ -156,8 +156,10 @@ pub struct TransactionListItem {
 pub struct PaginationInfo {
     pub page: u32,
     pub page_size: u32,
-    pub total_count: u32,
-    pub total_pages: u32,
+    /// Unknown for infinite-scroll lists; omitted to avoid a full COUNT scan
+    /// on every page fetch. Use `has_next` to drive pagination.
+    pub total_count: Option<u32>,
+    pub total_pages: Option<u32>,
     pub has_next: bool,
     pub has_prev: bool,
 }
@@ -326,7 +328,7 @@ fn validate_no_equity_accounts(conn: &Connection, account_ids: &[String]) -> Res
 }
 
 #[allow(dead_code)]
-fn parse_amount_to_cents(amount_str: &str) -> Result<i64, AppError> {
+pub fn parse_amount_to_cents(amount_str: &str) -> Result<i64, AppError> {
     let value = amount_str
         .parse::<f64>()
         .map_err(|_| AppError::ValidationError("errors.transaction.invalidAmount".to_string()))?;
@@ -784,8 +786,6 @@ pub fn get_transaction_detail(
     conn: &Connection,
     tx_id: &str,
 ) -> Result<TransactionDetail, AppError> {
-    eprintln!("[db::get_transaction_detail] start, tx_id: {}", tx_id);
-
     let tx_data = conn
         .query_row(
             "SELECT date, description, category_id, created_at, updated_at 
@@ -804,18 +804,13 @@ pub fn get_transaction_detail(
         .optional();
 
     let (date, description, category_id, created_at, updated_at) = match tx_data {
-        Ok(Some(data)) => {
-            eprintln!("[db::get_transaction_detail] transaction found");
-            data
-        }
+        Ok(Some(data)) => data,
         Ok(None) => {
-            eprintln!("[db::get_transaction_detail] NOT FOUND, tx_id: {}", tx_id);
             return Err(AppError::NotFound(
                 "errors.transaction.notFound".to_string(),
             ));
         }
         Err(e) => {
-            eprintln!("[db::get_transaction_detail] query error: {}", e);
             return Err(e.into());
         }
     };
@@ -871,8 +866,6 @@ pub fn get_transaction_detail(
         .sum();
     let is_balanced = debit_total + credit_total == 0;
     let posting_count = postings.len() as u32;
-
-    eprintln!("[db::get_transaction_detail] success, tx_id: {}", tx_id);
     Ok(TransactionDetail {
         id: tx_id.to_string(),
         date,
@@ -1086,46 +1079,6 @@ pub fn list_transactions_paginated(
 
     let has_having = !having_clause.is_empty();
 
-    let total_count: u32 = if has_having {
-        conn.query_row(
-            &format!(
-                "SELECT COUNT(*) FROM (
-                    SELECT t.id
-                    FROM transactions t
-                    JOIN postings p ON p.transaction_id = t.id
-                    WHERE {} AND t.deleted_at IS NULL
-                    GROUP BY t.id
-                    HAVING {}
-                )",
-                if where_clause.is_empty() {
-                    "1=1"
-                } else {
-                    &where_clause
-                },
-                having_clause
-            ),
-            rusqlite::params_from_iter(params.iter().map(|p| p as &dyn rusqlite::types::ToSql)),
-            |row| row.get(0),
-        )?
-    } else {
-        conn.query_row(
-            &format!(
-                "SELECT COUNT(DISTINCT t.id) FROM transactions t
-                 LEFT JOIN postings p ON p.transaction_id = t.id
-                 WHERE {} AND t.deleted_at IS NULL",
-                if where_clause.is_empty() {
-                    "1=1"
-                } else {
-                    &where_clause
-                }
-            ),
-            rusqlite::params_from_iter(params.iter().map(|p| p as &dyn rusqlite::types::ToSql)),
-            |row| row.get(0),
-        )?
-    };
-
-    let total_pages = total_count.div_ceil(page_size).max(1);
-
     let sort_by = filter.sort_by.as_deref().unwrap_or("date");
     let sort_order = filter.sort_order.as_deref().unwrap_or("desc");
     let sort_column = match sort_by {
@@ -1180,13 +1133,16 @@ pub fn list_transactions_paginated(
     );
 
     let mut sql_params: Vec<Box<dyn rusqlite::types::ToSql>> = params;
-    sql_params.push(Box::new(page_size as i32));
+    // Fetch one extra row to determine whether another page exists without
+    // running an expensive COUNT over the full filtered dataset.
+    let fetch_limit = page_size + 1;
+    sql_params.push(Box::new(fetch_limit as i32));
     sql_params.push(Box::new(offset as i32));
 
     let param_refs: Vec<&dyn rusqlite::types::ToSql> =
         sql_params.iter().map(|p| p.as_ref()).collect();
 
-    let items: Vec<TransactionListItem> = conn
+    let mut items: Vec<TransactionListItem> = conn
         .prepare(&items_sql)?
         .query_map(rusqlite::params_from_iter(param_refs), |row| {
             let postings_data: Option<String> = row.get::<_, Option<String>>(9)?;
@@ -1210,6 +1166,9 @@ pub fn list_transactions_paginated(
         })?
         .collect::<Result<Vec<_>, _>>()?;
 
+    let has_next = items.len() > page_size as usize;
+    items.truncate(page_size as usize);
+
     let date_groups = build_date_groups(&items);
 
     Ok(TransactionListResponse {
@@ -1217,9 +1176,9 @@ pub fn list_transactions_paginated(
         pagination: PaginationInfo {
             page,
             page_size,
-            total_count,
-            total_pages,
-            has_next: page < total_pages,
+            total_count: None,
+            total_pages: None,
+            has_next,
             has_prev: page > 1,
         },
         date_groups,
@@ -2002,6 +1961,64 @@ mod tests {
         }
     }
 
+    /// Pagination returns exactly page_size items and reports has_next based
+    /// on fetching one extra row (no full COUNT scan).
+    #[test]
+    fn test_list_transactions_paginated_has_next() {
+        let (_dir, conn) = test_conn();
+        let asset_id = make_account(&conn, "Cash", "asset");
+        let expense_id = make_account(&conn, "Food", "expense");
+
+        // Create 25 transactions
+        for i in 0..25 {
+            let _tx_id = create_transaction(
+                &conn,
+                &format!("2024-01-{:02}", (i % 28) + 1),
+                &format!("Transaction {}", i),
+                None,
+                &[
+                    PostingInput {
+                        account_id: asset_id.clone(),
+                        amount: -100,
+                    },
+                    PostingInput {
+                        account_id: expense_id.clone(),
+                        amount: 100,
+                    },
+                ],
+            )
+            .unwrap();
+        }
+
+        // Page 1 (20 items): has_next = true, no COUNT metadata
+        let page1 = list_transactions_paginated(
+            &conn,
+            &TransactionFilter {
+                page: Some(1),
+                page_size: Some(20),
+                ..TransactionFilter::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(page1.items.len(), 20);
+        assert!(page1.pagination.has_next);
+        assert!(page1.pagination.total_count.is_none());
+
+        // Page 2 (remaining 5): has_next = false
+        let page2 = list_transactions_paginated(
+            &conn,
+            &TransactionFilter {
+                page: Some(2),
+                page_size: Some(20),
+                ..TransactionFilter::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(page2.items.len(), 5);
+        assert!(!page2.pagination.has_next);
+        assert!(page2.pagination.has_prev);
+    }
+
     // ---------------------------------------------------------------------------
     // QuickAdd Tests
     // ---------------------------------------------------------------------------
@@ -2471,5 +2488,416 @@ mod tests {
         assert!(preview.can_delete);
         assert_eq!(preview.posting_count, 2);
         assert_eq!(preview.description, "Preview test");
+    }
+
+    #[test]
+    fn test_validate_accounts_active_empty() {
+        let (_dir, conn) = test_conn();
+        assert!(validate_accounts_active(&conn, &[]).is_ok());
+        assert!(validate_no_equity_accounts(&conn, &[]).is_ok());
+    }
+
+    #[test]
+    fn test_validate_accounts_active_inactive() {
+        let (_dir, conn) = test_conn();
+        let cash = make_account(&conn, "Cash", "asset");
+        let food = make_account(&conn, "Food", "expense");
+        conn.execute(
+            "UPDATE accounts SET is_active = 0 WHERE id = ?1",
+            [&cash],
+        )
+        .unwrap();
+
+        let result = create_transaction(
+            &conn,
+            "2024-01-15",
+            "Inactive",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash,
+                    amount: -100,
+                },
+                PostingInput {
+                    account_id: food,
+                    amount: 100,
+                },
+            ],
+        );
+        match result.unwrap_err() {
+            AppError::ValidationError(msg) => assert_eq!(msg, "errors.account.inactive"),
+            other => panic!("Expected ValidationError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_validate_no_equity_accounts() {
+        let (_dir, conn) = test_conn();
+        let cash = make_account(&conn, "Cash", "asset");
+        let equity = make_account(&conn, "Owner", "equity");
+
+        let result = create_transaction(
+            &conn,
+            "2024-01-15",
+            "Equity",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash,
+                    amount: -100,
+                },
+                PostingInput {
+                    account_id: equity,
+                    amount: 100,
+                },
+            ],
+        );
+        match result.unwrap_err() {
+            AppError::ValidationError(msg) => {
+                assert_eq!(msg, "errors.transaction.equityAccountRestricted")
+            }
+            other => panic!("Expected ValidationError, got: {:?}", other),
+        }
+
+        // Missing account in the equity check
+        let err = validate_no_equity_accounts(&conn, &["missing-account".to_string()]).unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)));
+    }
+
+    #[test]
+    fn test_format_amount_display_branches() {
+        assert_eq!(format_amount_display(3500), "+¥35.00");
+        assert_eq!(format_amount_display(3550), "+¥35.50");
+        assert_eq!(format_amount_display(-3500), "-¥35.00");
+        assert_eq!(format_amount_display(-3550), "-¥35.50");
+    }
+
+    #[test]
+    fn test_validate_quick_add_input_errors() {
+        let (_dir, conn) = test_conn();
+        let cash = make_account(&conn, "Cash", "asset");
+        let food = make_account(&conn, "Food", "expense");
+
+        let base = |mode: &str| QuickAddInput {
+            mode: mode.to_string(),
+            amount: "10.00".to_string(),
+            source_account_id: Some(cash.clone()),
+            destination_account_id: Some(food.clone()),
+            category_id: None,
+            description: None,
+            date: None,
+        };
+
+        // Invalid mode
+        let mut input = base("bogus");
+        let err = quick_add_transaction(&conn, &input).unwrap_err();
+        assert!(err.to_string().contains("errors.transaction.invalidMode"));
+
+        // Non-positive amount
+        input = base("expense");
+        input.amount = "0.00".to_string();
+        let err = quick_add_transaction(&conn, &input).unwrap_err();
+        assert!(err.to_string().contains("amountMustBePositive"));
+
+        // Expense without source
+        input = base("expense");
+        input.source_account_id = None;
+        let err = quick_add_transaction(&conn, &input).unwrap_err();
+        assert!(err.to_string().contains("expenseRequiresSource"));
+
+        // Expense without destination or category
+        input = base("expense");
+        input.destination_account_id = None;
+        let err = quick_add_transaction(&conn, &input).unwrap_err();
+        assert!(err.to_string().contains("expenseRequiresDestinationOrCategory"));
+
+        // Income without destination or category
+        input = base("income");
+        input.destination_account_id = None;
+        let err = quick_add_transaction(&conn, &input).unwrap_err();
+        assert!(err.to_string().contains("incomeRequiresDestination"));
+
+        // Transfer missing one account
+        input = base("transfer");
+        input.destination_account_id = None;
+        let err = quick_add_transaction(&conn, &input).unwrap_err();
+        assert!(err.to_string().contains("transferRequiresBothAccounts"));
+    }
+
+    #[test]
+    fn test_quick_add_variants() {
+        let (_dir, conn) = test_conn();
+        let cash = make_account(&conn, "Cash", "asset");
+        let food = make_account(&conn, "Food", "expense");
+        let salary_cat = make_category(&conn, "Salary", "income");
+
+        // Expense with explicit destination
+        let tx = quick_add_transaction(
+            &conn,
+            &QuickAddInput {
+                mode: "expense".to_string(),
+                amount: "35.00".to_string(),
+                source_account_id: Some(cash.clone()),
+                destination_account_id: Some(food.clone()),
+                category_id: None,
+                description: Some("Lunch".to_string()),
+                date: Some("2024-01-15".to_string()),
+            },
+        )
+        .unwrap();
+        assert_eq!(tx.postings.len(), 2);
+
+        // Income with explicit source
+        let tx = quick_add_transaction(
+            &conn,
+            &QuickAddInput {
+                mode: "income".to_string(),
+                amount: "100.00".to_string(),
+                source_account_id: Some(food.clone()),
+                destination_account_id: Some(cash.clone()),
+                category_id: None,
+                description: None,
+                date: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(tx.postings.len(), 2);
+
+        // Income with category -> category account auto-created
+        let tx = quick_add_transaction(
+            &conn,
+            &QuickAddInput {
+                mode: "income".to_string(),
+                amount: "50.00".to_string(),
+                source_account_id: None,
+                destination_account_id: Some(cash.clone()),
+                category_id: Some(salary_cat.clone()),
+                description: None,
+                date: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(tx.postings.len(), 2);
+
+        // Transfer between two accounts
+        let tx = quick_add_transaction(
+            &conn,
+            &QuickAddInput {
+                mode: "transfer".to_string(),
+                amount: "20.00".to_string(),
+                source_account_id: Some(cash.clone()),
+                destination_account_id: Some(food.clone()),
+                category_id: None,
+                description: None,
+                date: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(tx.postings.len(), 2);
+
+        // Transfer to self blocked
+        let err = quick_add_transaction(
+            &conn,
+            &QuickAddInput {
+                mode: "transfer".to_string(),
+                amount: "20.00".to_string(),
+                source_account_id: Some(cash.clone()),
+                destination_account_id: Some(cash.clone()),
+                category_id: None,
+                description: None,
+                date: None,
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("transferToSelf"));
+    }
+
+    #[test]
+    fn test_update_transaction_validation_errors() {
+        let (_dir, conn) = test_conn();
+        let cash = make_account(&conn, "Cash", "asset");
+        let food = make_account(&conn, "Food", "expense");
+        let mut conn = conn;
+
+        // Missing transaction
+        let err = update_transaction(
+            &mut conn,
+            "missing",
+            &UpdateTransactionInput {
+                date: Some("2024-01-01".to_string()),
+                description: None,
+                category_id: None,
+                postings: None,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)));
+
+        let tx_id = create_transaction(
+            &conn,
+            "2024-01-15",
+            "Test",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: -100,
+                },
+                PostingInput {
+                    account_id: food.clone(),
+                    amount: 100,
+                },
+            ],
+        )
+        .unwrap();
+
+        // Too few postings
+        let err = update_transaction(
+            &mut conn,
+            &tx_id,
+            &UpdateTransactionInput {
+                date: None,
+                description: None,
+                category_id: None,
+                postings: Some(vec![PostingInput {
+                    account_id: cash.clone(),
+                    amount: 100,
+                }]),
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("errors.transactionMinPostings"));
+
+        // Duplicate accounts in postings
+        let err = update_transaction(
+            &mut conn,
+            &tx_id,
+            &UpdateTransactionInput {
+                date: None,
+                description: None,
+                category_id: None,
+                postings: Some(vec![
+                    PostingInput {
+                        account_id: cash.clone(),
+                        amount: -100,
+                    },
+                    PostingInput {
+                        account_id: cash.clone(),
+                        amount: 100,
+                    },
+                ]),
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("duplicateAccount"));
+
+        // Update category
+        let cat_id = make_category(&conn, "Dining", "expense");
+        let detail = update_transaction(
+            &mut conn,
+            &tx_id,
+            &UpdateTransactionInput {
+                date: Some("2024-01-16".to_string()),
+                description: Some("Updated".to_string()),
+                category_id: Some(cat_id),
+                postings: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(detail.description, "Updated");
+        assert_eq!(detail.date, "2024-01-16");
+    }
+
+    #[test]
+    fn test_list_transactions_paginated_sort_by_amount() {
+        let (_dir, conn) = test_conn();
+        let cash = make_account(&conn, "Cash", "asset");
+        let food = make_account(&conn, "Food", "expense");
+        create_transaction(
+            &conn,
+            "2024-01-15",
+            "A",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash.clone(),
+                    amount: -100,
+                },
+                PostingInput {
+                    account_id: food.clone(),
+                    amount: 100,
+                },
+            ],
+        )
+        .unwrap();
+
+        let response = list_transactions_paginated(
+            &conn,
+            &TransactionFilter {
+                from_date: None,
+                to_date: None,
+                min_amount: None,
+                max_amount: None,
+                account_id: None,
+                category_id: None,
+                description_query: None,
+                page: Some(1),
+                page_size: Some(10),
+                sort_by: Some("amount".to_string()),
+                sort_order: Some("asc".to_string()),
+            },
+        )
+        .unwrap();
+        assert_eq!(response.items.len(), 1);
+        assert_eq!(response.items[0].display_amount, 100);
+    }
+
+    #[test]
+    fn test_format_date_display_invalid() {
+        assert_eq!(format_date_display("2024"), "2024");
+        assert_eq!(format_date_display("2024-01-15"), "2024年1月15日");
+    }
+
+    #[test]
+    fn test_parse_postings_summary_malformed() {
+        let parsed = parse_postings_summary("no-colon").unwrap();
+        assert!(parsed.is_empty());
+        let parsed = parse_postings_summary("Cash:-100|Food:100").unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].0, "Cash");
+    }
+
+    #[test]
+    fn test_get_transaction_detail_query_error() {
+        let dir = TempDir::new().unwrap();
+        let conn = Connection::open(dir.path().join("bare.db")).unwrap();
+        let result = get_transaction_detail(&conn, "tx-1");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_transaction_missing_postings_table() {
+        let (_dir, conn) = test_conn();
+        let cash = make_account(&conn, "Cash", "asset");
+        let food = make_account(&conn, "Food", "expense");
+        conn.execute_batch("DROP TABLE postings;").unwrap();
+
+        let result = create_transaction(
+            &conn,
+            "2024-01-15",
+            "Broken",
+            None,
+            &[
+                PostingInput {
+                    account_id: cash,
+                    amount: -100,
+                },
+                PostingInput {
+                    account_id: food,
+                    amount: 100,
+                },
+            ],
+        );
+        assert!(result.is_err());
     }
 }

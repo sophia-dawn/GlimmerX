@@ -52,7 +52,34 @@ pub struct CreateTransactionInput {
 #[serde(rename_all = "camelCase")]
 pub struct CreatePostingInput {
     pub account_id: String,
-    pub amount: i64,
+    /// Decimal amount string (e.g. "35.00"); converted to cents on the backend.
+    pub amount: String,
+}
+
+/// Command-layer update input; the DB layer receives already-converted
+/// (i64 cents) postings.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateTransactionInput {
+    pub date: Option<String>,
+    pub description: Option<String>,
+    pub category_id: Option<String>,
+    pub postings: Option<Vec<CreatePostingInput>>,
+}
+
+/// Convert command-layer posting inputs (decimal strings) into DB-layer
+/// postings (cents). The frontend never computes monetary values.
+fn to_db_postings(postings: Vec<CreatePostingInput>) -> Result<Vec<PostingInput>, String> {
+    postings
+        .into_iter()
+        .map(|p| {
+            Ok(PostingInput {
+                account_id: p.account_id,
+                amount: crate::db::transactions::parse_amount_to_cents(&p.amount)
+                    .map_err(|e| e.to_string())?,
+            })
+        })
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -106,8 +133,8 @@ pub struct PostingSummaryDto {
 pub struct PaginationInfoDto {
     pub page: u32,
     pub page_size: u32,
-    pub total_count: u32,
-    pub total_pages: u32,
+    pub total_count: Option<u32>,
+    pub total_pages: Option<u32>,
     pub has_next: bool,
     pub has_prev: bool,
 }
@@ -229,36 +256,15 @@ pub async fn transaction_create(
     input: CreateTransactionInput,
     state: State<'_, AppState>,
 ) -> Result<TransactionDto, String> {
-    eprintln!(
-        "[transaction_create] start, description: {}",
-        input.description
-    );
-    let db_state = state.database.lock().map_err(|e| {
-        eprintln!("[transaction_create] lock state failed: {}", e);
-        e.to_string()
-    })?;
-    let db = db_state.as_ref().ok_or_else(|| {
-        eprintln!("[transaction_create] database not unlocked");
-        "Database is not unlocked. Please unlock it first.".to_string()
-    })?;
-    let mut conn = db.get_conn().map_err(|e| {
-        eprintln!("[transaction_create] get_conn failed: {}", e);
-        e.to_string()
-    })?;
+    let db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let db = db_state
+        .as_ref()
+        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+    let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
-    let tx = conn.transaction().map_err(|e| {
-        eprintln!("[transaction_create] transaction start failed: {}", e);
-        e.to_string()
-    })?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    let postings: Vec<PostingInput> = input
-        .postings
-        .into_iter()
-        .map(|p| PostingInput {
-            account_id: p.account_id,
-            amount: p.amount,
-        })
-        .collect();
+    let postings: Vec<PostingInput> = to_db_postings(input.postings)?;
 
     let tx_id = crate::db::transactions::create_transaction(
         &tx,
@@ -267,27 +273,13 @@ pub async fn transaction_create(
         input.category_id.as_deref(),
         &postings,
     )
-    .map_err(|e| {
-        eprintln!("[transaction_create] create failed: {}", e);
-        e.to_string()
-    })?;
+    .map_err(|e| e.to_string())?;
 
-    tx.commit().map_err(|e| {
-        eprintln!("[transaction_create] commit failed: {}", e);
-        e.to_string()
-    })?;
+    tx.commit().map_err(|e| e.to_string())?;
 
     let tx_with_postings = crate::db::transactions::get_transaction_with_postings(&conn, &tx_id)
-        .map_err(|e| {
-            eprintln!("[transaction_create] read result failed: {}", e);
-            e.to_string()
-        })?
-        .ok_or_else(|| {
-            eprintln!("[transaction_create] created tx not found: {}", tx_id);
-            "Created transaction not found".to_string()
-        })?;
-
-    eprintln!("[transaction_create] success, id: {}", tx_id);
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Created transaction not found".to_string())?;
     Ok(to_dto(tx_with_postings))
 }
 
@@ -296,19 +288,11 @@ pub async fn transaction_list(
     filter: Option<TransactionListFilter>,
     state: State<'_, AppState>,
 ) -> Result<Vec<TransactionDto>, String> {
-    eprintln!("[transaction_list] start");
-    let db_state = state.database.lock().map_err(|e| {
-        eprintln!("[transaction_list] lock state failed: {}", e);
-        e.to_string()
-    })?;
-    let db = db_state.as_ref().ok_or_else(|| {
-        eprintln!("[transaction_list] database not unlocked");
-        "Database is not unlocked. Please unlock it first.".to_string()
-    })?;
-    let conn = db.get_conn().map_err(|e| {
-        eprintln!("[transaction_list] get_conn failed: {}", e);
-        e.to_string()
-    })?;
+    let db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let db = db_state
+        .as_ref()
+        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+    let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let transactions = crate::db::transactions::list_transactions(
         &conn,
@@ -316,12 +300,7 @@ pub async fn transaction_list(
         filter.as_ref().and_then(|f| f.from_date.as_deref()),
         filter.as_ref().and_then(|f| f.to_date.as_deref()),
     )
-    .map_err(|e| {
-        eprintln!("[transaction_list] query failed: {}", e);
-        e.to_string()
-    })?;
-
-    eprintln!("[transaction_list] success, count: {}", transactions.len());
+    .map_err(|e| e.to_string())?;
     Ok(transactions.into_iter().map(to_dto).collect())
 }
 
@@ -330,27 +309,14 @@ pub async fn transaction_get(
     id: String,
     state: State<'_, AppState>,
 ) -> Result<Option<TransactionDto>, String> {
-    eprintln!("[transaction_get] start, id: {}", id);
-    let db_state = state.database.lock().map_err(|e| {
-        eprintln!("[transaction_get] lock state failed: {}", e);
-        e.to_string()
-    })?;
-    let db = db_state.as_ref().ok_or_else(|| {
-        eprintln!("[transaction_get] database not unlocked");
-        "Database is not unlocked. Please unlock it first.".to_string()
-    })?;
-    let conn = db.get_conn().map_err(|e| {
-        eprintln!("[transaction_get] get_conn failed: {}", e);
-        e.to_string()
-    })?;
+    let db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let db = db_state
+        .as_ref()
+        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+    let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx_with_postings = crate::db::transactions::get_transaction_with_postings(&conn, &id)
-        .map_err(|e| {
-            eprintln!("[transaction_get] query failed: {}", e);
-            e.to_string()
-        })?;
-
-    eprintln!("[transaction_get] result: {:?}", tx_with_postings.is_some());
+        .map_err(|e| e.to_string())?;
     Ok(tx_with_postings.map(to_dto))
 }
 
@@ -359,18 +325,11 @@ pub async fn transaction_list_paginated(
     filter: Option<EnhancedTransactionFilter>,
     state: State<'_, AppState>,
 ) -> Result<TransactionListResponseDto, String> {
-    let db_state = state.database.lock().map_err(|e| {
-        eprintln!("[transaction_list] Failed to lock database state: {}", e);
-        e.to_string()
-    })?;
-    let db = db_state.as_ref().ok_or_else(|| {
-        eprintln!("[transaction_list] Database is not unlocked");
-        "Database is not unlocked. Please unlock it first.".to_string()
-    })?;
-    let conn = db.get_conn().map_err(|e| {
-        eprintln!("[transaction_list] Failed to get connection: {}", e);
-        e.to_string()
-    })?;
+    let db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let db = db_state
+        .as_ref()
+        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+    let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let backend_filter = TransactionFilter {
         from_date: filter.as_ref().and_then(|f| f.from_date.clone()),
@@ -386,10 +345,8 @@ pub async fn transaction_list_paginated(
         sort_order: filter.as_ref().and_then(|f| f.sort_order.clone()),
     };
 
-    let response = list_transactions_paginated(&conn, &backend_filter).map_err(|e| {
-        eprintln!("[transaction_list] Query failed: {}", e);
-        e.to_string()
-    })?;
+    let response =
+        list_transactions_paginated(&conn, &backend_filter).map_err(|e| e.to_string())?;
 
     Ok(response_to_dto(response))
 }
@@ -424,23 +381,13 @@ pub async fn transaction_detail(
     id: String,
     state: State<'_, AppState>,
 ) -> Result<crate::db::transactions::TransactionDetail, String> {
-    let db_state = state.database.lock().map_err(|e| {
-        eprintln!("[transaction_detail] Failed to lock database state: {}", e);
-        e.to_string()
-    })?;
-    let db = db_state.as_ref().ok_or_else(|| {
-        eprintln!("[transaction_detail] Database is not unlocked");
-        "Database is not unlocked. Please unlock it first.".to_string()
-    })?;
-    let conn = db.get_conn().map_err(|e| {
-        eprintln!("[transaction_detail] Failed to get connection: {}", e);
-        e.to_string()
-    })?;
+    let db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let db = db_state
+        .as_ref()
+        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+    let conn = db.get_conn().map_err(|e| e.to_string())?;
 
-    crate::db::transactions::get_transaction_detail(&conn, &id).map_err(|e| {
-        eprintln!("[transaction_detail] Query failed for id={}: {}", id, e);
-        e.to_string()
-    })
+    crate::db::transactions::get_transaction_detail(&conn, &id).map_err(|e| e.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -450,7 +397,7 @@ pub async fn transaction_detail(
 #[tauri::command]
 pub async fn transaction_update(
     id: String,
-    input: crate::db::transactions::UpdateTransactionInput,
+    input: UpdateTransactionInput,
     state: State<'_, AppState>,
 ) -> Result<crate::db::transactions::TransactionDetail, String> {
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
@@ -459,7 +406,19 @@ pub async fn transaction_update(
         .ok_or("Database is not unlocked. Please unlock it first.")?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
-    crate::db::transactions::update_transaction(&mut conn, &id, &input).map_err(|e| e.to_string())
+    let db_input = crate::db::transactions::UpdateTransactionInput {
+        date: input.date,
+        description: input.description,
+        category_id: input.category_id,
+        postings: input
+            .postings
+            .map(to_db_postings)
+            .transpose()
+            .map_err(|e| e.to_string())?,
+    };
+
+    crate::db::transactions::update_transaction(&mut conn, &id, &db_input)
+        .map_err(|e| e.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -681,8 +640,8 @@ mod tests {
             "description": "Grocery shopping",
             "categoryId": "cat-123",
             "postings": [
-                {"accountId": "acc-1", "amount": -500},
-                {"accountId": "acc-2", "amount": 500}
+                {"accountId": "acc-1", "amount": "-500.00"},
+                {"accountId": "acc-2", "amount": "500.00"}
             ]
         }"#;
 
@@ -693,9 +652,9 @@ mod tests {
         assert_eq!(input.category_id, Some("cat-123".to_string()));
         assert_eq!(input.postings.len(), 2);
         assert_eq!(input.postings[0].account_id, "acc-1");
-        assert_eq!(input.postings[0].amount, -500);
+        assert_eq!(input.postings[0].amount, "-500.00");
         assert_eq!(input.postings[1].account_id, "acc-2");
-        assert_eq!(input.postings[1].amount, 500);
+        assert_eq!(input.postings[1].amount, "500.00");
     }
 
     #[test]
@@ -705,7 +664,7 @@ mod tests {
             "description": "No category",
             "categoryId": null,
             "postings": [
-                {"accountId": "acc-1", "amount": -100}
+                {"accountId": "acc-1", "amount": "-100.00"}
             ]
         }"#;
 
@@ -720,7 +679,7 @@ mod tests {
             "date": "2024-01-15",
             "description": "Missing category",
             "postings": [
-                {"accountId": "acc-1", "amount": -100}
+                {"accountId": "acc-1", "amount": "-100.00"}
             ]
         }"#;
 
@@ -766,5 +725,376 @@ mod tests {
         assert_eq!(filter.account_id, None);
         assert_eq!(filter.from_date, None);
         assert_eq!(filter.to_date, None);
+    }
+
+    #[test]
+    fn test_to_db_postings_converts_decimal_strings() {
+        let postings = to_db_postings(vec![
+            CreatePostingInput {
+                account_id: "acc-1".to_string(),
+                amount: "-35.50".to_string(),
+            },
+            CreatePostingInput {
+                account_id: "acc-2".to_string(),
+                amount: "35.50".to_string(),
+            },
+        ])
+        .unwrap();
+
+        assert_eq!(postings.len(), 2);
+        assert_eq!(postings[0].account_id, "acc-1");
+        assert_eq!(postings[0].amount, -3550);
+        assert_eq!(postings[1].account_id, "acc-2");
+        assert_eq!(postings[1].amount, 3550);
+    }
+
+    #[test]
+    fn test_to_db_postings_rejects_invalid_amount() {
+        let err = to_db_postings(vec![CreatePostingInput {
+            account_id: "acc-1".to_string(),
+            amount: "abc".to_string(),
+        }])
+        .expect_err("invalid amount string must fail");
+        assert!(err.contains("errors.transaction.invalidAmount"));
+
+        // Empty list is valid (unbalanced validation happens later)
+        assert!(to_db_postings(vec![]).unwrap().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod ipc_tests {
+    use super::*;
+    use crate::db::accounts::create_account_with_path;
+    use crate::db::categories::{create_category, CategoryType};
+    use crate::db::{Database, RecentDbs};
+    use std::sync::Mutex;
+    use tempfile::TempDir;
+
+    fn mock_app(
+        state: AppState,
+    ) -> (
+        tauri::App<tauri::test::MockRuntime>,
+        tauri::WebviewWindow<tauri::test::MockRuntime>,
+    ) {
+        let app = tauri::test::mock_builder()
+            .manage(state)
+            .invoke_handler(tauri::generate_handler![
+                transaction_create,
+                transaction_list,
+                transaction_get,
+                transaction_list_paginated,
+                quick_add_transaction,
+                transaction_detail,
+                transaction_update,
+                transaction_delete_preview,
+                transaction_delete,
+            ])
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        (app, webview)
+    }
+
+    fn invoke(
+        webview: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+        cmd: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, serde_json::Value> {
+        let req = tauri::webview::InvokeRequest {
+            cmd: cmd.into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: "http://tauri.localhost".parse().unwrap(),
+            body: tauri::ipc::InvokeBody::Json(body),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.to_string(),
+        };
+        tauri::test::get_ipc_response(webview, req)
+            .map(|b| b.deserialize::<serde_json::Value>().unwrap())
+    }
+
+    fn test_db() -> (TempDir, Database) {
+        let dir = TempDir::new().unwrap();
+        let db = Database::create(&dir.path().join("test.db"), "secret").unwrap();
+        (dir, db)
+    }
+
+    fn seed_accounts(db: &Database) -> (String, String, String) {
+        let conn = db.get_conn().unwrap();
+        let cash = create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+        let food_account = create_account_with_path(&conn, "Expenses/Food", "CNY", None).unwrap();
+        let food_category = create_category(&conn, "Food", &CategoryType::Expense, None).unwrap();
+        (cash, food_account, food_category)
+    }
+
+    #[test]
+    fn test_transaction_commands_via_ipc() {
+        let (_dir, db) = test_db();
+        let (cash, food_account, food_category) = seed_accounts(&db);
+        let (_app, webview) = mock_app(AppState {
+            database: Mutex::new(Some(db)),
+            recent_dbs: Mutex::new(RecentDbs::empty()),
+        });
+
+        // create with decimal string amounts
+        let created = invoke(
+            &webview,
+            "transaction_create",
+            serde_json::json!({
+                "input": {
+                    "date": "2024-01-15",
+                    "description": "Lunch",
+                    "categoryId": food_category,
+                    "postings": [
+                        { "accountId": cash, "amount": "-35.00" },
+                        { "accountId": food_account, "amount": "35.00" }
+                    ]
+                }
+            }),
+        )
+        .expect("transaction_create should succeed");
+        let tx_id = created["id"].as_str().unwrap().to_string();
+        assert_eq!(created["date"], serde_json::json!("2024-01-15"));
+        assert_eq!(created["postings"].as_array().unwrap().len(), 2);
+        assert_eq!(created["postings"][0]["amount"], serde_json::json!(-3500));
+
+        // get by id
+        let fetched = invoke(
+            &webview,
+            "transaction_get",
+            serde_json::json!({ "id": tx_id }),
+        )
+        .expect("transaction_get should succeed");
+        assert_eq!(fetched["description"], serde_json::json!("Lunch"));
+
+        // get missing -> null
+        let missing = invoke(
+            &webview,
+            "transaction_get",
+            serde_json::json!({ "id": "missing" }),
+        )
+        .expect("transaction_get missing should return null");
+        assert!(missing.is_null());
+
+        // list with filter
+        let list = invoke(
+            &webview,
+            "transaction_list",
+            serde_json::json!({
+                "filter": { "accountId": cash, "fromDate": "2024-01-01", "toDate": "2024-01-31" }
+            }),
+        )
+        .expect("transaction_list should succeed");
+        assert_eq!(list.as_array().unwrap().len(), 1);
+
+        // list without filter
+        let all = invoke(&webview, "transaction_list", serde_json::json!({}))
+            .expect("transaction_list without filter should succeed");
+        assert_eq!(all.as_array().unwrap().len(), 1);
+
+        // paginated list
+        let paginated = invoke(
+            &webview,
+            "transaction_list_paginated",
+            serde_json::json!({
+                "filter": {
+                    "fromDate": "2024-01-01",
+                    "toDate": "2024-01-31",
+                    "minAmount": 0,
+                    "maxAmount": 100000,
+                    "accountId": cash,
+                    "categoryId": food_category,
+                    "descriptionQuery": "Lunch",
+                    "page": 1,
+                    "pageSize": 10,
+                    "sortBy": "date",
+                    "sortOrder": "desc"
+                }
+            }),
+        )
+        .expect("transaction_list_paginated should succeed");
+        assert_eq!(paginated["items"].as_array().unwrap().len(), 1);
+        assert_eq!(paginated["pagination"]["hasNext"], serde_json::json!(false));
+
+        // paginated with no filter
+        let paginated_all = invoke(
+            &webview,
+            "transaction_list_paginated",
+            serde_json::json!({}),
+        )
+        .expect("transaction_list_paginated without filter should succeed");
+        assert_eq!(paginated_all["items"].as_array().unwrap().len(), 1);
+
+        // detail
+        let detail = invoke(
+            &webview,
+            "transaction_detail",
+            serde_json::json!({ "id": tx_id }),
+        )
+        .expect("transaction_detail should succeed");
+        assert_eq!(detail["isBalanced"], serde_json::json!(true));
+        assert_eq!(detail["postingCount"], serde_json::json!(2));
+
+        // update description
+        let updated = invoke(
+            &webview,
+            "transaction_update",
+            serde_json::json!({
+                "id": tx_id,
+                "input": { "description": "Lunch updated", "date": "2024-01-16" }
+            }),
+        )
+        .expect("transaction_update should succeed");
+        assert_eq!(updated["description"], serde_json::json!("Lunch updated"));
+
+        // update postings
+        invoke(
+            &webview,
+            "transaction_update",
+            serde_json::json!({
+                "id": tx_id,
+                "input": {
+                    "postings": [
+                        { "accountId": cash, "amount": "-50.00" },
+                        { "accountId": food_account, "amount": "50.00" }
+                    ]
+                }
+            }),
+        )
+        .expect("transaction_update postings should succeed");
+
+        // delete preview
+        let preview = invoke(
+            &webview,
+            "transaction_delete_preview",
+            serde_json::json!({ "id": tx_id }),
+        )
+        .expect("transaction_delete_preview should succeed");
+        assert_eq!(preview["postingCount"], serde_json::json!(2));
+
+        // delete
+        invoke(
+            &webview,
+            "transaction_delete",
+            serde_json::json!({ "id": tx_id }),
+        )
+        .expect("transaction_delete should succeed");
+        let list_after = invoke(&webview, "transaction_list", serde_json::json!({}))
+            .expect("transaction_list after delete should succeed");
+        assert!(list_after.as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_quick_add_via_ipc() {
+        let (_dir, db) = test_db();
+        let (cash, _food_account, food_category) = seed_accounts(&db);
+        let (_app, webview) = mock_app(AppState {
+            database: Mutex::new(Some(db)),
+            recent_dbs: Mutex::new(RecentDbs::empty()),
+        });
+
+        let created = invoke(
+            &webview,
+            "quick_add_transaction",
+            serde_json::json!({
+                "input": {
+                    "mode": "expense",
+                    "amount": "35.00",
+                    "sourceAccountId": cash,
+                    "categoryId": food_category,
+                    "description": "Quick lunch",
+                    "date": "2024-02-01"
+                }
+            }),
+        )
+        .expect("quick_add_transaction should succeed");
+        assert_eq!(created["description"], serde_json::json!("Quick lunch"));
+        assert_eq!(created["postings"].as_array().unwrap().len(), 2);
+
+        let err = invoke(
+            &webview,
+            "quick_add_transaction",
+            serde_json::json!({
+                "input": { "mode": "bogus", "amount": "1.00" }
+            }),
+        )
+        .expect_err("invalid quick add mode must fail");
+        assert!(err.as_str().unwrap().contains("invalidMode"));
+    }
+
+    #[test]
+    fn test_transaction_create_invalid_amount() {
+        let (_dir, db) = test_db();
+        let (cash, food_account, _food_category) = seed_accounts(&db);
+        let (_app, webview) = mock_app(AppState {
+            database: Mutex::new(Some(db)),
+            recent_dbs: Mutex::new(RecentDbs::empty()),
+        });
+
+        let err = invoke(
+            &webview,
+            "transaction_create",
+            serde_json::json!({
+                "input": {
+                    "date": "2024-01-15",
+                    "description": "Bad",
+                    "categoryId": null,
+                    "postings": [
+                        { "accountId": cash, "amount": "abc" },
+                        { "accountId": food_account, "amount": "10.00" }
+                    ]
+                }
+            }),
+        )
+        .expect_err("invalid posting amount must fail");
+        assert!(err.as_str().unwrap().contains("invalidAmount"));
+    }
+
+    #[test]
+    fn test_transaction_commands_locked_db() {
+        let (_app, webview) = mock_app(AppState {
+            database: Mutex::new(None),
+            recent_dbs: Mutex::new(RecentDbs::empty()),
+        });
+
+        let bodies: Vec<(&str, serde_json::Value)> = vec![
+            (
+                "transaction_create",
+                serde_json::json!({
+                    "input": {
+                        "date": "2024-01-15",
+                        "description": "x",
+                        "categoryId": null,
+                        "postings": []
+                    }
+                }),
+            ),
+            ("transaction_list", serde_json::json!({})),
+            ("transaction_get", serde_json::json!({ "id": "x" })),
+            ("transaction_list_paginated", serde_json::json!({})),
+            (
+                "quick_add_transaction",
+                serde_json::json!({
+                    "input": { "mode": "expense", "amount": "1.00" }
+                }),
+            ),
+            ("transaction_detail", serde_json::json!({ "id": "x" })),
+            ("transaction_update", serde_json::json!({ "id": "x", "input": {} })),
+            ("transaction_delete_preview", serde_json::json!({ "id": "x" })),
+            ("transaction_delete", serde_json::json!({ "id": "x" })),
+        ];
+        for (cmd, body) in bodies {
+            let err = invoke(&webview, cmd, body)
+                .expect_err("locked db must fail for every transaction command");
+            assert!(
+                err.as_str().unwrap().contains("not unlocked"),
+                "unexpected error for {}: {}",
+                cmd,
+                err.as_str().unwrap()
+            );
+        }
     }
 }

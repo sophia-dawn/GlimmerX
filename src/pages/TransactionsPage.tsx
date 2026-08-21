@@ -78,7 +78,7 @@ export function TransactionsPage() {
   // Filter state (without page - page managed by infinite query)
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<EnhancedTransactionFilter>({
-    pageSize: 50,
+    pageSize: 100,
     sortBy: "date",
     sortOrder: "desc",
   });
@@ -134,7 +134,7 @@ export function TransactionsPage() {
   );
 
   const handleClearFilter = useCallback(() => {
-    setFilter({ pageSize: 50, sortBy: "date", sortOrder: "desc" });
+    setFilter({ pageSize: 100, sortBy: "date", sortOrder: "desc" });
     setSearchQuery("");
   }, []);
 

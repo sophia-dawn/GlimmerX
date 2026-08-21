@@ -16,13 +16,7 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let recent_dbs = RecentDbs::load().unwrap_or_else(|e| {
-        eprintln!(
-            "Warning: failed to load recent dbs: {}, using empty list",
-            e
-        );
-        RecentDbs::empty()
-    });
+    let recent_dbs = RecentDbs::load().unwrap_or_else(|_| RecentDbs::empty());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -34,19 +28,9 @@ pub fn run() {
                 // Attempt to close database before window closes
                 if let Some(state) = window.try_state::<AppState>() {
                     if let Ok(mut db_state) = state.database.lock() {
-                        if db_state.is_some() {
-                            eprintln!("[window_close] database exists, closing");
-                            // Drop will handle checkpoint
-                            *db_state = None;
-                            eprintln!("[window_close] database closed");
-                        } else {
-                            eprintln!("[window_close] no database to close");
-                        }
-                    } else {
-                        eprintln!("[window_close] failed to lock database state");
+                        // Drop will handle checkpoint
+                        *db_state = None;
                     }
-                } else {
-                    eprintln!("[window_close] AppState not available");
                 }
             }
         })

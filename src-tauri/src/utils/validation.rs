@@ -6,6 +6,8 @@
 //! - Pagination bounds (page and page_size)
 //! - Amount values (positive, within limits)
 
+use chrono::Datelike;
+
 use crate::db::AppError;
 
 #[allow(dead_code)]
@@ -22,30 +24,24 @@ pub fn validate_non_empty_name(name: &str, field_name: &str) -> Result<(), AppEr
 
 #[allow(dead_code)]
 pub fn validate_date_format(date: &str) -> Result<(), AppError> {
-    let parts: Vec<&str> = date.split('-').collect();
-    if parts.len() != 3 {
+    // Enforce strict YYYY-MM-DD shape (chrono's %Y-%m-%d accepts 1-digit
+    // month/day, which we intentionally reject).
+    let bytes = date.as_bytes();
+    let valid_shape = bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(i, b)| i == 4 || i == 7 || b.is_ascii_digit());
+    if !valid_shape {
         return Err(AppError::ValidationError(
             "errors.invalidDateFormat".to_string(),
         ));
     }
-
-    if parts[0].len() != 4 || parts[1].len() != 2 || parts[2].len() != 2 {
-        return Err(AppError::ValidationError(
-            "errors.invalidDateFormat".to_string(),
-        ));
-    }
-
-    let year: i32 = parts[0]
-        .parse()
+    let parsed = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
         .map_err(|_| AppError::ValidationError("errors.invalidDateFormat".to_string()))?;
-    let month: u32 = parts[1]
-        .parse()
-        .map_err(|_| AppError::ValidationError("errors.invalidDateFormat".to_string()))?;
-    let day: u32 = parts[2]
-        .parse()
-        .map_err(|_| AppError::ValidationError("errors.invalidDateFormat".to_string()))?;
-
-    if !(1900..=2100).contains(&year) || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+    if !(1900..=2100).contains(&parsed.year()) {
         return Err(AppError::ValidationError(
             "errors.invalidDateFormat".to_string(),
         ));
@@ -129,6 +125,14 @@ mod tests {
         assert!(validate_date_format("2024-13-01").is_err()); // Month 13
         assert!(validate_date_format("2024-01-00").is_err()); // Day 0
         assert!(validate_date_format("2024-01-32").is_err()); // Day 32
+    }
+
+    #[test]
+    fn test_validate_date_format_rejects_impossible_dates() {
+        assert!(validate_date_format("2024-02-31").is_err()); // Feb 31
+        assert!(validate_date_format("2024-04-31").is_err()); // Apr 31
+        assert!(validate_date_format("2023-02-29").is_err()); // Non-leap Feb 29
+        assert!(validate_date_format("2024-02-29").is_ok()); // Leap Feb 29
     }
 
     #[test]

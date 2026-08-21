@@ -1,4 +1,4 @@
-.PHONY: help setup dev dev-web lint lint-frontend lint-backend fmt fmt-frontend fmt-backend test test-frontend test-backend check release release-windows release-linux release-mac portable portable-windows portable-linux clean _collect-release
+.PHONY: help setup dev dev-web lint lint-frontend lint-backend fmt fmt-frontend fmt-backend test test-frontend test-backend coverage coverage-install check release release-windows release-linux release-mac portable portable-windows portable-linux clean _collect-release
 
 SHELL := /bin/bash
 
@@ -12,6 +12,8 @@ help:
 	@echo "  make lint         Run ESLint + Clippy (all warnings as errors)"
 	@echo "  make fmt          Format code (Prettier + cargo fmt)"
 	@echo "  make test         Run all tests (Vitest + cargo test)"
+	@echo "  make coverage     Rust coverage with cargo-llvm-cov (≥95% lines)"
+	@echo "  make coverage-install  Install cargo-llvm-cov + llvm-tools"
 	@echo "  make check        Full check (tsc + lint + fmt check + clippy)"
 	@echo ""
 	@echo "  Release (安装版):"
@@ -97,6 +99,14 @@ test-frontend:
 
 test-backend:
 	cd src-tauri && cargo test
+
+# ── Coverage (backend) ────────────────────────────────────────
+coverage-install:
+	rustup component add llvm-tools-preview
+	cargo install cargo-llvm-cov --locked
+
+coverage:
+	cd src-tauri && cargo llvm-cov --all-targets --fail-under-lines 95 --ignore-filename-regex 'src/lib\.rs|src/main\.rs'
 
 # ── Check ─────────────────────────────────────────────────────
 check:
