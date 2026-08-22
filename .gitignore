@@ -75,7 +75,6 @@ release/
 
 .omc/
 .next/
-package-lock.json
 *.db
 *.db-shm
 *.db-wal
