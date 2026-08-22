@@ -1,4 +1,4 @@
-.PHONY: help setup dev dev-web lint lint-frontend lint-backend fmt fmt-frontend fmt-backend test test-frontend test-backend coverage coverage-install check release release-windows release-linux release-mac portable portable-windows portable-linux clean _collect-release
+.PHONY: help setup dev dev-web lint lint-frontend lint-backend fmt fmt-frontend fmt-backend test test-frontend test-backend coverage coverage-install check release release-windows release-linux release-mac portable portable-windows portable-linux clean _collect-release _clean-bundles
 
 SHELL := /bin/bash
 
@@ -124,6 +124,18 @@ check:
 
 # ── Release (安装版) ─────────────────────────────────────────────
 
+# Helper: remove stale bundles left by previous builds (tauri does not
+# clean its bundle output dir, so old-version artifacts accumulate there)
+_clean-bundles:
+	@rm -rf src-tauri/target/release/bundle/deb \
+	       src-tauri/target/release/bundle/rpm \
+	       src-tauri/target/release/bundle/appimage \
+	       src-tauri/target/release/bundle/nsis \
+	       src-tauri/target/release/bundle/msi \
+	       src-tauri/target/release/bundle/msix \
+	       src-tauri/target/release/bundle/dmg \
+	       src-tauri/target/release/bundle/macos
+
 # Helper: collect artifacts to release/ directory
 _collect-release:
 	@mkdir -p release
@@ -169,17 +181,20 @@ release:
 release-windows:
 	@echo "→ Building Windows installers (NSIS + MSI)"
 	@# Use Strawberry Perl for OpenSSL build (Git Bash Perl lacks required modules)
+	$(MAKE) _clean-bundles
 	@export OPENSSL_SRC_PERL="C:/Strawberry/perl/bin/perl.exe"; \
 	npm run tauri build
 	$(MAKE) _collect-release
 
 release-linux:
 	@echo "→ Building Linux packages (AppImage + deb + rpm)"
+	$(MAKE) _clean-bundles
 	APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=true npm run tauri build
 	$(MAKE) _collect-release
 
 release-mac:
 	@echo "→ Building macOS packages (dmg + app)"
+	$(MAKE) _clean-bundles
 	npm run tauri build
 	$(MAKE) _collect-release
 
