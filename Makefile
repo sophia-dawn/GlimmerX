@@ -187,8 +187,7 @@ release-mac:
 portable-windows:
 	@echo "→ Building Windows portable exe"
 	npm run tauri build -- --no-bundle
-	@mkdir -p release
-	@cp src-tauri/target/release/glimmerx.exe release/Glimmerx-portable.exe
+	@node -e "const fs=require('fs');fs.mkdirSync('release',{recursive:true});fs.copyFileSync('src-tauri/target/release/glimmerx.exe','release/Glimmerx-portable.exe')"
 	@echo "✓ Output: release/Glimmerx-portable.exe"
 
 
