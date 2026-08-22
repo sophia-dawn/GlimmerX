@@ -28,6 +28,9 @@ fi
 
 # ── 2. System dependencies ────────────────────────────────────
 # Tauri 2 requires: WebKit2GTK, AppIndicator, and various dev libs.
+#   - librsvg2-dev: provides librsvg-2.0.pc, required by
+#     linuxdeploy-plugin-gtk.sh when bundling the AppImage
+#   - libfuse2t64: FUSE 2, needed to run linuxdeploy / built AppImages
 # rusqlite with bundled-sqlcipher-vendored-openssl needs:
 #   build-essential, pkg-config, libssl-dev (for openssl-sys)
 #   libsqlite3-dev is not strictly needed with bundled but useful for tooling.
@@ -51,7 +54,9 @@ sudo apt-get install -y --no-install-recommends \
     libasound2-dev \
     libfontconfig1-dev \
     libfreetype-dev \
-    libgtk-3-dev
+    libgtk-3-dev \
+    librsvg2-dev \
+    libfuse2t64
 
 info "System dependencies installed."
 

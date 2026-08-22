@@ -175,7 +175,7 @@ release-windows:
 
 release-linux:
 	@echo "→ Building Linux packages (AppImage + deb + rpm)"
-	npm run tauri build
+	APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=true npm run tauri build
 	$(MAKE) _collect-release
 
 release-mac:
