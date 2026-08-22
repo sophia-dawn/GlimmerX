@@ -3,6 +3,7 @@ use std::sync::Mutex;
 mod commands;
 mod constants;
 mod db;
+mod services;
 mod utils;
 
 use db::{Database, RecentDbs};
@@ -98,6 +99,10 @@ pub fn run() {
             commands::data::export_transactions_csv,
             commands::data::export_transactions_beancount,
             commands::data::import_transactions_csv,
+            commands::settings::get_setting,
+            commands::settings::set_setting,
+            commands::ai::ai_parse_transaction,
+            commands::ai::ai_test_connection,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

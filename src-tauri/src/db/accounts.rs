@@ -1670,11 +1670,8 @@ mod tests {
         assert!(result.is_err());
 
         // Different currencies
-        conn.execute(
-            "UPDATE accounts SET currency = 'USD' WHERE id = ?1",
-            [&id2],
-        )
-        .unwrap();
+        conn.execute("UPDATE accounts SET currency = 'USD' WHERE id = ?1", [&id2])
+            .unwrap();
         let result = create_transfer(&conn, &id1, &id2, 100, "x");
         assert!(result.is_err());
     }
@@ -1709,8 +1706,8 @@ mod tests {
         assert_eq!(only_from.len(), 1);
         let only_to = get_account_transactions(&conn, &id1, None, Some("2024-01-31")).unwrap();
         assert_eq!(only_to.len(), 1);
-        let both = get_account_transactions(&conn, &id1, Some("2024-01-01"), Some("2024-01-31"))
-            .unwrap();
+        let both =
+            get_account_transactions(&conn, &id1, Some("2024-01-01"), Some("2024-01-31")).unwrap();
         assert_eq!(both.len(), 1);
         let none = get_account_transactions(&conn, &id1, None, None).unwrap();
         assert_eq!(none.len(), 1);
@@ -1731,7 +1728,9 @@ mod tests {
 
         // Zero amount deletes the opening balance
         create_opening_balance(&conn, &id, 0, "Equity", "Opening Balances", None).unwrap();
-        assert!(get_opening_balance_for_account(&conn, &id).unwrap().is_none());
+        assert!(get_opening_balance_for_account(&conn, &id)
+            .unwrap()
+            .is_none());
     }
 
     #[test]

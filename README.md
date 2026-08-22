@@ -14,6 +14,7 @@
 
 - **账户管理** — 多账户类型（资产、负债、收入、支出）、账户余额追踪、账户归档
 - **交易管理** — 复式记账交易、快速记账（支出/收入/转账）、交易搜索与过滤
+- **AI 记账** — 自然语言录入交易（如"中午吃饭18元"），自动识别分类/账户/金额/日期，支持 OpenAI / DeepSeek / Ollama 等兼容服务
 - **分类管理** — 层级分类结构、分类统计
 - **预算管理** — 月度/年度预算、预算执行报告
 - **概览仪表盘** — 月度/年度收支汇总、净资产趋势、分类占比、近期交易
@@ -23,15 +24,15 @@
 
 ## 技术栈
 
-| 层级 | 技术 |
-|------|------|
-| 框架 | Tauri 2 + React 19 |
-| 语言 | TypeScript 5.8 + Rust |
-| UI | shadcn/ui + Tailwind CSS 4 |
-| 数据库 | SQLCipher（加密 SQLite） |
-| 状态管理 | Zustand + React Query |
-| 图表 | Recharts |
-| 国际化 | i18next |
+| 层级     | 技术                       |
+| -------- | -------------------------- |
+| 框架     | Tauri 2 + React 19         |
+| 语言     | TypeScript 5.8 + Rust      |
+| UI       | shadcn/ui + Tailwind CSS 4 |
+| 数据库   | SQLCipher（加密 SQLite）   |
+| 状态管理 | Zustand + React Query      |
+| 图表     | Recharts                   |
+| 国际化   | i18next                    |
 
 ## 开发方式
 
@@ -56,8 +57,9 @@ GlimmerX/
 │   └── i18n/             # 国际化配置
 ├── src-tauri/            # Rust 后端源码
 │   ├── src/
-│   │   ├── db/           # 数据库层（账户、交易、分类等）
+│   │   ├── db/           # 数据库层（账户、交易、分类、设置等）
 │   │   ├── commands/     # Tauri 命令处理
+│   │   ├── services/     # 业务服务层（AI 解析等）
 │   │   └── utils/        # 工具模块
 │   └── capabilities/     # Tauri 权限配置
 ├── design/               # 设计文档（详细设计）
@@ -118,6 +120,40 @@ make portable-linux    # Linux AppImage
 
 输出目录: `release/`
 
+## AI 记账
+
+通过自然语言快速录入交易，无需手动填写金额、分类、账户等字段。
+
+### 使用方式
+
+1. **配置 AI 服务** — 打开「设置」页，在「AI 记账」区块选择服务商并填写配置：
+   - **OpenAI** — Base URL `https://api.openai.com/v1`，填写 API Key 和模型名（如 `gpt-4o-mini`）
+   - **DeepSeek** — Base URL `https://api.deepseek.com/v1`，填写 API Key 和模型名（如 `deepseek-chat`）
+   - **Ollama（本地）** — Base URL `http://localhost:11434/v1`，API Key 可留空，填写本地模型名（如 `llama3.1`）
+   - **自定义** — 任何兼容 OpenAI Chat Completions 协议的服务
+   - **默认支出账户** — 当 AI 无法从文本推断来源账户时使用的兜底账户
+2. **打开 AI 对话框** — 点击顶部栏的 ✨ 按钮，或使用快捷键 `Ctrl+Shift+I`（macOS: `Cmd+Shift+I`）
+3. **输入自然语言** — 如 `中午吃饭18元`、`昨天工资到账8000`、`微信付打车15块`
+4. **自动录入** — AI 解析后自动创建交易，无需手动确认
+
+### 工作原理
+
+```
+用户输入 "昨天午饭15块 微信付的"
+  ↓
+Rust 后端构造英文 prompt（注入当前日期/分类清单/账户清单）
+  ↓
+调用 OpenAI 兼容 /chat/completions API（JSON mode，不支持时自动降级）
+  ↓
+解析 JSON → 校验金额/日期/类型 → 匹配或自动创建分类 → 推断账户
+  ↓
+复用 quick_add_transaction 生成平衡双分录 → 写入数据库
+```
+
+- **隐私**：API Key 存储在本地加密数据库中，不经过前端 webview
+- **兜底**：后端严格校验 AI 返回数据，任何字段异常都会报错且不录入
+- **分类自动创建**：AI 识别的分类在现有分类中找不到时自动新建
+
 ## 设计文档
 
 详细设计文档位于 `design/` 目录，索引见 [DESIGN.md](DESIGN.md)。
@@ -143,4 +179,5 @@ make portable-linux    # Linux AppImage
 - 修改后的版本分发时必须以 GPL v3 发布（开源）
 - 此机制防止商业闭源二次售卖
 - 详见 [LICENSE](LICENSE) 文件
+
 # GlimmerX

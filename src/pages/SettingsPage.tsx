@@ -9,6 +9,7 @@ import {
 import { useLanguageStore } from "@/stores/languageStore";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { DataManagementSection } from "@/components/DataManagementSection";
+import { AiSettingsSection } from "@/components/settings/AiSettingsSection";
 import type { SupportedLanguage } from "@/i18n";
 import {
   Select,
@@ -229,6 +230,11 @@ export function SettingsPage() {
           >
             {t("settings.changePassword")}
           </button>
+        </div>
+
+        {/* AI Bookkeeping */}
+        <div className="space-y-3">
+          <AiSettingsSection />
         </div>
 
         {/* Data Management */}

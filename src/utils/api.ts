@@ -376,6 +376,32 @@ export async function quickAddTransaction(
 }
 
 // ---------------------------------------------------------------------------
+// AI commands
+// ---------------------------------------------------------------------------
+
+export async function aiParseTransaction(
+  text: string,
+): Promise<TransactionDto> {
+  return invokeCommand<TransactionDto>("ai_parse_transaction", { text });
+}
+
+export async function aiTestConnection(): Promise<void> {
+  return invokeCommand<void>("ai_test_connection");
+}
+
+// ---------------------------------------------------------------------------
+// Settings commands
+// ---------------------------------------------------------------------------
+
+export async function getSetting(key: string): Promise<string | null> {
+  return invokeCommand<string | null>("get_setting", { key });
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  return invokeCommand<void>("set_setting", { key, value });
+}
+
+// ---------------------------------------------------------------------------
 // Transaction Detail
 // ---------------------------------------------------------------------------
 

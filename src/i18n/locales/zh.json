@@ -536,6 +536,20 @@
       "emptyFile": "CSV文件为空",
       "noTransactions": "CSV不包含有效交易",
       "currencyMismatch": "账户货币不匹配"
+    },
+    "ai": {
+      "noApiKey": "未配置 AI API Key，请先在设置中配置",
+      "noBaseUrl": "未配置 Base URL",
+      "noModel": "未配置模型",
+      "apiCallFailed": "AI 服务调用失败",
+      "parseFailed": "AI 返回内容解析失败",
+      "invalidDate": "AI 返回的日期无效",
+      "missingDate": "AI 未返回日期",
+      "invalidMode": "AI 返回的交易类型无效",
+      "invalidAmount": "AI 返回的金额无效",
+      "networkError": "网络错误，无法连接 AI 服务",
+      "timeout": "AI 服务响应超时",
+      "noSourceAccount": "无法确定来源账户"
     }
   },
   "quickAdd": {
@@ -555,6 +569,30 @@
       "expenseDesc": "从资产账户支出到支出分类",
       "incomeDesc": "从收入分类收入到资产账户",
       "transferDesc": "在两个资产或负债账户之间转移资金"
+    }
+  },
+  "ai": {
+    "title": "AI 记账",
+    "inputPlaceholder": "试试输入：中午吃饭18元",
+    "button": "识别并录入",
+    "recognizing": "识别中...",
+    "success": "已录入",
+    "settings": {
+      "title": "AI 记账",
+      "provider": "服务商",
+      "baseUrl": "Base URL",
+      "apiKey": "API Key",
+      "model": "模型",
+      "defaultSourceAccount": "默认支出账户",
+      "testConnection": "测试连接",
+      "testSuccess": "连接成功",
+      "save": "保存",
+      "showKey": "显示",
+      "hideKey": "隐藏",
+      "providerOpenai": "OpenAI",
+      "providerDeepseek": "DeepSeek",
+      "providerOllama": "Ollama (本地)",
+      "providerCustom": "自定义"
     }
   },
   "placeholder": {

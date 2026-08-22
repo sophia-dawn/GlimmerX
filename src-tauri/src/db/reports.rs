@@ -1418,8 +1418,8 @@ mod tests {
     use crate::db::accounts::{create_account_with_path, CreateAccountFullInput};
     use crate::db::categories::{create_category, CategoryType};
     use crate::db::transactions::{create_transaction, PostingInput};
-    use rusqlite::Connection;
     use rusqlite::params;
+    use rusqlite::Connection;
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -1562,11 +1562,15 @@ mod tests {
     }
 
     fn seed_data(conn: &Connection) -> SeededIds {
-        let cash = create_account_with_path(conn, "Assets/Cash", "CNY", Some(&net_worth_input()))
-            .unwrap();
-        let credit_card =
-            create_account_with_path(conn, "Liabilities/CreditCard", "CNY", Some(&net_worth_input()))
-                .unwrap();
+        let cash =
+            create_account_with_path(conn, "Assets/Cash", "CNY", Some(&net_worth_input())).unwrap();
+        let credit_card = create_account_with_path(
+            conn,
+            "Liabilities/CreditCard",
+            "CNY",
+            Some(&net_worth_input()),
+        )
+        .unwrap();
         let salary_account = create_account_with_path(conn, "Income/Salary", "CNY", None).unwrap();
         let food_account = create_account_with_path(conn, "Expenses/Food", "CNY", None).unwrap();
         let transport_account =

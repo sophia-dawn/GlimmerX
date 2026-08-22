@@ -609,7 +609,10 @@ mod tests {
         let path = write_csv(
             &dir,
             "in.csv",
-            &format!("{}txn-1,2024-02-01,Lunch,CNY,Cash,asset,-2500,,false\n", HEADER),
+            &format!(
+                "{}txn-1,2024-02-01,Lunch,CNY,Cash,asset,-2500,,false\n",
+                HEADER
+            ),
         );
 
         let result = import_csv(&mut conn, &path, &import_options(true, false)).unwrap();
@@ -635,7 +638,9 @@ mod tests {
         let result = import_csv(&mut conn, &path, &import_options(true, false)).unwrap();
         assert_eq!(result.error_count, 1);
         assert_eq!(result.imported_count, 0);
-        assert!(result.errors[0].message.contains("errors.transactionUnbalanced"));
+        assert!(result.errors[0]
+            .message
+            .contains("errors.transactionUnbalanced"));
     }
 
     #[test]
@@ -679,11 +684,8 @@ mod tests {
             let conn = db.get_conn().unwrap();
             create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
             create_account_with_path(&conn, "Expenses/Food", "CNY", None).unwrap();
-            conn.execute(
-                "UPDATE accounts SET is_active = 0 WHERE name = 'Cash'",
-                [],
-            )
-            .unwrap();
+            conn.execute("UPDATE accounts SET is_active = 0 WHERE name = 'Cash'", [])
+                .unwrap();
         }
         let mut conn = db.get_conn().unwrap();
         let dir = TempDir::new().unwrap();

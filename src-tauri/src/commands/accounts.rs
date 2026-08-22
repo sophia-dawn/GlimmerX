@@ -1034,12 +1034,7 @@ mod ipc_tests {
 
         // opening balance is reflected in account_balance (cents)
         let balance: i64 = serde_json::from_value(
-            invoke(
-                &webview,
-                "account_balance",
-                serde_json::json!({ "id": id }),
-            )
-            .unwrap(),
+            invoke(&webview, "account_balance", serde_json::json!({ "id": id })).unwrap(),
         )
         .unwrap();
         assert_eq!(balance, 100000);
@@ -1101,12 +1096,7 @@ mod ipc_tests {
         assert!(!tx_id.as_str().unwrap().is_empty());
 
         let from_balance: i64 = serde_json::from_value(
-            invoke(
-                &webview,
-                "account_balance",
-                serde_json::json!({ "id": id }),
-            )
-            .unwrap(),
+            invoke(&webview, "account_balance", serde_json::json!({ "id": id })).unwrap(),
         )
         .unwrap();
         assert_eq!(from_balance, 80000);
@@ -1167,12 +1157,7 @@ mod ipc_tests {
         let created = create_account(&webview, "Assets/Empty", None);
         let id = created["id"].as_str().unwrap().to_string();
 
-        invoke(
-            &webview,
-            "account_delete",
-            serde_json::json!({ "id": id }),
-        )
-        .unwrap();
+        invoke(&webview, "account_delete", serde_json::json!({ "id": id })).unwrap();
 
         let list: Vec<serde_json::Value> = serde_json::from_value(
             invoke(&webview, "account_list", serde_json::json!({})).unwrap(),
@@ -1205,7 +1190,10 @@ mod ipc_tests {
         .expect("account_create with meta and balance should succeed");
         assert_eq!(created["name"], serde_json::json!("Savings"));
         assert_eq!(created["initial_balance"], serde_json::json!(100000));
-        assert_eq!(created["initial_balance_date"], serde_json::json!("2024-01-01"));
+        assert_eq!(
+            created["initial_balance_date"],
+            serde_json::json!("2024-01-01")
+        );
         assert_eq!(created["meta"].as_array().unwrap().len(), 1);
         assert_eq!(created["meta"][0]["key"], serde_json::json!("account_role"));
 
@@ -1445,6 +1433,9 @@ mod ipc_tests {
         // account_meta_schema
         let schema = invoke(&webview, "account_meta_schema", serde_json::json!({})).unwrap();
         assert!(!schema["valid_account_roles"].as_array().unwrap().is_empty());
-        assert!(!schema["valid_liability_types"].as_array().unwrap().is_empty());
+        assert!(!schema["valid_liability_types"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 }

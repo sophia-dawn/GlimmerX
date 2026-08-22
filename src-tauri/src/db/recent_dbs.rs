@@ -110,8 +110,8 @@ fn config_file_path() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     fn test_recent_dbs() -> RecentDbs {
         let dir = TempDir::new().unwrap();

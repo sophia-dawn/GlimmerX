@@ -160,7 +160,7 @@ pub struct TransactionListResponseDto {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn to_dto(tx_with_postings: TransactionWithPostings) -> TransactionDto {
+pub fn to_dto(tx_with_postings: TransactionWithPostings) -> TransactionDto {
     TransactionDto {
         id: tx_with_postings.transaction.id,
         date: tx_with_postings.transaction.date,
@@ -1082,8 +1082,14 @@ mod ipc_tests {
                 }),
             ),
             ("transaction_detail", serde_json::json!({ "id": "x" })),
-            ("transaction_update", serde_json::json!({ "id": "x", "input": {} })),
-            ("transaction_delete_preview", serde_json::json!({ "id": "x" })),
+            (
+                "transaction_update",
+                serde_json::json!({ "id": "x", "input": {} }),
+            ),
+            (
+                "transaction_delete_preview",
+                serde_json::json!({ "id": "x" }),
+            ),
             ("transaction_delete", serde_json::json!({ "id": "x" })),
         ];
         for (cmd, body) in bodies {

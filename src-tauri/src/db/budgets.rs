@@ -1013,7 +1013,8 @@ mod tests {
     fn test_list_budgets_invalid_period_row() {
         let (_dir, conn) = test_conn();
         let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
-        conn.execute_batch("PRAGMA ignore_check_constraints = ON;").unwrap();
+        conn.execute_batch("PRAGMA ignore_check_constraints = ON;")
+            .unwrap();
         conn.execute(
             "INSERT INTO budgets (id, category_id, amount, period, rollover, created_at, updated_at)
              VALUES ('budget-bad', ?1, 1000, 'bad-period', 0, '2024-01-01T00:00:00+08:00', '2024-01-01T00:00:00+08:00')",
@@ -1028,7 +1029,8 @@ mod tests {
     fn test_list_budget_statuses_invalid_period_row() {
         let (_dir, conn) = test_conn();
         let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
-        conn.execute_batch("PRAGMA ignore_check_constraints = ON;").unwrap();
+        conn.execute_batch("PRAGMA ignore_check_constraints = ON;")
+            .unwrap();
         conn.execute(
             "INSERT INTO budgets (id, category_id, amount, period, rollover, created_at, updated_at)
              VALUES ('budget-bad-2', ?1, 1000, 'bad-period', 0, '2024-01-01T00:00:00+08:00', '2024-01-01T00:00:00+08:00')",

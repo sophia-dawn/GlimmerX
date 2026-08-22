@@ -2502,11 +2502,8 @@ mod tests {
         let (_dir, conn) = test_conn();
         let cash = make_account(&conn, "Cash", "asset");
         let food = make_account(&conn, "Food", "expense");
-        conn.execute(
-            "UPDATE accounts SET is_active = 0 WHERE id = ?1",
-            [&cash],
-        )
-        .unwrap();
+        conn.execute("UPDATE accounts SET is_active = 0 WHERE id = ?1", [&cash])
+            .unwrap();
 
         let result = create_transaction(
             &conn,
@@ -2609,7 +2606,9 @@ mod tests {
         input = base("expense");
         input.destination_account_id = None;
         let err = quick_add_transaction(&conn, &input).unwrap_err();
-        assert!(err.to_string().contains("expenseRequiresDestinationOrCategory"));
+        assert!(err
+            .to_string()
+            .contains("expenseRequiresDestinationOrCategory"));
 
         // Income without destination or category
         input = base("income");

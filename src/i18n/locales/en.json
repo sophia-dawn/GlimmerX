@@ -536,6 +536,20 @@
       "emptyFile": "CSV file is empty",
       "noTransactions": "CSV contains no valid transactions",
       "currencyMismatch": "Account currency mismatch"
+    },
+    "ai": {
+      "noApiKey": "AI API Key not configured, please set it in Settings",
+      "noBaseUrl": "Base URL not configured",
+      "noModel": "Model not configured",
+      "apiCallFailed": "AI API call failed",
+      "parseFailed": "Failed to parse AI response",
+      "invalidDate": "Invalid date from AI",
+      "missingDate": "AI did not return a date",
+      "invalidMode": "Invalid transaction type from AI",
+      "invalidAmount": "Invalid amount from AI",
+      "networkError": "Network error, cannot reach AI service",
+      "timeout": "AI service timeout",
+      "noSourceAccount": "No source account could be determined"
     }
   },
   "quickAdd": {
@@ -555,6 +569,30 @@
       "expenseDesc": "Money spent from an asset account to an expense category",
       "incomeDesc": "Money received into an asset account from an income category",
       "transferDesc": "Move money between two asset or liability accounts"
+    }
+  },
+  "ai": {
+    "title": "AI Bookkeeping",
+    "inputPlaceholder": "Try: Lunch 18 yuan",
+    "button": "Parse & Save",
+    "recognizing": "Parsing...",
+    "success": "Saved",
+    "settings": {
+      "title": "AI Bookkeeping",
+      "provider": "Provider",
+      "baseUrl": "Base URL",
+      "apiKey": "API Key",
+      "model": "Model",
+      "defaultSourceAccount": "Default expense account",
+      "testConnection": "Test connection",
+      "testSuccess": "Connection OK",
+      "save": "Save",
+      "showKey": "Show",
+      "hideKey": "Hide",
+      "providerOpenai": "OpenAI",
+      "providerDeepseek": "DeepSeek",
+      "providerOllama": "Ollama (local)",
+      "providerCustom": "Custom"
     }
   },
   "placeholder": {

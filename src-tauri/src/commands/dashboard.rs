@@ -188,7 +188,8 @@ mod ipc_tests {
         .unwrap();
         let salary_account = create_account_with_path(&conn, "Income/Salary", "CNY", None).unwrap();
         let food_account = create_account_with_path(&conn, "Expenses/Food", "CNY", None).unwrap();
-        let salary_category = create_category(&conn, "Salary", &CategoryType::Income, None).unwrap();
+        let salary_category =
+            create_category(&conn, "Salary", &CategoryType::Income, None).unwrap();
         let food_category = create_category(&conn, "Food", &CategoryType::Expense, None).unwrap();
 
         create_transaction(
@@ -298,12 +299,8 @@ mod ipc_tests {
     fn test_dashboard_commands_locked_db() {
         let (_app, webview) = mock_app_locked();
 
-        let err = invoke(
-            &webview,
-            "dashboard_summary",
-            serde_json::json!({}),
-        )
-        .expect_err("locked db must fail");
+        let err = invoke(&webview, "dashboard_summary", serde_json::json!({}))
+            .expect_err("locked db must fail");
         assert!(err.as_str().unwrap().contains("not unlocked"));
     }
 }

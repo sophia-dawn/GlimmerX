@@ -12,6 +12,7 @@ pub mod import;
 mod recent_dbs;
 pub mod reports;
 mod schema;
+pub mod settings;
 pub mod transactions;
 #[allow(unused_imports)]
 pub use export::{export_beancount, export_csv, ExportResult};
@@ -36,6 +37,9 @@ pub enum AppError {
 
     #[error("I/O error: {0}")]
     IoError(String),
+
+    #[error("errors.ai.{0}")]
+    AiError(String),
 }
 
 impl From<rusqlite::Error> for AppError {

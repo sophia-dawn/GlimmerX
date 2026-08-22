@@ -239,7 +239,8 @@ mod ipc_tests {
         let transport_account =
             create_account_with_path(&conn, "Expenses/Transport", "CNY", None).unwrap();
 
-        let salary_category = create_category(&conn, "Salary", &CategoryType::Income, None).unwrap();
+        let salary_category =
+            create_category(&conn, "Salary", &CategoryType::Income, None).unwrap();
         let food_category = create_category(&conn, "Food", &CategoryType::Expense, None).unwrap();
 
         create_transaction(
@@ -433,7 +434,10 @@ mod ipc_tests {
 
         let audit = invoke(&webview, "report_audit", serde_json::json!({}))
             .expect("report_audit should succeed");
-        assert_eq!(audit["balanceCheck"]["totalTransactions"], serde_json::json!(5));
+        assert_eq!(
+            audit["balanceCheck"]["totalTransactions"],
+            serde_json::json!(5)
+        );
         assert_eq!(
             audit["balanceCheck"]["unbalancedCount"],
             serde_json::json!(0)
@@ -448,7 +452,10 @@ mod ipc_tests {
         });
 
         let bodies: Vec<(&str, serde_json::Value)> = vec![
-            ("report_standard", serde_json::json!({ "filter": filter_json() })),
+            (
+                "report_standard",
+                serde_json::json!({ "filter": filter_json() }),
+            ),
             (
                 "report_month_comparison",
                 serde_json::json!({ "month1": "2024-01", "month2": "2024-02" }),
@@ -457,8 +464,14 @@ mod ipc_tests {
                 "report_category_breakdown",
                 serde_json::json!({ "filter": filter_json(), "incomeOrExpense": "expense" }),
             ),
-            ("report_balance_sheet", serde_json::json!({ "snapshotDate": "2024-01-31" })),
-            ("report_trend", serde_json::json!({ "filter": filter_json() })),
+            (
+                "report_balance_sheet",
+                serde_json::json!({ "snapshotDate": "2024-01-31" }),
+            ),
+            (
+                "report_trend",
+                serde_json::json!({ "filter": filter_json() }),
+            ),
             ("report_year_summary", serde_json::json!({ "year": 2024 })),
             (
                 "report_account_transactions",

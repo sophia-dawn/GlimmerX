@@ -869,7 +869,14 @@ mod tests {
     fn test_dashboard_queries_missing_table() {
         let dir = TempDir::new().unwrap();
         let conn = Connection::open(dir.path().join("bare.db")).unwrap();
-        assert!(get_dashboard_summary(&conn, "2024-01-01", "2024-01-31", "2024-01-01", "2024-12-31").is_err());
+        assert!(get_dashboard_summary(
+            &conn,
+            "2024-01-01",
+            "2024-01-31",
+            "2024-01-01",
+            "2024-12-31"
+        )
+        .is_err());
         assert!(get_monthly_chart(&conn, 2024, 1).is_err());
         assert!(get_category_breakdown(&conn, 2024, 1, CategoryType::Expense).is_err());
         assert!(get_top_expenses(&conn, 2024, 1, 10).is_err());

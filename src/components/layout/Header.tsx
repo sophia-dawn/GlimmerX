@@ -1,14 +1,15 @@
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useHeaderActions } from "@/contexts/HeaderContext";
 
 interface HeaderProps {
   onQuickAdd?: () => void;
+  onAiInput?: () => void;
 }
 
-export function Header({ onQuickAdd }: HeaderProps) {
+export function Header({ onQuickAdd, onAiInput }: HeaderProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const { actions } = useHeaderActions();
@@ -30,6 +31,18 @@ export function Header({ onQuickAdd }: HeaderProps) {
       <h1 className="text-lg font-semibold">{title}</h1>
       <div className="flex items-center gap-2">
         {actions}
+        {onAiInput && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onAiInput}
+            className="gap-1"
+            title="Ctrl+Shift+I"
+          >
+            <Sparkles className="h-4 w-4" />
+            {t("ai.title")}
+          </Button>
+        )}
         {onQuickAdd && (
           <Button
             variant="default"

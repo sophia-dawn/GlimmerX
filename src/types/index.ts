@@ -294,6 +294,20 @@ export interface QuickAddInput {
 }
 
 // ---------------------------------------------------------------------------
+// AI Types
+// ---------------------------------------------------------------------------
+
+export type AiProvider = "openai" | "deepseek" | "ollama" | "custom";
+
+export interface AiConfig {
+  provider: AiProvider;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  defaultSourceAccountId?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Transaction Detail Types
 // ---------------------------------------------------------------------------
 
