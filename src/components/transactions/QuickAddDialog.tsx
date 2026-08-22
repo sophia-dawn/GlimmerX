@@ -6,6 +6,7 @@ import { accountList, categoryList, quickAddTransaction } from "@/utils/api";
 import { QUERY_CONFIG } from "@/constants/query";
 import { translateErrorMessage } from "@/utils/errorTranslation";
 import { todayLocalDate } from "@/utils/date";
+import { usePreventDialogCloseWhenPopperOpen } from "@/hooks/usePreventDialogCloseWhenPopperOpen";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -198,18 +199,7 @@ export function QuickAddDialog({
     },
   ];
 
-  const handleDialogInteractOutside = (e: Event) => {
-    if ("detail" in e) {
-      const event = (e as CustomEvent).detail?.originalEvent as
-        | PointerEvent
-        | undefined;
-      if (event?.target instanceof Element) {
-        if (event.target.closest('[data-slot="select-content"]')) {
-          e.preventDefault();
-        }
-      }
-    }
-  };
+  const handleDialogInteractOutside = usePreventDialogCloseWhenPopperOpen(open);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

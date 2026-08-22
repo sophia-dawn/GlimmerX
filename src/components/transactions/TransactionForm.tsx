@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { usePreventDialogCloseWhenPopperOpen } from "@/hooks/usePreventDialogCloseWhenPopperOpen";
 import {
   Plus,
   Trash2,
@@ -236,18 +237,7 @@ export function TransactionForm({
     onSubmit(data);
   };
 
-  const handleDialogInteractOutside = (e: Event) => {
-    if ("detail" in e) {
-      const event = (e as CustomEvent).detail?.originalEvent as
-        | PointerEvent
-        | undefined;
-      if (event?.target instanceof Element) {
-        if (event.target.closest('[data-slot="select-content"]')) {
-          e.preventDefault();
-        }
-      }
-    }
-  };
+  const handleDialogInteractOutside = usePreventDialogCloseWhenPopperOpen(open);
 
   const dialogTitle = isEditing
     ? t("common.edit")
