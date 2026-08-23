@@ -29,7 +29,8 @@ export function usePreventDialogCloseWhenPopperOpen(open: boolean) {
     }
     if ("detail" in e) {
       const event = (e as CustomEvent).detail?.originalEvent as
-        PointerEvent | undefined;
+        | PointerEvent
+        | undefined;
       if (event?.target instanceof Element) {
         if (event.target.closest(POPPER_OPEN_SELECTOR)) {
           e.preventDefault();

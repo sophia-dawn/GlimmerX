@@ -379,7 +379,6 @@ mod tests {
     use crate::db::categories::{create_category, CategoryType};
     use crate::db::transactions::PostingInput;
     use crate::db::Database;
-    use rusqlite::params;
     use std::fs;
     use tempfile::TempDir;
 

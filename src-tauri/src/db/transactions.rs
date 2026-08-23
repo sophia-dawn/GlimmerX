@@ -2867,6 +2867,16 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_amount_to_cents() {
+        assert_eq!(parse_amount_to_cents("12.50").unwrap(), 1250);
+        assert_eq!(parse_amount_to_cents("100").unwrap(), 10000);
+        assert_eq!(parse_amount_to_cents("-3.99").unwrap(), -399);
+        assert_eq!(parse_amount_to_cents("0.005").unwrap(), 1);
+        assert!(parse_amount_to_cents("abc").is_err());
+        assert!(parse_amount_to_cents("").is_err());
+    }
+
+    #[test]
     fn test_get_transaction_detail_query_error() {
         let dir = TempDir::new().unwrap();
         let conn = Connection::open(dir.path().join("bare.db")).unwrap();

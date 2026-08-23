@@ -3,7 +3,11 @@
 // ============================================================================
 
 export type AccountType =
-  "asset" | "liability" | "income" | "expense" | "equity";
+  | "asset"
+  | "liability"
+  | "income"
+  | "expense"
+  | "equity";
 export type BudgetPeriod = "monthly" | "weekly";
 
 // ---------------------------------------------------------------------------

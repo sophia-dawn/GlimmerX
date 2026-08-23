@@ -525,4 +525,247 @@ mod tests {
         assert!(prompt.contains("微信钱包"));
         assert!(prompt.contains("YYYY-MM-DD"));
     }
+
+    // -----------------------------------------------------------------------
+    // HTTP tests (local TCP mock server)
+    // -----------------------------------------------------------------------
+
+    use std::io::{Read, Write};
+
+    static NO_PROXY_ONCE: std::sync::Once = std::sync::Once::new();
+
+    /// Bypass any ambient HTTP proxy so requests hit the local mock directly.
+    /// Must run before reqwest builds its client (i.e. before each request).
+    fn ensure_no_proxy() {
+        NO_PROXY_ONCE.call_once(|| {
+            for var in [
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+            ] {
+                std::env::remove_var(var);
+            }
+        });
+    }
+
+    /// Serve `responses` sequentially on a random local port.
+    /// Returns the base URL to use as ai.base_url.
+    fn spawn_mock_server(responses: Vec<(u16, &'static str, String)>) -> String {
+        ensure_no_proxy();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            for (status, reason, body) in responses {
+                let (mut stream, _) = match listener.accept() {
+                    Ok(s) => s,
+                    Err(_) => break,
+                };
+                let mut buf = [0u8; 8192];
+                let _ = stream.read(&mut buf);
+                let response = format!(
+                    "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    status,
+                    reason,
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        format!("http://{}", addr)
+    }
+
+    fn chat_body(content: &str) -> String {
+        serde_json::json!({ "choices": [{ "message": { "content": content } }] }).to_string()
+    }
+
+    fn parse_result_json(mode: &str, amount: &str) -> String {
+        format!(
+            r#"{{"mode":"{}","amount":"{}","categoryName":null,"accountHint":null,"date":"2026-01-15","description":"lunch"}}"#,
+            mode, amount
+        )
+    }
+
+    fn test_config(base_url: String) -> AiConfig {
+        AiConfig {
+            base_url,
+            api_key: "sk-test".to_string(),
+            model: "test-model".to_string(),
+        }
+    }
+
+    fn test_context() -> AiContext {
+        AiContext {
+            today: "2026-01-15".to_string(),
+            timezone_offset: "+08:00".to_string(),
+            expense_categories: vec![],
+            income_categories: vec![],
+            asset_accounts: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_success_first_attempt() {
+        let base_url = spawn_mock_server(vec![(
+            200,
+            "OK",
+            chat_body(&parse_result_json("expense", "12.00")),
+        )]);
+        let config = test_config(base_url);
+        let result = parse_transaction(&config, "lunch 12", &test_context())
+            .await
+            .unwrap();
+        assert_eq!(result.mode, "expense");
+        assert_eq!(result.amount, "12.00");
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_retries_without_response_format_on_400() {
+        let base_url = spawn_mock_server(vec![
+            (400, "Bad Request", "{}".to_string()),
+            (
+                200,
+                "OK",
+                chat_body(&format!("ok {}", parse_result_json("income", "5000"))),
+            ),
+        ]);
+        let config = test_config(base_url);
+        let result = parse_transaction(&config, "salary", &test_context())
+            .await
+            .unwrap();
+        assert_eq!(result.mode, "income");
+        assert_eq!(result.amount, "5000");
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_both_attempts_fail() {
+        let base_url = spawn_mock_server(vec![
+            (400, "Bad Request", "{}".to_string()),
+            (500, "Internal Server Error", "{}".to_string()),
+        ]);
+        let config = test_config(base_url);
+        let err = parse_transaction(&config, "x", &test_context())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::AiError(ref m) if m == "apiCallFailed"),
+            "unexpected error: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_non_400_error_no_retry() {
+        let base_url = spawn_mock_server(vec![(401, "Unauthorized", "{}".to_string())]);
+        let config = test_config(base_url);
+        let err = parse_transaction(&config, "x", &test_context())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::AiError(ref m) if m == "apiCallFailed"),
+            "unexpected error: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_empty_choices_is_parse_failed() {
+        let base_url = spawn_mock_server(vec![(
+            200,
+            "OK",
+            serde_json::json!({ "choices": [] }).to_string(),
+        )]);
+        let config = test_config(base_url);
+        let err = parse_transaction(&config, "x", &test_context())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::AiError(ref m) if m == "parseFailed"),
+            "unexpected error: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_invalid_content_is_parse_failed() {
+        let base_url = spawn_mock_server(vec![(200, "OK", chat_body("no json inside"))]);
+        let config = test_config(base_url);
+        let err = parse_transaction(&config, "x", &test_context())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::AiError(ref m) if m == "parseFailed"),
+            "unexpected error: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_malformed_json_body_is_parse_failed() {
+        let base_url = spawn_mock_server(vec![(200, "OK", "not-json".to_string())]);
+        let config = test_config(base_url);
+        let err = parse_transaction(&config, "x", &test_context())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::AiError(ref m) if m == "parseFailed"),
+            "unexpected error: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_connection_refused_is_network_error() {
+        ensure_no_proxy();
+        // Bind then immediately drop the listener so nothing accepts connections.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let config = test_config(format!("http://{}", addr));
+        let err = parse_transaction(&config, "x", &test_context())
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::AiError(ref m) if m == "networkError"),
+            "unexpected error: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_test_connection_success() {
+        let base_url = spawn_mock_server(vec![(200, "OK", "{}".to_string())]);
+        test_connection(&test_config(base_url)).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_test_connection_failure() {
+        let base_url = spawn_mock_server(vec![(500, "Internal Server Error", "{}".to_string())]);
+        let err = test_connection(&test_config(base_url)).await.unwrap_err();
+        assert!(
+            matches!(err, AppError::AiError(ref m) if m == "apiCallFailed"),
+            "unexpected error: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_test_connection_network_error() {
+        ensure_no_proxy();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let err = test_connection(&test_config(format!("http://{}", addr)))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AppError::AiError(ref m) if m == "networkError"),
+            "unexpected error: {:?}",
+            err
+        );
+    }
 }
