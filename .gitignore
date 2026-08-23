@@ -68,7 +68,9 @@ coverage/
 temp-vite/
 *.pid
 *.lock
+!src-tauri/Cargo.lock
 release/
+*.db
 
 # Git worktrees
 .worktrees/
