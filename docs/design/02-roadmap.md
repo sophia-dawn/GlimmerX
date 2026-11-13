@@ -56,14 +56,25 @@
 - [ ] 现金流预测（依赖定期交易功能）
 - [ ] 自定义报表生成器（复杂度高，后期）
 
-## Phase 5: 数据管理 & 完善 📝 已设计
+## Phase 5: 数据管理 & 完善
 
-- [x] 设计文档完成（见 [19-data-export](19-data-export.md)）
-- [ ] 数据库备份（DATA-4）— 一键复制加密数据库文件
-- [ ] CSV 导出（DATA-1）— 多行格式，含 transaction_id
-- [ ] Beancount 导出（DATA-3）— 标准 Beancount 语法
-- [ ] CSV 导入（DATA-2）
-- [ ] 数据备份与恢复（DATA-4、DATA-5）
+- [x] 数据库备份（DATA-4）— 一键复制加密数据库文件
+- [x] ~~CSV 导出（DATA-1）~~ — 已实现，后按决策下线
+- [x] ~~Beancount 导出（DATA-3）~~ — 已实现，后按决策下线
+- [x] ~~CSV 导入（DATA-2）~~ — 已实现，后按决策下线
+- [ ] 数据恢复（DATA-5）— 从备份文件替换当前库
 - [ ] 定期交易模板
-- [ ] 快捷键
+- [ ] 全局快捷键唤起快速记账
 - [ ] 打包发布
+
+## Phase 6: 复式记账能力升级（schema v2）📝 已设计
+
+详见 [21-double-entry-upgrade](21-double-entry-upgrade.md)。
+
+- [ ] 单币种收敛（不做多币种，全库固定 CNY）
+- [ ] 分类 ↔ 损益账户 1:1 绑定，消除按名字匹配造成的账户漂移
+- [ ] 对账：状态下沉到 posting（`cleared` + `reconciliations`），差额归零才能提交
+- [ ] 储蓄目标（以专用资产账户为载体，进度 = 账户余额）
+- [ ] 硬删除：移除 `deleted_at` / `is_reconciled` 残留
+- [ ] 自动锁定（空闲超时 + 失焦可选 + 清空查询缓存）
+- [ ] v3：拆分交易 UI、报表切换到 `v_posting_category` 视图
