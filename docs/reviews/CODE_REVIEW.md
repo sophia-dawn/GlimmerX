@@ -416,3 +416,121 @@ base_url 允许/拒绝、set_setting 拒绝明文远端、CSV 行数边界）；
   现改为平台无关正则 `src[\\/](lib|main)\.rs|src[\\/]errors[\\/]messages\.rs`，
   阈值按前端同一策略设为「实测基线略下」的 94，并在 Makefile 注明每轮提升。
   实测 `--fail-under-lines 94` 退出码 0（94.39%）。
+
+---
+
+## 修复记录 — 2026-11-13（发布前复审：`a3042c9..HEAD`）
+
+审查范围 `git diff a3042c9..HEAD`：18 个提交、184 文件、+16.4k / −10.5k 行（复式记账 v1→v3
+全套改造）。结论 2 个 Critical + 7 个必须改 + 一批建议。**Critical 与必须改全部已修**，
+建议级挑与本次改动直接相关的一并处理。
+
+改动规模：31 文件 / +1362 / −242。
+
+### Critical（静默账目损坏 / 不可逆数据丢失）
+
+| # | 问题 | 根因 | 修复 |
+| --- | --- | --- | --- |
+| C1 | 编辑期初余额会把账改成不平 | 更新权益侧分录时用的是**重新解析出来的** `equity_id`，账户被重命名或换过 id 就一条都改不到；两条 `UPDATE` 都不看 `rows_affected`，失败也是"成功" | 权益侧改为 `WHERE transaction_id = ?2 AND account_id IN (SELECT id FROM accounts WHERE type = 'equity')`，不再依赖解析结果；两条 `UPDATE` 都断言 `rows_affected == 1`，否则 `errors.account.openingBalanceInconsistent`；更新前先 `reconcile::assert_not_reconciled` |
+| C2 | v3 `DROP COLUMN transactions.category_id` 把升级前的分类信息永久销毁 | 迁移只删不归档，用户升级后无法回答"上个月这笔记的是哪类"，出了问题也无从对账 | 同一条 v3 里先建 `legacy_transaction_categories(transaction_id, category_id, archived_at)` 并 `INSERT OR IGNORE ... SELECT`，再 drop；`test_v3_archives_the_dropped_category` 锁住行为 |
+
+### 必须改
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | `update_transaction` 用 `i64` 求和校验平衡，拆分交易多笔大额会溢出并"通过" | 改 `i128`，与 `create_transaction` 一致；`DELETE FROM postings` 前补注释说明重建为何安全（守卫已拒绝 `cleared`/`reconcile_id` 非空的分录） |
+| 2 | 交易列表的分类名聚合用 `MATERIALIZE` CTE 物化**全库**分录，翻一页要扫全表；拆分交易还会出现重复分类名 | 改成按 `t.id` 的相关子查询 + `DISTINCT`，`parse_category_names` 再用 `HashSet` 去重兜底（重复会让卡片显示"餐饮、餐饮"并虚增 "and N more"） |
+| 3 | 负债账户对账符号有两套口径：明细按账面负数、对账单按正数，勾选与差额永远对不上 | 新增 `fn statement_sign(conn, account_id)`（asset → `1`、liability → `-1`），`cleared_balance` / `candidates` / `selected_total` / `totals` 全部在**对账单符号**下计算；模块文档补 "Sign convention" 段落 |
+| 4 | 前端 `parseFloat(raw) * 100` + `Math.round` 与后端 `parse_amount_to_cents` 规则不一致：`2.675` 前端得 267 后端得 268，`1e5` / `1,000` 前端放行后端拒绝 —— 表现为**用户输入合法金额却永远存不进去**（或存成差 1 分） | 新增 `src/utils/money.ts`（`parseAmountToCents` / `hasExcessPrecision` / `MAX_AMOUNT_CENTS`），逐条对齐后端规则：trim、长度 ≤ 24、可选符号、最多一个点、`.50` 与 `1.` 合法、拒绝科学计数法、整数位 ≤ 12、第三位小数远离零进位、上限校验；`format.ts::yuanToCents` 与交易表单统一改走它，附 5 个测试 |
+| 5 | 账户转账不校验金额范围与账户类型：0 / 负数 / 同一账户 / 损益账户都能转 | `validate_endpoint` 只放行 `asset`/`liability` 且 `is_active`；金额 `<= 0` → `errors.account.transferAmountInvalid`，超 `MAX_AMOUNT_CENTS` → `transferAmountTooLarge`；同行 → `transferSameAccount`；两条分录显式写 `sequence` |
+| 6 | 分类回填命中一个**已停用**的同名账户时不激活它，分类从此指向不可见账户 | 命中与新建两条路径都在同一事务里 `UPDATE accounts SET is_active = 1`；顺带把匹配条件改 `TRIM(name) = TRIM(?2) ORDER BY id LIMIT 1`，避免脏空格匹配不上 |
+| 7 | 对账可勾选**晚于对账单日**的分录，同一个 posting id 传两次会被计两次金额 | `selected_total` 里 `HashSet` 去重并拒绝重复 id，JOIN `transactions` 校验 `t.date <= statement_date`；`reconcile_totals` 命令补 `statement_date` 参数，前端 `ReconcileDialog` 把它并入 queryKey 并在对账日变化时清空已勾选 |
+| 8 | 预算周期窗口错：周预算按整月统计，月度 rollover 根本没结转 | 新增 `budget_window(period, year, month)`（周预算取包含今天的周一至周日，非当前月取该月最后一周）；`rollover_carry` 逐期结转、每期 `max(0)`、上限 260 期；`spent_in_window` 加 `p.amount > 0` 与报表毛额口径对齐 |
+| 9 | `include_net_worth` 内部建账户缺省 `false`，信用卡/贷款不计入净资产趋势，与 UI 默认勾选自相矛盾 | `CreateAccountFullInput` 缺省改 `true`，`ipc_tests::test_report_commands_via_ipc` 的行数断言随之修正 |
+
+### 顺带修掉的建议级项
+
+- `resolve_date_range` 的 `Custom` 分支不过滤空串、起止颠倒时区间为空 → 先过滤再交换；
+- 年度汇总用 `strftime('%Y', t.date)` 逐行算，索引失效 → 改直接比较 `t.date >= ?1 AND t.date <= ?2`；
+- `delete_account` 没拦截「分类镜像账户」与「储蓄目标账户」（后者是 `ON DELETE CASCADE`，删账户会连带删目标）→ 新增 `errors.account.isCategoryMirror` / `errors.savings.accountIsGoal`；
+- 删除交易的 `can_delete` 只看 `reconcile_id`，漏了 v2 回填留下的 `cleared=1, reconcile_id=NULL` → 改走 `assert_not_reconciled`，`warning_message` 用同一判据；
+- 期初余额识别从 `description = 'Opening Balance'` 字符串匹配改为 `OPENING_BALANCE_PREDICATE`（"含 equity 分录"），描述被改也不会把期初当普通交易；
+- 净资产账户谓词散在 5 处（趋势 / 资产负债表 / 账户变动 / 首页余额）→ 收敛成 `reports::net_worth_accounts(alias)`；
+- 卡片分类名分隔符硬编码 `、` → `common.listSeparator`（en 为 `, `）；
+- 储蓄页账户列表用 `QUERY_CONFIG.STATIC` 缓存，余额会陈旧 → `FINANCIAL`；
+- `init_baseline`（测试基线）与真实迁移是两份真相 → 新增 `test_init_baseline_matches_migrations` 比对 `sqlite_master` 全量，整条链包 `unchecked_transaction()`，版本判断改为 `>` 报错 / `==` 直接返回。
+
+### 验证
+
+| 项 | 结果 |
+| --- | --- |
+| `cargo test` | **413 passed / 0 failed**（基线 402，+11） |
+| `npx vitest run` | **104 passed / 12 files**（+5，`money.test.ts`） |
+| `cargo clippy --all-targets -- -D warnings` | 通过 |
+| `cargo fmt -- --check` | 通过 |
+| `npx tsc --noEmit` | 通过 |
+| `python tools/gen_error_messages.py` | 通过，81 键（新增 6 个错误键，删除 `errors.budgetWeeklyNoRollover`） |
+
+### 未处理（有意留待后续）
+
+`refetchOnWindowFocus: false` 与"永不渲染陈旧财务数据"的取舍、`PRAGMA optimize` / `ANALYZE`、
+`comparison.rs` 的日期下推、首页分类饼图的日期条件剪掉历史分类、Top 支出仍按分录级统计、
+`useGlobalShortcut` 的 `Pressed` 过滤与注册/注销配对、`lockSession` 的 fail-open、
+39 处 `#[allow(dead_code)]` 清理、`v_posting_category` 视图是否还需要。
+均不影响账目正确性，按下轮排期处理。
+
+### 一个部署提醒
+
+v3 尚未发版（`v0.1.2` 不含 `1de4128`），所以归档表是**直接加进 `schema_v3.sql`** 而不是新开 v4。
+本地已经用旧 HEAD 跑过、`user_version` 已到 3 的库不会再执行这条迁移，需要删库重建
+（或 `PRAGMA user_version = 2` 后再启动）才能补出 `legacy_transaction_categories`。
+
+---
+
+## 修复记录 — 2026-11-13（建议级项：行为 bug / 安全收敛 / 报表性能）
+
+上一轮只清掉了 Critical 与必须改。本轮把剩下的建议级项按三类做完。
+
+### A. 行为 bug
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | 首页 Top 支出用 `transaction_id` 做 React key，拆分交易的两条支出分录会产生重复 key（React 只渲染一条并告警） | `get_top_expenses` 补 `p.id as posting_id`，类型加 `posting_id`，卡片改用 `key={posting_id}`。分录级统计本身是对的——一条拆分交易的每个分类各自参与排序 |
+| 2 | 交易卡片的金额颜色是死分支：`displayAmount` 是借方合计，恒 `>= 0`，于是支出也显示绿色 | 列表项新增 `flow_amount`（只汇总资产/负债侧分录）：支出为负、收入为正、自有账户间转账为 0；卡片按它着色，转账用中性色 |
+| 3 | 全局快捷键回调在按下和抬起各触发一次，快速记账窗口"打开又立刻关掉" | `useGlobalShortcut` 里加 `event.state !== "Pressed"` 守卫 |
+| 4 | 快速记账从「支出」切到「收入」时残留上一个支出分类：下拉里看不到它（列表已按模式过滤），提交却仍带着它 | 模式变化时无条件 `setCategoryId(NO_CATEGORY_VALUE)`，不再只在切到转账时清 |
+| 5 | 交易详情页每次渲染都重新构造 `transaction` 对象，表单初始化 effect 因此反复触发，**任何重新渲染都会清掉用户正在填的内容** | 构造改 `useMemo(() => transaction, [transaction])`；对象的引用来自查询结果，天然稳定 |
+| 6 | `TransactionDetail.categoryId/categoryName` 与 `UpdateTransactionInput.categoryId` 是 v3 之前的残留，后端已不返回；详情页那段"分类"卡片永远不渲染 | 删掉两个字段、删掉死卡片，表单直接吃查询结果（`TransactionDetail` 结构上就是 `TransactionDto` 的超集） |
+
+### B. 安全收敛
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 7 | `capabilities/default.json` 授予了 `fs:default` 与 `opener:default`，但前端只用 `dialog` 插件（`grep plugin-fs\|plugin-opener` 零命中） | 两条权限删除，webview 不再拥有任意文件读写与打开路径的能力 |
+| 8 | `lockSession` fail-open：`dbLock()` 失败只打日志，随后照旧 `setLocked()`，界面显示已锁而后端可能仍持有打开且带密钥的连接 | 改成返回 `boolean`：仅在确实处于解锁态时调后端、失败重试一次；UI 无论结果都清空（半锁界面比陈旧提示更糟），但失败要冒泡给调用方——侧栏与改密流程用 `common.lockFailed` 提示 |
+| 9 | `db_check_exists` 可传任意路径，锁屏状态下仍然可用，等于一个文件系统探测器 | 只接受 `*.db` 且必须是文件；补 IPC 断言（`Cargo.toml` 被拒）。新增 `errors.invalidDatabasePath` |
+
+### C. 报表性能
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 10 | 库越用越大，却没有跑过 `ANALYZE`，报表的查询计划一直基于空库统计 | `db_lock` 在 checkpoint 之后跑一次 `PRAGMA optimize`（SQLite 推荐在连接关闭时跑，只分析统计漂移够大的表）。best-effort：失败只记 stderr，绝不让它阻断锁定 |
+| 11 | 两月对比报表把 `CASE WHEN t.date BETWEEN ...` 放进聚合，`WHERE` 里没有日期条件——每次都要扫全部分录再丢掉 | `WHERE` 补 `t.date >= MIN(?1, ?3) AND t.date <= MAX(?2, ?4)`（ISO 字符串按字典序比较，等价于日期序）。结果不变：落在两个月之外的行对两个月都贡献 0，本来就会被 `HAVING` 丢掉 |
+| 12 | 账户余额趋势用 `MAX(p.rowid)` 定位"本期最后一条"，但窗口按 `t.date` 排序 —— 补录旧日期交易时，取到的是**插入最晚**那条的余额，期末数少算了刚补的那笔 | 窗口改为 `ROW_NUMBER() OVER (ORDER BY t.date, p.rowid)`，`MAX(rn)` 才是真正按日期最后的行；`SUM(...) OVER (ORDER BY t.date, p.rowid)` 同步补 tie-break。新增回归测试（先插 1-25 再插 1-10，月度期末必须是 -1500） |
+| 13 | 账户明细的 `total_count` 用 `COUNT(DISTINCT t.id)`，而返回行是分录级，粒度不一致时页数与实际行数对不上 | 改 `COUNT(*)`，与行粒度一致（域层已禁止同一交易重复账户，所以现实中两者相等，属于防御性统一） |
+
+### 验证
+
+| 项 | 结果 |
+| --- | --- |
+| `cargo test` | **415 passed / 0 failed**（+2） |
+| `npx vitest run` | **104 passed / 12 files** |
+| `cargo clippy --all-targets -- -D warnings` | 通过 |
+| `cargo fmt -- --check` | 通过 |
+| `npx tsc --noEmit` / `eslint --max-warnings=0` / `prettier --check` | 通过 |
+| `python tools/gen_error_messages.py` | 通过，82 键 |
+
+### 仍未处理
+
+首页分类饼图 `WHERE` 里的日期条件会让"有历史但本月无支出"的分类整行消失（属于报表口径选择，需要产品确认是补零还是隐藏）、
+39 处 `#[allow(dead_code)]` 清理、`v_posting_category` 视图是否保留、`comparison.rs` 之外的日期下推。

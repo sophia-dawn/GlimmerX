@@ -494,6 +494,9 @@ CREATE INDEX IF NOT EXISTS idx_reconciliations_account ON reconciliations(accoun
 验收：`cargo test` **402 passed**、`vitest` **99 passed**、`make check` 全绿、
 行覆盖率 **94.67%**（门禁 94%）。
 
+> 发版前复审又改了一轮（第 13 节），当前基线是 `cargo test` **413 passed**、
+> `vitest` **104 passed / 12 files**。
+
 改动的 SQL 一共 11 处，全部从 `transactions.category_id` 改走
 `postings.account_id → categories.account_id`：
 
@@ -612,3 +615,98 @@ pub fn auto_match(
 
 > 第一版不做「账单文件解析」（PDF/CSV/OFX 识别），`targets` 由用户在界面里逐笔录入或
 > 从剪贴板粘贴金额列表；解析属于后续增量，不影响表结构与匹配算法。
+
+---
+
+## 13. 发版前复审加固（2026-11-13）
+
+对 `a3042c9..HEAD`（18 个提交、184 文件）做了一轮五轴复审，修了 2 个 Critical 与 7 个
+必须改。完整清单在 `docs/reviews/CODE_REVIEW.md` 的修复记录里，本节只记**改变了设计约定**
+的部分——这些是会长期影响后续代码的判断，不只是 bug fix。
+
+### 13.1 v3 归档被丢弃的分类
+
+`DROP COLUMN transactions.category_id` 是不可逆的：升级之后，用户再也回答不了"上个月这笔记的
+哪一类"，出问题时也无从对账。所以 v3 在 drop 之前多一步归档：
+
+```sql
+CREATE TABLE IF NOT EXISTS legacy_transaction_categories (
+    transaction_id TEXT PRIMARY KEY,
+    category_id    TEXT NOT NULL,
+    archived_at    TEXT NOT NULL
+);
+INSERT OR IGNORE INTO legacy_transaction_categories (transaction_id, category_id, archived_at)
+SELECT id, category_id, datetime('now') FROM transactions WHERE category_id IS NOT NULL;
+ALTER TABLE transactions DROP COLUMN category_id;
+```
+
+`transaction_id` 做主键是刻意的：v3 之后这张表只写一次、只读，不需要多行历史，
+主键同时保证 `INSERT OR IGNORE` 幂等。
+
+> **v3 尚未发版**（`v0.1.2` 不含 `1de4128`），所以归档直接加进 `schema_v3.sql`，没有新开 v4。
+> 本地用旧 HEAD 跑过、`user_version` 已到 3 的库不会重跑这条迁移，需要删库重建。
+
+### 13.2 对账只在「对账单符号」下计算
+
+信用卡账单印的是正数（欠 1500 显示 1500），账本里负债账户是负数（`-1500`）。此前两条路径各用
+一套符号，勾选金额与差额永远差一个负号。现在 `db/reconcile.rs` 内部**统一用对账单符号**：
+
+```rust
+fn statement_sign(conn: &Connection, account_id: &str) -> Result<i64, AppError>
+// asset → 1，liability → -1，其它 type → errors.reconcile.accountNotReconcilable
+```
+
+`cleared_balance` / `candidates` / `selected_total` / `totals` 全部乘上这个 `sign`，
+`ensure_reconcilable` 退化成 `statement_sign(...).map(|_| ())`。前端不做任何翻符号——
+金额只由后端算（AGENTS.md）。
+
+同时收紧了两个入口校验：同一个 posting id 传两次会被 `HashSet` 拒掉（否则可以拿"两倍金额"
+凑出错误的期末余额）；`t.date > statement_date` 的分录不允许出现在对账单上。
+
+### 13.3 期初余额靠「有没有 equity 分录」识别
+
+原来是 `description = 'Opening Balance'` 字符串匹配，用户把描述一改，期初就退化成普通交易，
+删除账户时的清理逻辑也就跟着失效。现在统一走：
+
+```rust
+pub(in crate::db::accounts) const OPENING_BALANCE_PREDICATE: &str = "
+    EXISTS (
+        SELECT 1 FROM postings pe
+          JOIN accounts ae ON ae.id = pe.account_id
+         WHERE pe.transaction_id = t.id AND ae.type = 'equity'
+    )";
+```
+
+语义是"这笔交易带一条权益分录"，与期初余额的定义（权益↔资产）严格对应。
+更新权益侧时也不再依赖重新解析出的 `equity_id`，而是按 `type = 'equity'` 定位，
+并且两条 `UPDATE` 都断言 `rows_affected == 1`——改不到就报错，不允许静默成功。
+
+### 13.4 净资产的账户谓词收敛成一处
+
+`type IN ('asset','liability') AND is_active = 1 AND include_net_worth = 1` 原本散在趋势、
+资产负债表、账户变动、首页余额四处，任何一处漏掉 `include_net_worth` 都会让净资产对不上。
+现在只有 `reports::net_worth_accounts(alias)` 一个出处（`pub(crate)`，通过 `db::reports` 再导出）。
+
+副作用修掉了一个真 bug：`CreateAccountFullInput` 缺省 `include_net_worth: false`，
+所有走内部 API 建的账户（含测试夹具的信用卡）都不进净资产，而 UI 上默认是勾选的。
+
+### 13.5 预算窗口与结转
+
+`budget_window(period, year, month)` 明确了两件事：
+
+- **周预算看"本周"**：包含今天的那周一至周日；查非当前月时取该月最后一周（不猜用户在说哪一周）。
+- **月预算看整月**：`first_of_month` ~ `last_of_month`。
+
+`rollover_carry` 逐期累加剩余额度，**每期先 `max(0)`**（超支不倒扣下期，否则一次超支会
+拖着后面几个月一起变负），并设 `MAX_ROLLOVER_PERIODS = 260`（5 年）上限防止无限回溯。
+周预算同样支持结转——最初想拒绝，但既有测试与产品语义都不支持这个限制。
+
+`spent_in_window` 加 `AND p.amount > 0`：预算的"已花"必须与报表的毛额口径一致，
+否则一笔"退款"（损益账户上的负数分录）会把预算花销减下去。
+
+### 13.6 前端金额解析必须与后端同源
+
+`parseFloat(raw) * 100` + `Math.round` 看起来很安全，实际有四处不一致：`2.675` 得 267
+（后端 268）、`0.005` 得 0（后端 1）、`1e5` 放行、`1,000` 放行。表现是**用户输入合法金额
+却存不进去**。现在 `src/utils/money.ts` 是唯一入口，规则逐条对齐 Rust 侧，包括
+`MAX_AMOUNT_CENTS = 10_000_000_000`（1 亿元）上限——超限在表单里就拦，不用等后端报错。
