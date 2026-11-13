@@ -12,12 +12,14 @@
 
 ## 架构约定
 
-- **当前 schema 版本 = 2**（`db/migrations.rs` 的 `SCHEMA_VERSION`，迁移后校验
-  `user_version`）。v2 带来：`categories.account_id`、`postings.cleared` /
+- **当前 schema 版本 = 3**（`db/migrations.rs` 的 `SCHEMA_VERSION`，迁移后校验
+  `user_version`）。v2：`categories.account_id`、`postings.cleared` /
   `reconcile_id` + `reconciliations`、`savings_goals`、`v_posting_category` 视图，
-  并删掉 `transactions.deleted_at` / `is_reconciled`。
+  删 `transactions.deleted_at` / `is_reconciled`；v3：删 `transactions.category_id`。
+- **分类只能从分录取**：`categories.account_id ← postings.account_id`。
+  不要再引入交易级分类缓存（拆分交易必然记错），聚合/筛选一律走分录。
 - 数据库 schema 变更只走 `db/migrations.rs` 的 `M::up(...)` / `M::up_with_hook(...)`；
-  `schema_v1.sql`、`schema_v2.sql` 发布后都冻结，改动只能新增 `schema_v3`。
+  `schema_v1.sql` ~ `schema_v3.sql` 发布后都冻结，改动只能新增 `schema_v4`。
 - **迁移里的顺序不能靠直觉**：先 `ADD COLUMN` 再回填；`DROP COLUMN` 前必须先
   `DROP INDEX`（SQLite 拒绝删除被索引引用的列）。带 hook 的迁移无法 `const`，
   所以 `MIGRATIONS` 是 `static ... LazyLock<Migrations>`。
@@ -36,6 +38,8 @@
 - `cargo llvm-cov` 在 Git Bash 下会解析到 `/usr/bin/link` 并挂住，必须用 PowerShell 跑。
 - 覆盖率门禁为 94%（排除 `lib.rs`/`main.rs`/生成的 `errors/messages.rs`），
   正则以 `src[\\/]` 写，避免 Windows 路径失配。
+- CI 的 clippy 带 `--all-targets`，比 `make check` 更严（连测试代码一起 lint）；
+  本地验覆盖率/严格 clippy 时按 CI 口径跑，否则 push 后才发现。
 - 新增 `commands/*.rs` 会立刻拉低覆盖率（`State<AppState>` 包不进普通单测）：
   按既有约定补 `mod ipc_tests`（`tauri::test::mock_builder` + `get_ipc_response`），
   先 `Database::create` 拿 `db.get_conn()` 塞夹具，再把 `db` 交给 mock app。

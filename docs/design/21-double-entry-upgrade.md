@@ -5,8 +5,7 @@
 本文对应 8 条产品决策的落地方案。所有涉及表结构的改动统一进 **schema v2**，
 `src-tauri/src/db/schema_v1.sql` 保持冻结不动（见 `test_schema_v1_is_frozen`）。
 
-**状态：批 A、批 B 均已实现**（2026-11-13），`user_version = 2`；剩余批 C（拆分交易 UI +
-报表切 `v_posting_category` 视图）未开始。
+**状态：批 A / B / C 均已实现**（2026-11-13），`user_version = 3`。
 
 ## 0. 决策摘要
 
@@ -103,7 +102,8 @@ LEFT JOIN categories c ON c.account_id = a.id;
 ```
 
 > v2 阶段 `transactions.category_id` **保留**，作为"未拆分交易的主分类"缓存，
-> 报表暂时不动；v3 再把各报表切到视图、移除该列。这样 v2 不背着一次报表重构。
+> 报表暂时不动；v3 已移除该列，并把 11 处分类聚合改走分录（实现细节与「为什么不切
+> 视图」见 §10 批 C）。
 
 ---
 
@@ -427,8 +427,8 @@ CREATE INDEX IF NOT EXISTS idx_reconciliations_account ON reconciliations(accoun
 | 夹具 `UNIQUE constraint failed: accounts.type, name` | 分类镜像账户与手写夹具同名 | 所有夹具改走 `crate::db::init_schema`，且建账户时先查后建 |
 
 `insert_category_account` 与 `backfill_category_accounts` 都是幂等的，`init_baseline`
-（测试夹具入口）直接跑 v1 + v2 + 回填并写 `user_version = 2`，避免手写 DDL 与真实
-schema 漂移。
+（测试夹具入口）直接跑 v1 + v2 + 回填 + v3 并写 `user_version = SCHEMA_VERSION`
+（批 C 之后为 3），避免手写 DDL 与真实 schema 漂移。
 
 ---
 
@@ -484,7 +484,61 @@ schema 漂移。
 - **`errors.*` 新增 13 个键**（`reconcile.*` 7 个、`savings.*` 5 个、`categoryAccountInUse`），
   `errors/messages.rs` 由 `tools/gen_error_messages.py` 重新生成（73 键）。
 
-### 批 C — v3（拆分交易 UI + 报表切视图）
+### 批 C — schema v3（✅ 2026-11-13 完成）
+
+10. schema v3：删除 `transactions.category_id`；
+11. **分类聚合切到分录维度**（下面「与方案的口径修正」一节说明为什么不是「切视图」）；
+12. 拆分交易 UI：去掉交易级「分类」下拉，每行分录按「账户 / 分类」分组选择；
+13. 列表与详情从分录派生分类（`categoryNames`），筛选改 `EXISTS`。
+
+验收：`cargo test` **402 passed**、`vitest` **99 passed**、`make check` 全绿、
+行覆盖率 **94.67%**（门禁 94%）。
+
+改动的 SQL 一共 11 处，全部从 `transactions.category_id` 改走
+`postings.account_id → categories.account_id`：
+
+| 位置 | 作用 |
+| --- | --- |
+| `dashboard::get_category_breakdown` | 首页分类占比 |
+| `dashboard::get_top_expenses` | 首页大额支出 |
+| `reports::account`（明细行） | 账户流水对侧分类/对侧账户（改为 `GROUP_CONCAT`，拆分交易显示多个） |
+| `reports::comparison` | 两月分类对比 |
+| `reports::trend`（趋势过滤 / 分类分解 / 年汇总 top2） | 4 处 |
+| `budgets::calculate_budget_status` / `list_budget_statuses` | 预算花费（拆分交易必须按分录分摊） |
+| `reports::audit`（未分类判定） | 改为「没有任何损益分录」 |
+
+拆分交易的三条硬证据（新增测试）：
+
+- `test_split_transaction_lists_every_category`：一笔 `-300 / +100 / +200` 的交易
+  在列表里 `categoryNames = ["Food", "Transport"]`，按任一分类筛选都能命中；
+- `test_split_transaction_splits_across_categories`：分类分解得 100 / 200 而不是
+  300 / 0，趋势报表按分类过滤得 200；
+- `test_split_transaction_counts_toward_each_budget`：两个预算分别记 3000 和 2000。
+
+#### 与方案的口径修正：不切视图，直接 join 基表
+
+方案里写「v3 把报表切到 `v_posting_category` 视图」，实现后**没有照做**，原因：
+
+- 视图输出的列是 `posting_id / transaction_id / account_id / amount / cleared /
+  category_id`，而报表需要 `accounts.type`（区分收入/支出）、`categories.name` /
+  `icon`（展示）。用它仍要再 join 两张表，等于把同一个 join 拆成两步；
+- 视图与 `postings JOIN accounts JOIN categories` 完全等价，不存在性能或一致性收益；
+- 真正要改的是**join 条件**（从 `c.id = t.category_id` 改成
+  `c.account_id = p.account_id`），而不是套一层视图。
+
+所以视图保留（v2 已发布，删它没有收益），但正式查询不依赖它；它的价值只剩
+「一眼看出 posting → category 的对应关系」，可用于排查与手工查询。
+
+#### 拆分交易 UI 的实际形态
+
+表单早就支持任意条数分录（「+ 添加分录」），缺的是**分类选择的位置**：原来顶部
+有一个交易级「分类」下拉，与分录里的账户下拉重复，而且一旦用户在顶部选了 A、
+分录里选了 B 的账户，数据就自相矛盾。v3 删掉它，改为每行分录一个合并选择器：
+
+- 资产/负债账户 → 归在「账户」分组，选中的是账户；
+- 损益账户 → 归在「分类」分组，用分类的图标与名字显示，选中的仍是账户 id。
+
+即「选分类」和「选损益账户」在 UI 上是同一件事的两种叫法，落库永远只有账户。
 
 ---
 
