@@ -149,9 +149,21 @@ pub async fn db_change_password(
 }
 
 /// Check if a database file exists at the given path.
+///
+/// Restricted to `*.db` on purpose: the webview only ever asks this about a
+/// ledger it is about to open, and an unrestricted version is a filesystem
+/// oracle that keeps working while the ledger is locked.
 #[tauri::command]
 pub async fn db_check_exists(path: String) -> Result<bool, String> {
-    Ok(PathBuf::from(path).exists())
+    let candidate = PathBuf::from(&path);
+    let is_ledger_file = candidate
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("db"));
+    if !is_ledger_file {
+        return Err(crate::errors::message("errors.invalidDatabasePath").to_string());
+    }
+    Ok(candidate.is_file())
 }
 
 /// Check if any existing database file is known in recent databases.
@@ -201,6 +213,14 @@ pub async fn db_lock(state: State<'_, AppState>) -> Result<(), String> {
                 eprintln!("[glimmerx] internal error: {e}");
                 crate::errors::message("errors.databaseError")
             })?;
+        // `PRAGMA optimize` is meant to run when a connection closes: it only
+        // analyses tables whose statistics have drifted enough to matter, so it
+        // costs a few milliseconds and keeps report queries on the good plan as
+        // the ledger grows. Best-effort — a lock that fails on this would leave
+        // the key alive, which is far worse than a stale query plan.
+        if let Err(e) = conn.execute_batch("PRAGMA optimize;") {
+            eprintln!("[glimmerx] PRAGMA optimize failed: {e}");
+        }
     }
 
     // Clear state, triggering Drop (which will also attempt checkpoint)
@@ -329,6 +349,15 @@ mod tests {
         )
         .unwrap();
         assert!(exists);
+
+        // Anything that is not a ledger file is refused, so this cannot be used
+        // to probe the filesystem while the database is locked.
+        assert!(invoke(
+            &webview,
+            "db_check_exists",
+            serde_json::json!({ "path": "Cargo.toml" }),
+        )
+        .is_err());
 
         let recents: Vec<serde_json::Value> = serde_json::from_value(
             invoke(&webview, "db_list_recent", serde_json::json!({})).unwrap(),
