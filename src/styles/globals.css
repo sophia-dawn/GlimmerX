@@ -1,411 +1,318 @@
 @import "tailwindcss";
 @variant dark class;
 
+/* ── Type ──────────────────────────────────────────────────────────────────
+   Numerals and dates use a monospaced face, everything else the platform UI
+   font. Chinese is *not* set in the mono face: hanzi in a monospace run go
+   wide enough to break column widths, so `--font-mono` lists no CJK family and
+   falls through to the system face for those glyphs.
+   Both woff2 files are bundled (42 kB total, SIL OFL 1.1) — the app runs
+   offline inside Tauri, so a webfont CDN is not an option. */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/jetbrains-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/jetbrains-mono-500.woff2") format("woff2");
+}
+
 @theme {
-  --color-background: oklch(1 0 0);
-  --color-foreground: oklch(0.145 0 0);
-  --color-card: oklch(1 0 0);
-  --color-card-foreground: oklch(0.145 0 0);
-  --color-popover: oklch(1 0 0);
-  --color-popover-foreground: oklch(0.145 0 0);
-  --color-primary: oklch(0.205 0 0);
-  --color-primary-foreground: oklch(0.985 0 0);
-  --color-secondary: oklch(0.97 0 0);
-  --color-secondary-foreground: oklch(0.205 0 0);
-  --color-muted: oklch(0.97 0 0);
-  --color-muted-foreground: oklch(0.556 0 0);
-  --color-accent: oklch(0.97 0 0);
-  --color-accent-foreground: oklch(0.205 0 0);
-  --color-destructive: oklch(0.577 0.245 27.325);
-  --color-destructive-foreground: oklch(0.577 0.245 27.325);
-  --color-border: oklch(0.922 0 0);
-  --color-input: oklch(0.922 0 0);
-  --color-ring: oklch(0.708 0 0);
-  --color-chart-1: oklch(0.646 0.222 41.116);
-  --color-chart-2: oklch(0.6 0.118 184.704);
-  --color-chart-3: oklch(0.398 0.07 227.392);
-  --color-chart-4: oklch(0.828 0.189 84.429);
-  --color-chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --radius-sm: 0.125rem;
-  --radius-md: 0.375rem;
-  --radius-lg: var(--radius);
-  --radius-xl: 0.75rem;
+  /* ── Surfaces ─────────────────────────────────────────────────────────────
+     One ladder, two parameter sets (`.dark` / `:root`). Every surface is
+     `oklch( lightness chroma hue )` and the atmosphere classes below override
+     only `--hue`/`--chroma`, so a theme costs one line instead of a full
+     palette. Elevation is *lightness*, never shadow. */
+  --color-background: oklch(var(--s-base) var(--chroma) var(--hue));
+  --color-card: oklch(var(--s-card) var(--chroma) var(--hue));
+  --color-secondary: oklch(var(--s-hover) var(--chroma) var(--hue));
+  --color-secondary-foreground: oklch(var(--s-ink) var(--chroma) var(--hue));
+  --color-muted: oklch(var(--s-sunken) var(--chroma) var(--hue));
+  --color-muted-foreground: oklch(var(--s-muted) var(--chroma) var(--hue));
+
+  /* Hover and floating surfaces move in opposite directions between modes —
+     on paper a hover darkens, a popover lightens; in the dark both lift. They
+     are separate steps for exactly that reason. */
+  --color-accent: oklch(var(--s-hover) var(--chroma) var(--hue));
+  --color-accent-foreground: oklch(var(--s-ink) var(--chroma) var(--hue));
+  --color-popover: oklch(var(--s-float) var(--chroma) var(--hue));
+
+  /* Lines are the foreground colour at low alpha, so a hairline is legible on
+     every surface without a second palette. */
+  --color-border: oklch(var(--s-ink) var(--chroma) var(--hue) / var(--line));
+  --color-input: oklch(
+    var(--s-ink) var(--chroma) var(--hue) / var(--line-input)
+  );
+
+  --color-foreground: oklch(var(--s-ink) var(--chroma) var(--hue));
+  --color-card-foreground: oklch(var(--s-ink) var(--chroma) var(--hue));
+  --color-popover-foreground: oklch(var(--s-ink) var(--chroma) var(--hue));
+
+  /* Primary is ink, not the signal colour: a whole screen of amber buttons
+     would spend the accent until it stops meaning anything. */
+  --color-primary: oklch(var(--s-ink) var(--chroma) var(--hue));
+  --color-primary-foreground: oklch(var(--s-base) var(--chroma) var(--hue));
+
+  /* ── Signal ───────────────────────────────────────────────────────────────
+     The single accent. Hue is swappable per accent class; lightness lifts in
+     dark mode so one definition serves both. Used only for: the one number
+     that matters, the current item, and anything asking for attention. */
+  --color-signal: oklch(
+    calc(var(--signal-l) + var(--signal-lift)) var(--signal-c) var(--signal-h)
+  );
+  --color-signal-foreground: oklch(0.16 0 0);
+  --color-ring: oklch(
+    calc(var(--signal-l) + var(--signal-lift)) var(--signal-c) var(--signal-h) /
+      0.65
+  );
+
+  /* ── Meaning ──────────────────────────────────────────────────────────────
+     Direction of money. Deliberately not derived from the signal hue:红绿 must
+     not turn purple because someone picked a purple accent. */
+  --color-income: var(--income);
+  --color-expense: var(--expense);
+  --color-info: var(--info);
+  --color-destructive: var(--expense);
+  --color-destructive-foreground: oklch(0.99 0 0);
+
+  --color-chart-1: oklch(
+    calc(var(--signal-l) + var(--signal-lift)) var(--signal-c) var(--signal-h)
+  );
+  --color-chart-2: var(--info);
+  --color-chart-3: var(--income);
+  --color-chart-4: var(--expense);
+  --color-chart-5: oklch(var(--s-muted) var(--chroma) var(--hue));
+
+  /* ── Shape ────────────────────────────────────────────────────────────────
+     Instruments do not have rounded corners. 2 px reads as "machined", 4 px as
+     "software"; anything above that starts to look like a consumer app. */
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 6px;
+  --radius-3xl: 8px;
+
+  /* ── Depth ────────────────────────────────────────────────────────────────
+     No shadows anywhere. Overlays separate by border + backdrop, not by
+     elevation blur. Setting the tokens to none removes the utilities globally
+     instead of hunting every `shadow-sm`. */
+  --shadow-2xs: none;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-2xl: none;
+
+  /* ── Type scale ───────────────────────────────────────────────────────────
+     11 / 13 / 15 rather than 12 / 14 / 16: a finance table is read, not
+     skimmed, and the tighter ladder buys a full extra row per screen. */
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.75rem;
+  --text-3xl--line-height: 2.25rem;
+
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC",
+    "Source Han Sans SC", sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* ── Motion ───────────────────────────────────────────────────────────────
+     Utilitarian: 120 ms, no bounce. A number that changes should be noticed,
+     not performed. */
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* ── Dark mode overrides ── */
+/* ── Light: cool paper ────────────────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+
+  --s-base: 0.972;
+  --s-card: 1;
+  --s-hover: 0.945;
+  --s-float: 1;
+  --s-sunken: 0.952;
+  --s-ink: 0.23;
+  --s-muted: 0.47;
+  --hue: 250;
+  --chroma: 0.006;
+  --line: 0.13;
+  --line-input: 0.2;
+
+  --signal-l: 0.55;
+  --signal-c: 0.13;
+  --signal-h: 65;
+  --signal-lift: 0;
+
+  --income: oklch(0.5 0.12 155);
+  --expense: oklch(0.53 0.19 25);
+  --info: oklch(0.47 0.1 235);
+}
+
+/* ── Dark: terminal ───────────────────────────────────────────────────────── */
 .dark {
-  --color-background: oklch(0.145 0 0);
-  --color-foreground: oklch(0.985 0 0);
-  --color-card: oklch(0.205 0 0);
-  --color-card-foreground: oklch(0.985 0 0);
-  --color-popover: oklch(0.205 0 0);
-  --color-popover-foreground: oklch(0.985 0 0);
-  --color-primary: oklch(0.985 0 0);
-  --color-primary-foreground: oklch(0.205 0 0);
-  --color-secondary: oklch(0.269 0 0);
-  --color-secondary-foreground: oklch(0.985 0 0);
-  --color-muted: oklch(0.269 0 0);
-  --color-muted-foreground: oklch(0.708 0 0);
-  --color-accent: oklch(0.269 0 0);
-  --color-accent-foreground: oklch(0.985 0 0);
-  --color-destructive: oklch(0.396 0.141 25.723);
-  --color-destructive-foreground: oklch(0.637 0.237 25.331);
-  --color-border: oklch(0.269 0 0);
-  --color-input: oklch(0.269 0 0);
-  --color-ring: oklch(0.439 0 0);
+  color-scheme: dark;
+
+  --s-base: 0.17;
+  --s-card: 0.212;
+  --s-hover: 0.252;
+  --s-float: 0.238;
+  --s-sunken: 0.148;
+  --s-ink: 0.93;
+  --s-muted: 0.655;
+  --hue: 250;
+  --chroma: 0.019;
+  --line: 0.09;
+  --line-input: 0.16;
+
+  --signal-l: 0.55;
+  --signal-c: 0.13;
+  --signal-h: 65;
+  --signal-lift: 0.24;
+
+  --income: oklch(0.72 0.16 155);
+  --expense: oklch(0.64 0.2 25);
+  --info: oklch(0.78 0.11 220);
 }
 
-/* ── Accent colors (light mode) ── */
-.blue {
-  --color-primary: oklch(0.546 0.245 262.881);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.546 0.245 262.881);
-}
-
-.green {
-  --color-primary: oklch(0.627 0.194 149.214);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.627 0.194 149.214);
-}
-
-.purple {
-  --color-primary: oklch(0.557 0.255 307.943);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.557 0.255 307.943);
-}
-
-.orange {
-  --color-primary: oklch(0.677 0.186 56.528);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.677 0.186 56.528);
-}
-
-.rose {
-  --color-primary: oklch(0.645 0.245 14.9);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.645 0.245 14.9);
-}
-
-.red {
-  --color-primary: oklch(0.577 0.245 27.325);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.577 0.245 27.325);
-}
-
-.amber {
-  --color-primary: oklch(0.705 0.213 58.5);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.705 0.213 58.5);
-}
-
-.yellow {
-  --color-primary: oklch(0.882 0.182 95.5);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.882 0.182 95.5);
-}
-
-.lime {
-  --color-primary: oklch(0.832 0.157 127.5);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.832 0.157 127.5);
-}
-
-.emerald {
-  --color-primary: oklch(0.55 0.21 160);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.55 0.21 160);
-}
-
-.teal {
-  --color-primary: oklch(0.624 0.14 182.5);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.624 0.14 182.5);
-}
-
-.cyan {
-  --color-primary: oklch(0.691 0.139 233.5);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.691 0.139 233.5);
-}
-
-.sky {
-  --color-primary: oklch(0.68 0.16 230);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.68 0.16 230);
-}
-
-.indigo {
-  --color-primary: oklch(0.457 0.24 275);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.457 0.24 275);
-}
-
-.violet {
-  --color-primary: oklch(0.54 0.24 280);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.54 0.24 280);
-}
-
-.fuchsia {
-  --color-primary: oklch(0.679 0.256 315);
-  --color-primary-foreground: oklch(1 0 0);
-  --color-ring: oklch(0.679 0.256 315);
-}
-
-.pink {
-  --color-primary: oklch(0.723 0.19 347);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.723 0.19 347);
-}
-
-/* ── Accent colors (dark mode) ── */
-.dark.blue {
-  --color-primary: oklch(0.707 0.165 254.624);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.707 0.165 254.624);
-}
-
-.dark.green {
-  --color-primary: oklch(0.792 0.168 145.222);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.792 0.168 145.222);
-}
-
-.dark.purple {
-  --color-primary: oklch(0.732 0.209 310.762);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.732 0.209 310.762);
-}
-
-.dark.orange {
-  --color-primary: oklch(0.817 0.146 66.89);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.817 0.146 66.89);
-}
-
-.dark.rose {
-  --color-primary: oklch(0.732 0.2 14.5);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.732 0.2 14.5);
-}
-
-.dark.red {
-  --color-primary: oklch(0.637 0.237 25.331);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.637 0.237 25.331);
-}
-
-.dark.amber {
-  --color-primary: oklch(0.82 0.16 58);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.82 0.16 58);
-}
-
-.dark.yellow {
-  --color-primary: oklch(0.92 0.14 95);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.92 0.14 95);
-}
-
-.dark.lime {
-  --color-primary: oklch(0.85 0.13 127);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.85 0.13 127);
-}
-
-.dark.emerald {
-  --color-primary: oklch(0.72 0.18 160);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.72 0.18 160);
-}
-
-.dark.teal {
-  --color-primary: oklch(0.78 0.12 182);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.78 0.12 182);
-}
-
-.dark.cyan {
-  --color-primary: oklch(0.8 0.11 233);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.8 0.11 233);
-}
-
-.dark.sky {
-  --color-primary: oklch(0.75 0.14 230);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.75 0.14 230);
-}
-
-.dark.indigo {
-  --color-primary: oklch(0.65 0.2 275);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.65 0.2 275);
-}
-
-.dark.violet {
-  --color-primary: oklch(0.7 0.2 280);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.7 0.2 280);
-}
-
-.dark.fuchsia {
-  --color-primary: oklch(0.77 0.18 315);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.77 0.18 315);
-}
-
-.dark.pink {
-  --color-primary: oklch(0.78 0.15 347);
-  --color-primary-foreground: oklch(0.145 0 0);
-  --color-ring: oklch(0.78 0.15 347);
-}
-
-/* ── Atmospheric themes (light mode) ── */
+/* ── Atmosphere: hue and chroma only ────────────────────────────────────────
+   Kept as aliases for the existing picker; the surface ladder above supplies
+   every lightness step, so these cannot make a theme unreadable. */
 .warm {
-  --color-background: oklch(0.985 0.02 80);
-  --color-foreground: oklch(0.2 0.02 60);
-  --color-card: oklch(0.98 0.015 70);
-  --color-card-foreground: oklch(0.2 0.02 60);
-  --color-muted: oklch(0.94 0.02 70);
-  --color-muted-foreground: oklch(0.5 0.02 60);
-  --color-border: oklch(0.9 0.02 70);
-  --color-accent: oklch(0.85 0.04 60);
-  --color-accent-foreground: oklch(0.25 0.02 60);
+  --hue: 80;
+  --chroma: 0.014;
 }
-
 .cool {
-  --color-background: oklch(0.98 0.01 250);
-  --color-foreground: oklch(0.2 0.02 250);
-  --color-card: oklch(0.96 0.015 250);
-  --color-card-foreground: oklch(0.2 0.02 250);
-  --color-muted: oklch(0.92 0.02 250);
-  --color-muted-foreground: oklch(0.5 0.02 250);
-  --color-border: oklch(0.88 0.02 250);
-  --color-accent: oklch(0.85 0.04 250);
-  --color-accent-foreground: oklch(0.25 0.02 250);
+  --hue: 250;
+  --chroma: 0.014;
 }
-
 .ocean {
-  --color-background: oklch(0.97 0.03 250);
-  --color-foreground: oklch(0.2 0.04 250);
-  --color-card: oklch(0.95 0.03 240);
-  --color-card-foreground: oklch(0.2 0.04 250);
-  --color-muted: oklch(0.91 0.03 230);
-  --color-muted-foreground: oklch(0.5 0.03 250);
-  --color-border: oklch(0.87 0.03 230);
-  --color-accent: oklch(0.85 0.06 220);
-  --color-accent-foreground: oklch(0.25 0.04 250);
+  --hue: 225;
+  --chroma: 0.022;
 }
-
 .forest {
-  --color-background: oklch(0.97 0.02 150);
-  --color-foreground: oklch(0.2 0.03 150);
-  --color-card: oklch(0.95 0.02 145);
-  --color-card-foreground: oklch(0.2 0.03 150);
-  --color-muted: oklch(0.91 0.02 140);
-  --color-muted-foreground: oklch(0.5 0.03 150);
-  --color-border: oklch(0.87 0.02 140);
-  --color-accent: oklch(0.85 0.05 135);
-  --color-accent-foreground: oklch(0.25 0.03 150);
+  --hue: 150;
+  --chroma: 0.016;
 }
-
 .midnight {
-  --color-background: oklch(0.18 0 0);
-  --color-foreground: oklch(0.95 0 0);
-  --color-card: oklch(0.22 0.01 250);
-  --color-card-foreground: oklch(0.95 0 0);
-  --color-muted: oklch(0.28 0.01 250);
-  --color-muted-foreground: oklch(0.7 0.01 250);
-  --color-border: oklch(0.35 0.01 250);
-  --color-accent: oklch(0.4 0.1 250);
-  --color-accent-foreground: oklch(0.95 0 0);
+  --hue: 260;
+  --chroma: 0.008;
 }
-
 .rose-atmosphere {
-  --color-background: oklch(0.98 0.02 350);
-  --color-foreground: oklch(0.2 0.02 350);
-  --color-card: oklch(0.96 0.02 340);
-  --color-card-foreground: oklch(0.2 0.02 350);
-  --color-muted: oklch(0.92 0.02 330);
-  --color-muted-foreground: oklch(0.5 0.02 350);
-  --color-border: oklch(0.88 0.02 330);
-  --color-accent: oklch(0.85 0.05 350);
-  --color-accent-foreground: oklch(0.25 0.02 350);
+  --hue: 350;
+  --chroma: 0.012;
 }
 
-/* ── Atmospheric themes (dark mode) ── */
-.dark.warm {
-  --color-background: oklch(0.18 0.02 80);
-  --color-foreground: oklch(0.95 0.02 60);
-  --color-card: oklch(0.22 0.02 70);
-  --color-card-foreground: oklch(0.95 0.02 60);
-  --color-muted: oklch(0.28 0.02 60);
-  --color-muted-foreground: oklch(0.7 0.02 60);
-  --color-border: oklch(0.32 0.02 60);
-  --color-accent: oklch(0.45 0.04 60);
-  --color-accent-foreground: oklch(0.95 0.02 60);
+/* ── Accent: signal hue only ────────────────────────────────────────────────
+   The 18-colour picker no longer repaints the primary button; it rotates the
+   one accent that carries meaning. Lightness adapts through --signal-lift. */
+.blue {
+  --signal-l: 0.52;
+  --signal-c: 0.18;
+  --signal-h: 255;
 }
-
-.dark.cool {
-  --color-background: oklch(0.15 0.01 250);
-  --color-foreground: oklch(0.95 0.01 250);
-  --color-card: oklch(0.2 0.015 250);
-  --color-card-foreground: oklch(0.95 0.01 250);
-  --color-muted: oklch(0.26 0.02 250);
-  --color-muted-foreground: oklch(0.7 0.01 250);
-  --color-border: oklch(0.32 0.02 250);
-  --color-accent: oklch(0.45 0.04 250);
-  --color-accent-foreground: oklch(0.95 0.01 250);
+.green {
+  --signal-l: 0.52;
+  --signal-c: 0.15;
+  --signal-h: 150;
 }
-
-.dark.ocean {
-  --color-background: oklch(0.12 0.03 250);
-  --color-foreground: oklch(0.95 0.03 250);
-  --color-card: oklch(0.18 0.03 240);
-  --color-card-foreground: oklch(0.95 0.03 250);
-  --color-muted: oklch(0.24 0.03 230);
-  --color-muted-foreground: oklch(0.7 0.03 250);
-  --color-border: oklch(0.3 0.03 230);
-  --color-accent: oklch(0.45 0.06 220);
-  --color-accent-foreground: oklch(0.95 0.03 250);
+.purple {
+  --signal-l: 0.5;
+  --signal-c: 0.2;
+  --signal-h: 305;
 }
-
-.dark.forest {
-  --color-background: oklch(0.13 0.02 150);
-  --color-foreground: oklch(0.95 0.02 150);
-  --color-card: oklch(0.18 0.02 145);
-  --color-card-foreground: oklch(0.95 0.02 150);
-  --color-muted: oklch(0.24 0.02 140);
-  --color-muted-foreground: oklch(0.7 0.02 150);
-  --color-border: oklch(0.3 0.02 140);
-  --color-accent: oklch(0.45 0.05 135);
-  --color-accent-foreground: oklch(0.95 0.02 150);
+.orange {
+  --signal-l: 0.58;
+  --signal-c: 0.16;
+  --signal-h: 45;
 }
-
-.dark.midnight {
-  --color-background: oklch(0.05 0 0);
-  --color-foreground: oklch(0.98 0 0);
-  --color-card: oklch(0.08 0 0);
-  --color-card-foreground: oklch(0.98 0 0);
-  --color-muted: oklch(0.12 0 0);
-  --color-muted-foreground: oklch(0.65 0 0);
-  --color-border: oklch(0.18 0 0);
-  --color-accent: oklch(0.25 0.08 250);
-  --color-accent-foreground: oklch(0.98 0 0);
+.rose {
+  --signal-l: 0.55;
+  --signal-c: 0.2;
+  --signal-h: 15;
 }
-
-.dark.rose-atmosphere {
-  --color-background: oklch(0.15 0.02 350);
-  --color-foreground: oklch(0.95 0.02 350);
-  --color-card: oklch(0.2 0.02 340);
-  --color-card-foreground: oklch(0.95 0.02 350);
-  --color-muted: oklch(0.26 0.02 330);
-  --color-muted-foreground: oklch(0.7 0.02 350);
-  --color-border: oklch(0.32 0.02 330);
-  --color-accent: oklch(0.45 0.05 350);
-  --color-accent-foreground: oklch(0.95 0.02 350);
+.red {
+  --signal-l: 0.53;
+  --signal-c: 0.2;
+  --signal-h: 25;
+}
+.amber {
+  --signal-l: 0.55;
+  --signal-c: 0.13;
+  --signal-h: 65;
+}
+.yellow {
+  --signal-l: 0.6;
+  --signal-c: 0.14;
+  --signal-h: 90;
+}
+.lime {
+  --signal-l: 0.58;
+  --signal-c: 0.16;
+  --signal-h: 125;
+}
+.emerald {
+  --signal-l: 0.5;
+  --signal-c: 0.14;
+  --signal-h: 160;
+}
+.teal {
+  --signal-l: 0.5;
+  --signal-c: 0.11;
+  --signal-h: 185;
+}
+.cyan {
+  --signal-l: 0.55;
+  --signal-c: 0.11;
+  --signal-h: 215;
+}
+.sky {
+  --signal-l: 0.55;
+  --signal-c: 0.13;
+  --signal-h: 235;
+}
+.indigo {
+  --signal-l: 0.45;
+  --signal-c: 0.2;
+  --signal-h: 275;
+}
+.violet {
+  --signal-l: 0.5;
+  --signal-c: 0.22;
+  --signal-h: 285;
+}
+.fuchsia {
+  --signal-l: 0.55;
+  --signal-c: 0.25;
+  --signal-h: 320;
+}
+.pink {
+  --signal-l: 0.58;
+  --signal-c: 0.19;
+  --signal-h: 350;
 }
 
 @layer base {
@@ -413,7 +320,53 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    /* Tabular figures everywhere, so a column of amounts lines up on the
+       decimal point without every table remembering `tabular-nums`. */
+    font-feature-settings:
+      "tnum" 1,
+      "lnum" 1,
+      "calt" 0;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  /* Amounts are the primary content of this app; a mono face keeps the
+     decimal aligned when the font-size changes. */
+  .font-mono,
+  [data-slot="badge"] {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  ::selection {
+    @apply bg-signal/25 text-foreground;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-1 ring-ring;
+  }
+
+  /* Scrollbars follow the surface ladder instead of the OS default, which
+     reads as a different program bolted onto the window. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(var(--s-ink) var(--chroma) var(--hue) / 0.18)
+      transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

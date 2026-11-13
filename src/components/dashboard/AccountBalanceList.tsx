@@ -160,11 +160,11 @@ export function AccountBalanceList() {
                         const isAsset = account.account_type === "asset";
                         const balanceClass = isAsset
                           ? displayBalance >= 0
-                            ? "text-green-600"
-                            : "text-red-600"
+                            ? "text-income"
+                            : "text-expense"
                           : displayBalance >= 0
-                            ? "text-red-600"
-                            : "text-green-600";
+                            ? "text-expense"
+                            : "text-income";
                         const statusKey = !isAsset
                           ? getLiabilityStatusKey(displayBalance)
                           : null;

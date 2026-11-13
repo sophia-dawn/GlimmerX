@@ -27,8 +27,8 @@ export function Header({ onQuickAdd, onAiInput }: HeaderProps) {
   const title = routeTitles[location.pathname] ?? "GlimmerX";
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-background px-6">
-      <h1 className="text-lg font-semibold">{title}</h1>
+    <header className="flex h-11 shrink-0 items-center justify-between border-b bg-card px-3">
+      <h1 className="text-sm font-medium">{title}</h1>
       <div className="flex items-center gap-2">
         {actions}
         {onAiInput && (
@@ -39,7 +39,7 @@ export function Header({ onQuickAdd, onAiInput }: HeaderProps) {
             className="gap-1"
             title="Ctrl+Shift+I"
           >
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="size-3.5" strokeWidth={1.75} />
             {t("ai.title")}
           </Button>
         )}
@@ -50,7 +50,7 @@ export function Header({ onQuickAdd, onAiInput }: HeaderProps) {
             onClick={onQuickAdd}
             className="gap-1"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="size-3.5" strokeWidth={1.75} />
             {t("quickAdd.title")}
           </Button>
         )}

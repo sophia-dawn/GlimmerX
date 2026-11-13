@@ -118,9 +118,9 @@ export function StandardReport() {
   const incomeChangeIcon = data.incomeChangePct >= 0 ? "↑" : "↓";
   const expenseChangeIcon = data.expenseChangePct >= 0 ? "↑" : "↓";
   const incomeChangeColor =
-    data.incomeChangePct >= 0 ? "text-green-600" : "text-red-600";
+    data.incomeChangePct >= 0 ? "text-income" : "text-expense";
   const expenseChangeColor =
-    data.expenseChangePct >= 0 ? "text-red-600" : "text-green-600";
+    data.expenseChangePct >= 0 ? "text-expense" : "text-income";
 
   return (
     <div className="space-y-4">
@@ -139,7 +139,7 @@ export function StandardReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-income">
               {formatAmount(data.periodIncome)}
             </div>
             <div className={`text-sm mt-1 ${incomeChangeColor}`}>
@@ -156,7 +156,7 @@ export function StandardReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-expense">
               {formatAmount(data.periodExpense)}
             </div>
             <div className={`text-sm mt-1 ${expenseChangeColor}`}>
@@ -231,7 +231,7 @@ export function StandardReport() {
                   </td>
                   <td
                     className={`px-4 py-2 text-right ${
-                      change.change >= 0 ? "text-green-600" : "text-red-600"
+                      change.change >= 0 ? "text-income" : "text-expense"
                     }`}
                   >
                     {formatAmount(change.change)}

@@ -46,7 +46,7 @@ export function AppShell() {
             onQuickAdd={() => setQuickAddOpen(true)}
             onAiInput={() => setAiInputOpen(true)}
           />
-          <main className="flex-1 overflow-auto p-2">
+          <main className="flex-1 overflow-auto p-3">
             <Outlet />
           </main>
         </div>

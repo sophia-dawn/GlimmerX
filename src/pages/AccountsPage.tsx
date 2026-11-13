@@ -374,16 +374,14 @@ function AccountRow({
             className={`text-sm font-medium tabular-nums ${
               account.account_type === "asset"
                 ? balance !== undefined && balance >= 0
-                  ? "text-green-600"
-                  : "text-red-600"
+                  ? "text-income"
+                  : "text-expense"
                 : (() => {
                     const displayBalance = getLiabilityDisplayBalance(
                       balance ?? 0,
                       account.account_type,
                     );
-                    return displayBalance >= 0
-                      ? "text-red-600"
-                      : "text-green-600";
+                    return displayBalance >= 0 ? "text-expense" : "text-income";
                   })()
             }`}
           >

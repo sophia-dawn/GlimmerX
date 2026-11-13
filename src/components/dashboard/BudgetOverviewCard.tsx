@@ -94,7 +94,7 @@ export function BudgetOverviewCard() {
                       <span
                         className={cn(
                           "font-medium",
-                          isOverBudget ? "text-destructive" : "text-red-600",
+                          isOverBudget ? "text-destructive" : "text-expense",
                         )}
                       >
                         {formatAmount(budget.spent)}

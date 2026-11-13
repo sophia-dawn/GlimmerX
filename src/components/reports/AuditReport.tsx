@@ -57,9 +57,9 @@ export function AuditReport() {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2">
             {isHealthy ? (
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-5 w-5 text-income" />
             ) : (
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              <AlertTriangle className="h-5 w-5 text-signal" />
             )}
             {t("reports.audit.overview")}
           </CardTitle>
@@ -78,7 +78,7 @@ export function AuditReport() {
               <div className="text-sm text-muted-foreground">
                 {t("reports.audit.balancedTransactions")}
               </div>
-              <div className="text-xl font-bold text-green-600">
+              <div className="text-xl font-bold text-income">
                 {data.balanceCheck.balancedCount}
               </div>
             </div>
@@ -87,7 +87,7 @@ export function AuditReport() {
                 {t("reports.audit.issuesFound")}
               </div>
               <div
-                className={`text-xl font-bold ${isHealthy ? "text-green-600" : "text-red-600"}`}
+                className={`text-xl font-bold ${isHealthy ? "text-income" : "text-expense"}`}
               >
                 {totalIssues}
               </div>
@@ -107,9 +107,9 @@ export function AuditReport() {
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
               {data.balanceCheck.unbalancedCount === 0 ? (
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle className="h-4 w-4 text-income" />
               ) : (
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertTriangle className="h-4 w-4 text-signal" />
               )}
               {t("reports.audit.balanceCheck")}
             </span>
@@ -163,7 +163,7 @@ export function AuditReport() {
                           <td className="px-4 py-2">{tx.date}</td>
                           <td className="px-4 py-2">{tx.description}</td>
                           <td
-                            className={`px-4 py-2 text-right ${tx.sum > 0 ? "text-red-600" : "text-green-600"}`}
+                            className={`px-4 py-2 text-right ${tx.sum > 0 ? "text-expense" : "text-income"}`}
                           >
                             {formatAmount(tx.sum)}
                           </td>
@@ -183,9 +183,9 @@ export function AuditReport() {
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
               {data.categoryCheck.uncategorizedTransactions === 0 ? (
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle className="h-4 w-4 text-income" />
               ) : (
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertTriangle className="h-4 w-4 text-signal" />
               )}
               {t("reports.audit.categoryCheck")}
             </span>

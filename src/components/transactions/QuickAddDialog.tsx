@@ -183,19 +183,19 @@ export function QuickAddDialog({
       mode: "expense",
       icon: <ArrowDownCircle className="h-4 w-4" />,
       label: t("quickAdd.expense"),
-      colorClass: "text-red-500",
+      colorClass: "text-expense",
     },
     {
       mode: "income",
       icon: <ArrowUpCircle className="h-4 w-4" />,
       label: t("quickAdd.income"),
-      colorClass: "text-green-500",
+      colorClass: "text-income",
     },
     {
       mode: "transfer",
       icon: <ArrowRightCircle className="h-4 w-4" />,
       label: t("quickAdd.transfer"),
-      colorClass: "text-blue-500",
+      colorClass: "text-info",
     },
   ];
 
@@ -225,13 +225,13 @@ export function QuickAddDialog({
                     "flex-1 gap-1",
                     mode === btn.mode &&
                       btn.mode === "expense" &&
-                      "bg-red-500 hover:bg-red-600",
+                      "bg-expense hover:bg-expense/90",
                     mode === btn.mode &&
                       btn.mode === "income" &&
-                      "bg-green-500 hover:bg-green-600",
+                      "bg-income hover:bg-income/90",
                     mode === btn.mode &&
                       btn.mode === "transfer" &&
-                      "bg-blue-500 hover:bg-blue-600",
+                      "bg-info hover:bg-info/90",
                     mode !== btn.mode && btn.colorClass,
                   )}
                 >

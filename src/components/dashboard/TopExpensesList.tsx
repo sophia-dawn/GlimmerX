@@ -68,7 +68,7 @@ export function TopExpensesList() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-red-600 font-medium">
+                  <span className="text-expense font-medium">
                     {formatAmount(expense.amount)}
                   </span>
                   <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />

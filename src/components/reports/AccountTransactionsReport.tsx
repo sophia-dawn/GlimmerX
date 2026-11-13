@@ -170,7 +170,7 @@ export function AccountTransactionsReport() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-income">
                   {formatAmount(reportData.totalInflow)}
                 </div>
               </CardContent>
@@ -182,7 +182,7 @@ export function AccountTransactionsReport() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-2xl font-bold text-expense">
                   {formatAmount(reportData.totalOutflow)}
                 </div>
               </CardContent>
@@ -195,7 +195,7 @@ export function AccountTransactionsReport() {
               </CardHeader>
               <CardContent>
                 <div
-                  className={`text-2xl font-bold ${reportData.netChange >= 0 ? "text-green-600" : "text-red-600"}`}
+                  className={`text-2xl font-bold ${reportData.netChange >= 0 ? "text-income" : "text-expense"}`}
                 >
                   {formatAmount(reportData.netChange)}
                 </div>
@@ -249,7 +249,7 @@ export function AccountTransactionsReport() {
                             {tx.counterAccountName ?? "-"}
                           </td>
                           <td
-                            className={`px-4 py-2 text-right ${tx.isInflow ? "text-green-600" : "text-red-600"}`}
+                            className={`px-4 py-2 text-right ${tx.isInflow ? "text-income" : "text-expense"}`}
                           >
                             {tx.isInflow ? "+" : "-"}
                             {formatAmount(tx.amount)}

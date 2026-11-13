@@ -289,7 +289,7 @@ export function ReconcileDialog({
             </span>
             <span
               className={`tabular-nums ${
-                totals?.balanced ? "text-green-600" : "text-destructive"
+                totals?.balanced ? "text-income" : "text-destructive"
               }`}
             >
               {formatAmount(totals?.difference ?? 0)}

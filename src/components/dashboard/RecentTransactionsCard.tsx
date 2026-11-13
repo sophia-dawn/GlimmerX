@@ -42,7 +42,7 @@ export function RecentTransactionsCard() {
   // Expense accounts have negative amounts in postingsSummary (double-entry bookkeeping)
   const getTransactionDisplayInfo = (tx: TransactionListItem) => {
     const isExpense = tx.postingsSummary.some((p) => p.amount < 0);
-    const amountClass = isExpense ? "text-red-600" : "text-green-600";
+    const amountClass = isExpense ? "text-expense" : "text-income";
     return { amountClass };
   };
 

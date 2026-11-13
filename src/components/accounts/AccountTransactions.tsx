@@ -158,7 +158,7 @@ function TransactionRow({ tx }: TransactionRowProps) {
         <div className="text-xs text-muted-foreground">{displayDate}</div>
       </div>
       <span
-        className={`ml-4 text-sm font-medium tabular-nums ${tx.amount >= 0 ? "text-green-600" : "text-red-600"}`}
+        className={`ml-4 text-sm font-medium tabular-nums ${tx.amount >= 0 ? "text-income" : "text-expense"}`}
       >
         {formatAmount(tx.amount)}
       </span>

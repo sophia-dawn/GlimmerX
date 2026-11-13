@@ -22,14 +22,14 @@ export function FinancialHealthCards() {
       title: t("dashboard.totalAssets"),
       value: summary?.total_assets ?? 0,
       icon: Wallet,
-      colorClass: "text-blue-600",
+      colorClass: "text-info",
     },
     {
       key: "totalDebt",
       title: t("dashboard.totalDebt"),
       value: summary?.total_liabilities ?? 0,
       icon: CreditCard,
-      colorClass: "text-orange-600",
+      colorClass: "text-signal",
     },
     {
       key: "netWorth",
@@ -37,7 +37,7 @@ export function FinancialHealthCards() {
       value: summary?.net_worth ?? 0,
       icon: Scale,
       colorClass:
-        (summary?.net_worth ?? 0) >= 0 ? "text-green-600" : "text-red-600",
+        (summary?.net_worth ?? 0) >= 0 ? "text-income" : "text-expense",
     },
   ];
 

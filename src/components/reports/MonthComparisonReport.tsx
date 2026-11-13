@@ -116,9 +116,9 @@ export function MonthComparisonReport() {
   const incomeChangeIcon = data.incomeChangePct >= 0 ? "↑" : "↓";
   const expenseChangeIcon = data.expenseChangePct >= 0 ? "↑" : "↓";
   const incomeChangeColor =
-    data.incomeChangePct >= 0 ? "text-green-600" : "text-red-600";
+    data.incomeChangePct >= 0 ? "text-income" : "text-expense";
   const expenseChangeColor =
-    data.expenseChangePct >= 0 ? "text-red-600" : "text-green-600";
+    data.expenseChangePct >= 0 ? "text-expense" : "text-income";
 
   return (
     <div className="space-y-4">
@@ -157,13 +157,13 @@ export function MonthComparisonReport() {
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span>{getMonthLabel(data.month1)}</span>
-                <span className="text-green-600 font-medium">
+                <span className="text-income font-medium">
                   {formatAmount(data.month1Income)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>{getMonthLabel(data.month2)}</span>
-                <span className="text-green-600 font-medium">
+                <span className="text-income font-medium">
                   {formatAmount(data.month2Income)}
                 </span>
               </div>
@@ -190,13 +190,13 @@ export function MonthComparisonReport() {
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span>{getMonthLabel(data.month1)}</span>
-                <span className="text-red-600 font-medium">
+                <span className="text-expense font-medium">
                   {formatAmount(data.month1Expense)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>{getMonthLabel(data.month2)}</span>
-                <span className="text-red-600 font-medium">
+                <span className="text-expense font-medium">
                   {formatAmount(data.month2Expense)}
                 </span>
               </div>
@@ -277,7 +277,7 @@ export function MonthComparisonReport() {
                 const isNewCategory = item.month1Amount === 0;
                 const changeIcon = item.diff >= 0 ? "↑" : "↓";
                 const changeColor =
-                  item.diff >= 0 ? "text-red-600" : "text-green-600";
+                  item.diff >= 0 ? "text-expense" : "text-income";
                 const changePctDisplay = isNewCategory
                   ? t("reports.monthComparison.newCategory")
                   : `${Math.abs(item.changePct).toFixed(1)}%`;

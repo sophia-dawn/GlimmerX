@@ -174,7 +174,7 @@ export function TrendReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-income">
               {formatAmount(totalIncome)}
             </div>
           </CardContent>
@@ -187,7 +187,7 @@ export function TrendReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-expense">
               {formatAmount(totalExpense)}
             </div>
           </CardContent>
@@ -201,7 +201,7 @@ export function TrendReport() {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${totalNet >= 0 ? "text-green-600" : "text-red-600"}`}
+              className={`text-2xl font-bold ${totalNet >= 0 ? "text-income" : "text-expense"}`}
             >
               {formatAmount(totalNet)}
             </div>

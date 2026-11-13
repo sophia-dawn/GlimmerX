@@ -50,7 +50,7 @@ export function BudgetProgressCard({
           {isOverBudget ? (
             <AlertTriangle className="h-4 w-4 text-destructive" />
           ) : (
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CheckCircle className="h-4 w-4 text-income" />
           )}
           <div className="flex gap-1">
             <button
@@ -103,7 +103,7 @@ export function BudgetProgressCard({
         </span>
         <span
           className={cn(
-            budget.remaining < 0 ? "text-destructive" : "text-green-600",
+            budget.remaining < 0 ? "text-destructive" : "text-income",
           )}
         >
           {formatAmount(budget.remaining)}

@@ -80,7 +80,7 @@ export function YearSummaryReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-income">
               {formatAmount(data.totalIncome)}
             </div>
           </CardContent>
@@ -92,7 +92,7 @@ export function YearSummaryReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-expense">
               {formatAmount(data.totalExpense)}
             </div>
           </CardContent>
@@ -105,7 +105,7 @@ export function YearSummaryReport() {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${data.net >= 0 ? "text-green-600" : "text-red-600"}`}
+              className={`text-2xl font-bold ${data.net >= 0 ? "text-income" : "text-expense"}`}
             >
               {formatAmount(data.net)}
             </div>

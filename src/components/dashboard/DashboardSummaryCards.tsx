@@ -22,28 +22,28 @@ export function DashboardSummaryCards() {
       title: t("dashboard.monthIncome"),
       value: summary?.month_income ?? 0,
       icon: TrendingUp,
-      colorClass: "text-green-600",
+      colorClass: "text-income",
     },
     {
       key: "monthExpense",
       title: t("dashboard.monthExpense"),
       value: -(summary?.month_expense ?? 0),
       icon: TrendingDown,
-      colorClass: "text-red-600",
+      colorClass: "text-expense",
     },
     {
       key: "yearIncome",
       title: t("dashboard.yearIncome"),
       value: summary?.year_income ?? 0,
       icon: TrendingUp,
-      colorClass: "text-green-600",
+      colorClass: "text-income",
     },
     {
       key: "yearExpense",
       title: t("dashboard.yearExpense"),
       value: -(summary?.year_expense ?? 0),
       icon: TrendingDown,
-      colorClass: "text-red-600",
+      colorClass: "text-expense",
     },
   ];
 

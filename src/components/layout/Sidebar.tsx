@@ -39,16 +39,16 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r bg-background">
+    <aside className="flex h-screen w-52 shrink-0 flex-col border-r bg-card">
       {/* Logo */}
-      <div className="flex h-14 items-center border-b px-4">
-        <span className="text-lg font-bold tracking-tight">
+      <div className="flex h-11 items-center border-b px-3">
+        <span className="text-sm font-medium tracking-[0.02em]">
           {t("common.appName")}
         </span>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-2">
+      <nav className="flex-1 space-y-0.5 p-1.5">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
@@ -56,51 +56,51 @@ export function Sidebar() {
             end={item.to === "/"}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-2 border-l-2 px-2 py-1.5 text-sm transition-colors",
                 isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  ? "border-signal bg-signal/10 font-medium text-signal"
+                  : "border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )
             }
           >
-            <item.icon className="h-4 w-4" />
+            <item.icon className="size-3.5" strokeWidth={1.75} />
             {item.label}
           </NavLink>
         ))}
       </nav>
 
       {/* Bottom section */}
-      <div className="space-y-1 border-t p-2">
+      <div className="space-y-0.5 border-t p-1.5">
         <NavLink
           to="/settings"
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              "flex items-center gap-2 border-l-2 px-2 py-1.5 text-sm transition-colors",
               isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                ? "border-signal bg-signal/10 font-medium text-signal"
+                : "border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             )
           }
         >
-          <Settings className="h-4 w-4" />
+          <Settings className="size-3.5" strokeWidth={1.75} />
           {t("navigation.settings")}
         </NavLink>
 
         {/* Lock */}
         <button
           onClick={handleLock}
-          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="flex w-full items-center gap-2 border-l-2 border-transparent px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         >
-          <Lock className="h-4 w-4" />
+          <Lock className="size-3.5" strokeWidth={1.75} />
           {t("navigation.lockScreen")}
         </button>
 
         {/* Switch Ledger */}
         <button
           onClick={handleLock}
-          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="flex w-full items-center gap-2 border-l-2 border-transparent px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         >
-          <Wallet className="h-4 w-4" />
+          <Wallet className="size-3.5" strokeWidth={1.75} />
           {t("navigation.switchLedger")}
         </button>
       </div>

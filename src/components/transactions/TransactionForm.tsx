@@ -373,17 +373,17 @@ export function TransactionForm({
                     }
                     className={cn(
                       "w-[120px] tabular-nums",
-                      precisionWarnings.has(index) && "border-yellow-500",
-                      zeroCentsWarnings.has(index) && "border-red-500",
+                      precisionWarnings.has(index) && "border-signal",
+                      zeroCentsWarnings.has(index) && "border-expense",
                     )}
                   />
                   {precisionWarnings.has(index) && (
-                    <span className="text-xs text-yellow-600 ml-1 whitespace-nowrap">
+                    <span className="text-xs text-signal ml-1 whitespace-nowrap">
                       {t("transactions.precisionWarning")}
                     </span>
                   )}
                   {zeroCentsWarnings.has(index) && (
-                    <span className="text-xs text-red-600 ml-1 whitespace-nowrap">
+                    <span className="text-xs text-expense ml-1 whitespace-nowrap">
                       {t("errors.transaction.amountTooSmall")}
                     </span>
                   )}
@@ -421,7 +421,7 @@ export function TransactionForm({
               <span
                 className={cn(
                   "text-sm font-medium",
-                  isBalanced ? "text-green-600" : "text-red-600",
+                  isBalanced ? "text-income" : "text-expense",
                 )}
               >
                 {isBalanced

@@ -125,8 +125,8 @@ export function TransactionDetailPage() {
 
   const renderPosting = (posting: PostingDetail) => {
     const amountColor = posting.isDebit
-      ? "text-emerald-600 dark:text-emerald-400"
-      : "text-rose-600 dark:text-rose-400";
+      ? "text-income dark:text-income/80"
+      : "text-expense dark:text-expense/80";
 
     return (
       <div
@@ -259,7 +259,7 @@ export function TransactionDetailPage() {
           {transaction.isBalanced ? (
             <Badge
               variant="outline"
-              className="gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-600 dark:border-emerald-400"
+              className="gap-1 text-income dark:text-income/80 border-income dark:border-income/60"
             >
               <CheckCircle2 className="h-3 w-3" />
               {t("transactions.balanced")}
@@ -267,7 +267,7 @@ export function TransactionDetailPage() {
           ) : (
             <Badge
               variant="outline"
-              className="gap-1 text-amber-600 dark:text-amber-400 border-amber-600 dark:border-amber-400"
+              className="gap-1 text-signal dark:text-signal/80 border-signal dark:border-signal/60"
             >
               <AlertCircle className="h-3 w-3" />
               {t("transactions.unbalanced")}
@@ -313,7 +313,7 @@ export function TransactionDetailPage() {
               <span className="text-muted-foreground">
                 {t("transactions.detail.debitTotal")}
               </span>
-              <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+              <span className="font-semibold tabular-nums text-income dark:text-income/80">
                 {formatAmount(transaction.debitTotal)}
               </span>
             </div>
@@ -321,7 +321,7 @@ export function TransactionDetailPage() {
               <span className="text-muted-foreground">
                 {t("transactions.detail.creditTotal")}
               </span>
-              <span className="font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+              <span className="font-semibold tabular-nums text-expense dark:text-expense/80">
                 {formatAmount(transaction.creditTotal)}
               </span>
             </div>

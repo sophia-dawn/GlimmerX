@@ -77,7 +77,7 @@ export function BalanceSheetReport() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-2xl font-bold text-info">
                 {data ? formatAmount(data.netWorth) : `${symbol}0.00`}
               </div>
               <div className="text-sm mt-1 text-muted-foreground">

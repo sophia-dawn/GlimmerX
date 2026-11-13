@@ -103,7 +103,7 @@ export function TransactionDeleteDialog({
                   </div>
 
                   {preview.warningMessage && (
-                    <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-500">
+                    <div className="flex items-center gap-2 text-sm text-signal dark:text-signal">
                       <AlertTriangle className="h-4 w-4" />
                       <span>{preview.warningMessage}</span>
                     </div>
