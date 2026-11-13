@@ -59,9 +59,11 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, typeof Wallet> = {
 
 const ACCOUNT_TYPE_KEYS = Object.keys(ACCOUNT_TYPE_ICONS) as AccountType[];
 
-// Equity is system-managed — users cannot create equity accounts.
+// Equity is system-managed and P&L accounts belong to a category, so the
+// wizard only offers balance-sheet accounts. Categories create their own
+// `income` / `expense` account on the categories page.
 const WIZARD_ACCOUNT_TYPE_KEYS = ACCOUNT_TYPE_KEYS.filter(
-  (t) => t !== "equity",
+  (t) => t === "asset" || t === "liability",
 );
 
 // English type labels for DB account paths (data layer, not display)

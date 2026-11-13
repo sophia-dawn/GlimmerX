@@ -108,10 +108,18 @@ describe("api account commands", () => {
     expect(result.id).toBe("1");
   });
 
-  it("accountList calls invoke", async () => {
+  it("accountList calls invoke without a type filter", async () => {
     mockedInvoke.mockResolvedValueOnce([]);
     await api.accountList();
-    expect(mockedInvoke).toHaveBeenCalledWith("account_list", undefined);
+    expect(mockedInvoke).toHaveBeenCalledWith("account_list", { types: null });
+  });
+
+  it("accountList passes the type filter through", async () => {
+    mockedInvoke.mockResolvedValueOnce([]);
+    await api.accountList(["asset", "liability"]);
+    expect(mockedInvoke).toHaveBeenCalledWith("account_list", {
+      types: ["asset", "liability"],
+    });
   });
 
   it("accountUpdate calls invoke", async () => {

@@ -252,7 +252,8 @@
       "owed": "待还",
       "surplus": "盈余",
       "cleared": "已还清"
-    }
+    },
+    "reconcile": "对账"
   },
   "categories": {
     "title": "分类",
@@ -425,7 +426,8 @@
     "switchLedger": "切换账本",
     "themeLight": "亮色",
     "themeDark": "暗色",
-    "themeSystem": "跟随系统"
+    "themeSystem": "跟随系统",
+    "savings": "储蓄目标"
   },
   "settings": {
     "title": "设置",
@@ -554,7 +556,25 @@
     "databaseOpenFailed": "无法打开数据库文件",
     "databaseCreateFailed": "无法创建数据库文件",
     "databaseLocked": "数据库未解锁，请先解锁",
-    "unknownError": "操作失败，请重试"
+    "unknownError": "操作失败，请重试",
+    "categoryAccountInUse": "该分类已产生交易，无法删除。如需停止使用，请改名归档",
+    "categoryNotBound": "该分类尚未绑定账户，请重新打开数据库以完成升级",
+    "reconcile": {
+      "accountNotReconcilable": "只有资产与负债账户可以核对",
+      "differenceNotZero": "差额不为零，请勾选与账单一致的分录",
+      "duplicateDate": "该账户在此日期已有一份对账单",
+      "notFound": "对账单不存在",
+      "postingNotAvailable": "有分录已被核对或不属于该账户，请刷新后重试",
+      "transactionLocked": "该交易已核对，请先撤销对账再修改",
+      "emptySelection": "请至少勾选一条分录"
+    },
+    "savings": {
+      "accountNotEmpty": "该目标账户仍有余额，请先将余额转出",
+      "duplicateName": "已存在同名的储蓄目标",
+      "goalNotFound": "储蓄目标不存在",
+      "invalidTarget": "目标金额必须大于零",
+      "goalHasHistory": "该目标已有存取记录，无法删除，请改为归档"
+    }
   },
   "quickAdd": {
     "title": "快速记账",
@@ -804,5 +824,57 @@
       "noAccountUsageData": "暂无账户使用数据",
       "lastTransaction": "最后交易"
     }
+  },
+  "reconcile": {
+    "title": "对账 · {{name}}",
+    "description": "勾选与账单一致的分录。期初已对账余额加本次勾选必须等于账单期末余额，差额为零才能提交。",
+    "statementDate": "对账单日期",
+    "closingBalance": "账单期末余额",
+    "autoMatch": "自动匹配",
+    "autoMatchLabel": "账单金额（可选）",
+    "autoMatchPlaceholder": "每行一个金额，例如：\n-128.50\n3200\n-45.00",
+    "autoMatchHint": "按金额相等、日期就近自动勾选，勾选结果仍可手动调整。",
+    "unmatchedTargets": "{{count}} 笔账单金额未找到对应分录",
+    "noCandidates": "该日期之前没有未对账的分录",
+    "openingBalance": "期初已对账",
+    "selectedTotal": "本次勾选",
+    "expectedBalance": "对账后余额",
+    "difference": "差额",
+    "history": "已完成的核对",
+    "undo": "撤销",
+    "undone": "已撤销对账",
+    "created": "对账已完成",
+    "submit": "完成对账"
+  },
+  "savings": {
+    "title": "储蓄目标",
+    "empty": "还没有储蓄目标",
+    "emptyDesc": "目标资金放在一个专用账户里，存入就是一次账户间转账，余额即进度。",
+    "newGoal": "新建目标",
+    "name": "目标名称",
+    "targetAmount": "目标金额",
+    "targetDate": "目标日期（可选）",
+    "monthlyPlan": "每月计划存入（可选）",
+    "saved": "已存",
+    "target": "目标",
+    "remaining": "还差",
+    "monthlyNeeded": "每月需存 {{amount}}",
+    "achieved": "已达成",
+    "archived": "已归档",
+    "deposit": "存入",
+    "withdraw": "取出",
+    "archive": "归档",
+    "restore": "恢复",
+    "delete": "删除",
+    "created": "目标已创建",
+    "updated": "目标已更新",
+    "deleted": "目标已删除",
+    "depositTitle": "存入 · {{name}}",
+    "withdrawTitle": "取出 · {{name}}",
+    "fromAccount": "从账户",
+    "toAccount": "转入账户",
+    "amount": "金额",
+    "transferDone": "已记录",
+    "editTitle": "编辑目标"
   }
 }

@@ -252,7 +252,8 @@
       "owed": "Owed",
       "surplus": "Surplus",
       "cleared": "Cleared"
-    }
+    },
+    "reconcile": "Reconcile"
   },
   "categories": {
     "title": "Categories",
@@ -425,7 +426,8 @@
     "switchLedger": "Switch Ledger",
     "themeLight": "Light",
     "themeDark": "Dark",
-    "themeSystem": "System"
+    "themeSystem": "System",
+    "savings": "Savings"
   },
   "settings": {
     "title": "Settings",
@@ -554,7 +556,25 @@
     "databaseOpenFailed": "Could not open the database file",
     "databaseCreateFailed": "Could not create the database file",
     "databaseLocked": "Database is locked. Please unlock it first",
-    "unknownError": "Something went wrong. Please try again"
+    "unknownError": "Something went wrong. Please try again",
+    "categoryAccountInUse": "This category already has transactions and cannot be deleted. Rename it instead to retire it",
+    "categoryNotBound": "This category is not linked to an account yet — reopen the database to finish the upgrade",
+    "reconcile": {
+      "accountNotReconcilable": "Only asset and liability accounts can be reconciled",
+      "differenceNotZero": "The difference is not zero — tick the entries that match the statement",
+      "duplicateDate": "This account already has a statement for that date",
+      "notFound": "Reconciliation not found",
+      "postingNotAvailable": "Some entries are already reconciled or belong to another account. Refresh and try again",
+      "transactionLocked": "This transaction is reconciled. Undo the reconciliation before editing it",
+      "emptySelection": "Select at least one entry"
+    },
+    "savings": {
+      "accountNotEmpty": "This goal account still holds a balance — transfer it out first",
+      "duplicateName": "A savings goal with that name already exists",
+      "goalNotFound": "Savings goal not found",
+      "invalidTarget": "The target amount must be greater than zero",
+      "goalHasHistory": "This goal already has deposits or withdrawals — archive it instead of deleting"
+    }
   },
   "quickAdd": {
     "title": "Quick Add",
@@ -804,5 +824,57 @@
       "noAccountUsageData": "No account usage data available",
       "lastTransaction": "Last Transaction"
     }
+  },
+  "reconcile": {
+    "title": "Reconcile · {{name}}",
+    "description": "Tick the entries that appear on the statement. Reconciled balance plus this selection must equal the closing balance — the difference has to be zero.",
+    "statementDate": "Statement date",
+    "closingBalance": "Closing balance",
+    "autoMatch": "Auto-match",
+    "autoMatchLabel": "Statement amounts (optional)",
+    "autoMatchPlaceholder": "One amount per line, e.g.\n-128.50\n3200\n-45.00",
+    "autoMatchHint": "Pre-ticks equal amounts on the nearest date. You can still adjust any tick.",
+    "unmatchedTargets": "{{count}} statement amounts had no matching entry",
+    "noCandidates": "No unreconciled entries before that date",
+    "openingBalance": "Already reconciled",
+    "selectedTotal": "Selected",
+    "expectedBalance": "Balance after",
+    "difference": "Difference",
+    "history": "Completed reconciliations",
+    "undo": "Undo",
+    "undone": "Reconciliation undone",
+    "created": "Reconciliation saved",
+    "submit": "Finish reconciliation"
+  },
+  "savings": {
+    "title": "Savings goals",
+    "empty": "No savings goals yet",
+    "emptyDesc": "Each goal lives in a dedicated account: putting money aside is an account transfer, and the balance is the progress.",
+    "newGoal": "New goal",
+    "name": "Goal name",
+    "targetAmount": "Target amount",
+    "targetDate": "Target date (optional)",
+    "monthlyPlan": "Monthly plan (optional)",
+    "saved": "Saved",
+    "target": "Target",
+    "remaining": "Left",
+    "monthlyNeeded": "Save {{amount}} / month",
+    "achieved": "Achieved",
+    "archived": "Archived",
+    "deposit": "Deposit",
+    "withdraw": "Withdraw",
+    "archive": "Archive",
+    "restore": "Restore",
+    "delete": "Delete",
+    "created": "Goal created",
+    "updated": "Goal updated",
+    "deleted": "Goal deleted",
+    "depositTitle": "Deposit · {{name}}",
+    "withdrawTitle": "Withdraw · {{name}}",
+    "fromAccount": "From account",
+    "toAccount": "To account",
+    "amount": "Amount",
+    "transferDone": "Recorded",
+    "editTitle": "Edit goal"
   }
 }

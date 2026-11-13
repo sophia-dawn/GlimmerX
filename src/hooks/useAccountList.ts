@@ -5,6 +5,6 @@ import type { AccountDto } from "@/types";
 export function useAccountList() {
   return useQuery<AccountDto[]>({
     queryKey: ["accounts"],
-    queryFn: accountList,
+    queryFn: () => accountList(),
   });
 }

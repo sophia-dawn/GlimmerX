@@ -4,6 +4,13 @@ import type {
   AccountMeta,
   AccountMetaSchema,
   AccountTransaction,
+  AccountType,
+  AutoMatchResult,
+  CreateSavingsGoalInput,
+  ReconcilePreview,
+  ReconciliationRecord,
+  ReconcileTotals,
+  SavingsGoal,
   Budget,
   BudgetStatus,
   Category,
@@ -26,6 +33,7 @@ import type {
   TransactionListFilter,
   TransactionListResponse,
   UpdateAccountInput,
+  UpdateSavingsGoalInput,
   UpdateBudgetInput,
   UpdateCategoryInput,
   UpdateTransactionInput,
@@ -175,8 +183,17 @@ export async function accountCreate(
 /**
  * Get all accounts as a flat list.
  */
-export async function accountList(): Promise<AccountDto[]> {
-  return invokeCommand<AccountDto[]>("account_list");
+/**
+ * List accounts.
+ *
+ * Pass `types` to restrict the result — the accounts page asks for
+ * `["asset", "liability"]` only, because income/expense accounts are the
+ * mirror of a category and are managed from the categories page.
+ */
+export async function accountList(
+  types?: AccountType[],
+): Promise<AccountDto[]> {
+  return invokeCommand<AccountDto[]>("account_list", { types: types ?? null });
 }
 
 /**
@@ -608,4 +625,110 @@ export async function setUiLanguage(language: string): Promise<void> {
   // No Tauri runtime in web dev / unit tests; nothing to synchronize.
   if (!("__TAURI_INTERNALS__" in window)) return;
   return invokeCommand<void>("set_ui_language", { language });
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation
+// ---------------------------------------------------------------------------
+
+/**
+ * Open postings plus the already-reconciled balance for one account.
+ */
+export async function reconcilePreview(
+  accountId: string,
+  statementDate: string,
+): Promise<ReconcilePreview> {
+  return invokeCommand<ReconcilePreview>("reconcile_preview", {
+    accountId,
+    statementDate,
+  });
+}
+
+/**
+ * Pre-tick entries whose amount matches a statement line.
+ *
+ * `amounts` are decimal strings as printed on the statement; matching and
+ * totalling stay on the backend.
+ */
+export async function reconcileAutoMatch(
+  accountId: string,
+  statementDate: string,
+  amounts: string[],
+): Promise<AutoMatchResult> {
+  return invokeCommand<AutoMatchResult>("reconcile_auto_match", {
+    accountId,
+    statementDate,
+    amounts,
+  });
+}
+
+/**
+ * Totals for the current selection. Called on every toggle so the UI never
+ * adds money itself.
+ */
+export async function reconcileTotals(
+  accountId: string,
+  closingBalance: string,
+  postingIds: string[],
+): Promise<ReconcileTotals> {
+  return invokeCommand<ReconcileTotals>("reconcile_totals", {
+    accountId,
+    closingBalance,
+    postingIds,
+  });
+}
+
+export async function reconcileCreate(
+  accountId: string,
+  statementDate: string,
+  closingBalance: string,
+  postingIds: string[],
+): Promise<string> {
+  return invokeCommand<string>("reconcile_create", {
+    input: { accountId, statementDate, closingBalance, postingIds },
+  });
+}
+
+export async function reconcileList(
+  accountId: string,
+): Promise<ReconciliationRecord[]> {
+  return invokeCommand<ReconciliationRecord[]>("reconcile_list", {
+    accountId,
+  });
+}
+
+export async function reconcileUndo(id: string): Promise<void> {
+  return invokeCommand<void>("reconcile_undo", { id });
+}
+
+// ---------------------------------------------------------------------------
+// Savings goals
+// ---------------------------------------------------------------------------
+
+export async function savingsList(): Promise<SavingsGoal[]> {
+  return invokeCommand<SavingsGoal[]>("savings_list");
+}
+
+export async function savingsCreate(
+  input: CreateSavingsGoalInput,
+): Promise<string> {
+  return invokeCommand<string>("savings_create", { input });
+}
+
+export async function savingsUpdate(
+  id: string,
+  input: UpdateSavingsGoalInput,
+): Promise<void> {
+  return invokeCommand<void>("savings_update", { id, input });
+}
+
+export async function savingsSetStatus(
+  id: string,
+  status: "active" | "achieved" | "archived",
+): Promise<void> {
+  return invokeCommand<void>("savings_set_status", { id, status });
+}
+
+export async function savingsDelete(id: string): Promise<void> {
+  return invokeCommand<void>("savings_delete", { id });
 }

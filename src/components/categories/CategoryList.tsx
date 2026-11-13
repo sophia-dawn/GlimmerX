@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { Category } from "@/types";
+import { formatAmount } from "@/utils/format";
 
 interface CategoryListProps {
   categories: Category[];
@@ -58,29 +59,37 @@ export function CategoryList({
                 key={category.id}
                 className="flex items-center justify-between rounded-lg border p-3 hover:bg-accent/50 transition-colors"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   {category.icon && (
                     <span className="text-lg">{category.icon}</span>
                   )}
-                  <span className="font-medium">{category.name}</span>
+                  <span className="truncate font-medium">{category.name}</span>
                 </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => onEdit(category)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => onDelete(category)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div className="flex items-center gap-2">
+                  {/* The category's own ledger account: this is where its
+                      money lives, so the balance belongs here rather than on
+                      the accounts page. */}
+                  <span className="text-muted-foreground text-sm tabular-nums">
+                    {formatAmount(category.balance ?? 0)}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onEdit(category)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive h-8 w-8"
+                      onClick={() => onDelete(category)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}

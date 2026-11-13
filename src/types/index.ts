@@ -19,6 +19,10 @@ export interface Category {
   name: string;
   type: "income" | "expense";
   icon: string | null;
+  /** The income/expense account this category posts to (1:1 since schema v2). */
+  accountId: string | null;
+  /** Balance of that account in cents (backend-computed). */
+  balance: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -372,3 +376,85 @@ export interface AccountBalanceItem {
 
 export * from "./dashboard";
 export * from "./report";
+
+// ---------------------------------------------------------------------------
+// Reconciliation (schema v2)
+// ---------------------------------------------------------------------------
+
+export interface ReconcileCandidate {
+  postingId: string;
+  transactionId: string;
+  date: string;
+  description: string;
+  /** Signed cents: positive increases the account balance. */
+  amount: number;
+}
+
+export interface ReconcilePreview {
+  accountId: string;
+  statementDate: string;
+  /** Already reconciled balance before this run. */
+  openingBalance: number;
+  candidates: ReconcileCandidate[];
+}
+
+export interface AutoMatchResult {
+  matched: string[];
+  unmatchedTargets: number;
+}
+
+export interface ReconcileTotals {
+  openingBalance: number;
+  selectedTotal: number;
+  expectedBalance: number;
+  /** expectedBalance − closingBalance; zero means it balances. */
+  difference: number;
+  balanced: boolean;
+}
+
+export interface ReconciliationRecord {
+  id: string;
+  accountId: string;
+  statementDate: string;
+  openingBalance: number;
+  closingBalance: number;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Savings goals (schema v2)
+// ---------------------------------------------------------------------------
+
+export type SavingsGoalStatus = "active" | "achieved" | "archived";
+
+export interface SavingsGoal {
+  id: string;
+  name: string;
+  accountId: string;
+  targetAmount: number;
+  targetDate: string | null;
+  monthlyPlan: number | null;
+  status: SavingsGoalStatus;
+  /** Account balance — the progress. */
+  savedAmount: number;
+  /** targetAmount − savedAmount, floored at zero (computed by the backend). */
+  remaining: number;
+  /** Cents per month needed to hit `targetDate`; falls back to `monthlyPlan`. */
+  monthlyNeeded: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSavingsGoalInput {
+  name: string;
+  targetAmount: string;
+  targetDate?: string | null;
+  monthlyPlan?: string | null;
+}
+
+export interface UpdateSavingsGoalInput {
+  name?: string;
+  targetAmount?: string;
+  targetDate?: string | null;
+  monthlyPlan?: string | null;
+}

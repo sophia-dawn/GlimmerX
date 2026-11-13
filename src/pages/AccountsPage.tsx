@@ -19,6 +19,7 @@ import { translateErrorMessage } from "@/utils/errorTranslation";
 import { AccountForm } from "@/components/accounts/AccountForm";
 import { AccountWizard } from "@/components/accounts/AccountWizard";
 import { AccountTransactions } from "@/components/accounts/AccountTransactions";
+import { ReconcileDialog } from "@/components/accounts/ReconcileDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -32,27 +33,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Plus,
-  Wallet,
-  CreditCard,
-  TrendingUp,
-  TrendingDown,
-  Edit,
-  Trash2,
-} from "lucide-react";
+import { Plus, Wallet, CreditCard, Edit, Trash2, Scale } from "lucide-react";
 import { useHeaderActions } from "@/contexts/HeaderContext";
 
 // ---------------------------------------------------------------------------
 // Constants (icons only — labels come from i18n)
 // ---------------------------------------------------------------------------
 
+// Balance-sheet only: income/expense accounts are the mirror of a category and
+// are managed from the categories page (see design doc 21, decision 1).
 const TAB_ICONS: Record<string, typeof Wallet | null> = {
   all: null,
   asset: Wallet,
   liability: CreditCard,
-  income: TrendingUp,
-  expense: TrendingDown,
 };
 
 const TAB_KEYS = Object.keys(TAB_ICONS) as string[];
@@ -71,6 +64,7 @@ export function AccountsPage() {
   const [transactionsNode, setTransactionsNode] = useState<AccountDto | null>(
     null,
   );
+  const [reconcileNode, setReconcileNode] = useState<AccountDto | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const {
@@ -78,8 +72,8 @@ export function AccountsPage() {
     refetch,
     isLoading,
   } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: accountList,
+    queryKey: ["accounts", "balance-sheet"],
+    queryFn: () => accountList(["asset", "liability"]),
     ...QUERY_CONFIG.FINANCIAL,
   });
 
@@ -117,6 +111,10 @@ export function AccountsPage() {
 
   const handleViewTransactions = (account: AccountDto) => {
     setTransactionsNode(account);
+  };
+
+  const handleReconcile = (account: AccountDto) => {
+    setReconcileNode(account);
   };
 
   const confirmDeleteAccount = async () => {
@@ -229,6 +227,7 @@ export function AccountsPage() {
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                         onViewTransactions={handleViewTransactions}
+                        onReconcile={handleReconcile}
                       />
                     ))}
                   </div>
@@ -284,6 +283,19 @@ export function AccountsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Reconciliation dialog */}
+      {reconcileNode && (
+        <ReconcileDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setReconcileNode(null);
+          }}
+          accountId={reconcileNode.id}
+          accountName={getAccountDisplayName(reconcileNode)}
+          onSuccess={refetch}
+        />
+      )}
+
       {/* Transaction history dialog */}
       {transactionsNode && (
         <AccountTransactions
@@ -308,6 +320,7 @@ interface AccountRowProps {
   onEdit: (account: AccountDto) => void;
   onDelete: (account: AccountDto) => void;
   onViewTransactions: (account: AccountDto) => void;
+  onReconcile: (account: AccountDto) => void;
 }
 
 function AccountRow({
@@ -315,6 +328,7 @@ function AccountRow({
   onEdit,
   onDelete,
   onViewTransactions,
+  onReconcile,
 }: AccountRowProps) {
   const { t } = useTranslation();
 
@@ -405,6 +419,18 @@ function AccountRow({
 
       {/* Action buttons */}
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          title={t("accounts.reconcile")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onReconcile(account);
+          }}
+        >
+          <Scale className="h-3 w-3" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

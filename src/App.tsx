@@ -11,6 +11,7 @@ import { TransactionsPage } from "@/pages/TransactionsPage";
 import { TransactionDetailPage } from "@/pages/TransactionDetailPage";
 import { CategoriesPage } from "@/pages/CategoriesPage";
 import { BudgetsPage } from "@/pages/BudgetsPage";
+import { SavingsPage } from "@/pages/SavingsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { ReportsPage } from "@/pages/ReportsPage";
 import { ToasterProvider } from "@/components/ui/ToasterProvider";
@@ -91,6 +92,7 @@ function AppRoutes() {
         <Route path="transactions/:id" element={<TransactionDetailPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="budgets" element={<BudgetsPage />} />
+        <Route path="savings" element={<SavingsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>

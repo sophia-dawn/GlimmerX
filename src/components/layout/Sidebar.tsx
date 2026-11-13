@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   ArrowLeftRight,
   PiggyBank,
+  Target,
   BarChart3,
   Settings,
   Lock,
@@ -26,6 +27,7 @@ export function Sidebar() {
     },
     { label: t("navigation.categories"), to: "/categories", icon: PiggyBank },
     { label: t("navigation.budgets"), to: "/budgets", icon: BarChart3 },
+    { label: t("navigation.savings"), to: "/savings", icon: Target },
     { label: t("navigation.reports"), to: "/reports", icon: BarChart3 },
   ];
 

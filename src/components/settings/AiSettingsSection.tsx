@@ -54,7 +54,7 @@ export function AiSettingsSection() {
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
-    queryFn: accountList,
+    queryFn: () => accountList(),
     ...QUERY_CONFIG.FINANCIAL,
   });
 
