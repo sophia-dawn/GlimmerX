@@ -6,6 +6,15 @@ use crate::constants::account_type;
 use crate::db::categories::CategoryType;
 use crate::db::AppError;
 
+/// Reject out-of-range month values coming from the IPC boundary.
+///
+/// The detailed `year-month` pair stays in the stderr log; the user only sees a
+/// localized message (AGENTS.md: no internal English text reaches the UI).
+fn invalid_month(year: i32, month: i32) -> AppError {
+    eprintln!("[glimmerx] invalid year/month: {year}-{month}");
+    AppError::ValidationError(crate::errors::message("errors.invalidYearMonth"))
+}
+
 // ---------------------------------------------------------------------------
 // Data structures
 // ---------------------------------------------------------------------------
@@ -215,20 +224,27 @@ pub fn get_monthly_chart(
     year: i32,
     month: i32,
 ) -> Result<MonthlyChartData, AppError> {
-    let month_start = NaiveDate::from_ymd_opt(year, month as u32, 1).ok_or_else(|| {
-        AppError::ValidationError(format!("Invalid year/month: {}-{}", year, month))
-    })?;
+    let month_start =
+        NaiveDate::from_ymd_opt(year, month as u32, 1).ok_or_else(|| invalid_month(year, month))?;
 
     let month_end = if month == 12 {
         NaiveDate::from_ymd_opt(year + 1, 1, 1)
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
             .pred_opt()
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
     } else {
         NaiveDate::from_ymd_opt(year, (month + 1) as u32, 1)
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
             .pred_opt()
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
     };
 
     let days_in_month = month_end.day();
@@ -271,8 +287,9 @@ pub fn get_monthly_chart(
     let mut month_total_expense: i64 = 0;
 
     for day in 1..=days_in_month {
-        let date = NaiveDate::from_ymd_opt(year, month as u32, day)
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?;
+        let date = NaiveDate::from_ymd_opt(year, month as u32, day).ok_or_else(|| {
+            AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+        })?;
         let date_str = date.format("%Y-%m-%d").to_string();
 
         let (income, expense, has_transactions) =
@@ -312,20 +329,27 @@ pub fn get_category_breakdown(
     };
 
     // Calculate month boundaries
-    let month_start = NaiveDate::from_ymd_opt(year, month as u32, 1).ok_or_else(|| {
-        AppError::ValidationError(format!("Invalid year/month: {}-{}", year, month))
-    })?;
+    let month_start =
+        NaiveDate::from_ymd_opt(year, month as u32, 1).ok_or_else(|| invalid_month(year, month))?;
 
     let month_end = if month == 12 {
         NaiveDate::from_ymd_opt(year + 1, 1, 1)
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
             .pred_opt()
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
     } else {
         NaiveDate::from_ymd_opt(year, (month + 1) as u32, 1)
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
             .pred_opt()
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
     };
 
     // Income accounts have negative amounts, expense accounts have positive amounts
@@ -400,20 +424,27 @@ pub fn get_top_expenses(
     limit: i32,
 ) -> Result<TopExpensesData, AppError> {
     // Calculate month boundaries
-    let month_start = NaiveDate::from_ymd_opt(year, month as u32, 1).ok_or_else(|| {
-        AppError::ValidationError(format!("Invalid year/month: {}-{}", year, month))
-    })?;
+    let month_start =
+        NaiveDate::from_ymd_opt(year, month as u32, 1).ok_or_else(|| invalid_month(year, month))?;
 
     let month_end = if month == 12 {
         NaiveDate::from_ymd_opt(year + 1, 1, 1)
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
             .pred_opt()
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
     } else {
         NaiveDate::from_ymd_opt(year, (month + 1) as u32, 1)
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
             .pred_opt()
-            .ok_or_else(|| AppError::ValidationError("Invalid date".into()))?
+            .ok_or_else(|| {
+                AppError::ValidationError(crate::errors::message("errors.invalidDateValue"))
+            })?
     };
 
     let start_str = month_start.format("%Y-%m-%d").to_string();

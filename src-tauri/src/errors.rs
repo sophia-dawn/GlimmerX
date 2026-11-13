@@ -42,10 +42,19 @@ pub fn render(input: &str) -> String {
     match messages::lookup(current_lang(), &key) {
         Some(text) => text.to_string(),
         None => {
+            // Never return the raw key: it would show up in the UI as
+            // "errors.something". Log it and fall back to a generic message.
             eprintln!("[glimmerx] missing error message for key: {key}");
-            input.to_string()
+            fallback()
         }
     }
+}
+
+/// Generic localized message used when a specific one cannot be resolved.
+fn fallback() -> String {
+    messages::lookup(current_lang(), "unknownError")
+        .unwrap_or("Operation failed")
+        .to_string()
 }
 
 /// Render a known key for call sites that build a message directly.
@@ -65,6 +74,15 @@ pub fn user_text(raw: &str) -> String {
         return render("errors.databaseError");
     }
     rendered
+}
+
+/// Boundary helper for `Result<_, String>` paths.
+///
+/// Most db modules (reports / export / import) still return raw `String`
+/// errors; this renders keys and replaces untranslated English internals so
+/// they never reach the UI as-is. Idempotent: localized text passes through.
+pub fn from_error(err: impl std::fmt::Display) -> String {
+    user_text(&err.to_string())
 }
 
 #[cfg(test)]
@@ -96,5 +114,22 @@ mod tests {
             user_text("Failed to open database file: permission denied"),
             render("errors.databaseError")
         );
+    }
+
+    #[test]
+    fn test_missing_key_never_leaks_the_key() {
+        let text = render("errors.thisKeyDoesNotExist");
+        assert!(
+            !text.contains("errors."),
+            "internal key leaked to the UI: {text}"
+        );
+        assert_eq!(text, render("errors.unknownError"));
+    }
+
+    #[test]
+    fn test_already_localized_text_passes_through() {
+        let chinese = "数据库由更新版本创建，请升级应用后再打开";
+        assert_eq!(render(chinese), chinese);
+        assert_eq!(user_text(chinese), chinese);
     }
 }

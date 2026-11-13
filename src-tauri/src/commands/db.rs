@@ -57,12 +57,12 @@ pub async fn db_create(
         })?;
     }
 
-    let db = Database::create(&path_buf, &password).map_err(|e| e.to_string())?;
+    let db = Database::create(&path_buf, &password).map_err(crate::errors::from_error)?;
 
     // Store creation time in settings
     let now = crate::utils::time::now_rfc3339();
     {
-        let conn = db.get_conn().map_err(|e| e.to_string())?;
+        let conn = db.get_conn().map_err(crate::errors::from_error)?;
         conn.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
             ("db_created_at", &now),
@@ -74,13 +74,13 @@ pub async fn db_create(
     }
 
     // Add to recent databases
-    let mut recent_dbs = state.recent_dbs.lock().map_err(|e| e.to_string())?;
+    let mut recent_dbs = state.recent_dbs.lock().map_err(crate::errors::from_error)?;
     recent_dbs
         .add(&path, &path_label(&path_buf))
-        .map_err(|e| e.to_string())?;
+        .map_err(crate::errors::from_error)?;
 
     // Store in app state
-    let mut db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let mut db_state = state.database.lock().map_err(crate::errors::from_error)?;
     *db_state = Some(db);
 
     Ok(DbInfo {
@@ -99,11 +99,11 @@ pub async fn db_unlock(
 ) -> Result<DbInfo, String> {
     let path_buf = PathBuf::from(&path);
 
-    let db = Database::open(&path_buf, &password).map_err(|e| e.to_string())?;
+    let db = Database::open(&path_buf, &password).map_err(crate::errors::from_error)?;
 
     // Read creation time from settings
     let created_at = {
-        let conn = db.get_conn().map_err(|e| e.to_string())?;
+        let conn = db.get_conn().map_err(crate::errors::from_error)?;
         conn.query_row(
             "SELECT value FROM settings WHERE key = 'db_created_at'",
             [],
@@ -113,13 +113,13 @@ pub async fn db_unlock(
     };
 
     // Add to recent databases
-    let mut recent_dbs = state.recent_dbs.lock().map_err(|e| e.to_string())?;
+    let mut recent_dbs = state.recent_dbs.lock().map_err(crate::errors::from_error)?;
     recent_dbs
         .add(&path, &path_label(&path_buf))
-        .map_err(|e| e.to_string())?;
+        .map_err(crate::errors::from_error)?;
 
     // Store in app state
-    let mut db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let mut db_state = state.database.lock().map_err(crate::errors::from_error)?;
     *db_state = Some(db);
 
     Ok(DbInfo {
@@ -136,7 +136,7 @@ pub async fn db_change_password(
     new_password: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let db_state = state.database.lock().map_err(crate::errors::from_error)?;
     let db = db_state
         .as_ref()
         .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
@@ -157,7 +157,7 @@ pub async fn db_check_exists(path: String) -> Result<bool, String> {
 /// Check if any existing database file is known in recent databases.
 #[tauri::command]
 pub async fn db_check_any_exists(state: State<'_, AppState>) -> Result<bool, String> {
-    let recent_dbs = state.recent_dbs.lock().map_err(|e| e.to_string())?;
+    let recent_dbs = state.recent_dbs.lock().map_err(crate::errors::from_error)?;
     for entry in recent_dbs.list() {
         if PathBuf::from(&entry.path).exists() {
             return Ok(true);
@@ -169,7 +169,7 @@ pub async fn db_check_any_exists(state: State<'_, AppState>) -> Result<bool, Str
 /// List recent databases.
 #[tauri::command]
 pub async fn db_list_recent(state: State<'_, AppState>) -> Result<Vec<RecentDbResponse>, String> {
-    let recent_dbs = state.recent_dbs.lock().map_err(|e| e.to_string())?;
+    let recent_dbs = state.recent_dbs.lock().map_err(crate::errors::from_error)?;
     Ok(recent_dbs
         .list()
         .iter()
@@ -185,17 +185,17 @@ pub async fn db_list_recent(state: State<'_, AppState>) -> Result<Vec<RecentDbRe
 /// Remove a database from recent list.
 #[tauri::command]
 pub async fn db_remove_recent(path: String, state: State<'_, AppState>) -> Result<(), String> {
-    let mut recent_dbs = state.recent_dbs.lock().map_err(|e| e.to_string())?;
-    recent_dbs.remove(&path).map_err(|e| e.to_string())
+    let mut recent_dbs = state.recent_dbs.lock().map_err(crate::errors::from_error)?;
+    recent_dbs.remove(&path).map_err(crate::errors::from_error)
 }
 
 /// Lock the database (drop the connection from state).
 #[tauri::command]
 pub async fn db_lock(state: State<'_, AppState>) -> Result<(), String> {
-    let mut db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let mut db_state = state.database.lock().map_err(crate::errors::from_error)?;
     // Explicit checkpoint before dropping (double insurance with Drop trait)
     if let Some(db) = db_state.as_ref() {
-        let conn = db.get_conn().map_err(|e| e.to_string())?;
+        let conn = db.get_conn().map_err(crate::errors::from_error)?;
         conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
             .map_err(|e| {
                 eprintln!("[glimmerx] internal error: {e}");
@@ -210,19 +210,19 @@ pub async fn db_lock(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn db_is_unlocked(state: State<'_, AppState>) -> Result<bool, String> {
-    let db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let db_state = state.database.lock().map_err(crate::errors::from_error)?;
     let result = db_state.is_some();
     Ok(result)
 }
 
 #[tauri::command]
 pub async fn db_ping(state: State<'_, AppState>) -> Result<bool, String> {
-    let db_state = state.database.lock().map_err(|e| e.to_string())?;
+    let db_state = state.database.lock().map_err(crate::errors::from_error)?;
     let db = db_state
         .as_ref()
         .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
 
-    let conn = db.get_conn().map_err(|e| e.to_string())?;
+    let conn = db.get_conn().map_err(crate::errors::from_error)?;
     conn.query_row("SELECT 1", [], |_row| Ok(true))
         .map_err(|e| {
             eprintln!("[glimmerx] internal error: {e}");

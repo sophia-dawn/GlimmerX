@@ -191,8 +191,12 @@ pub fn export_beancount(
         .flatten();
 
     for currency in &currencies {
-        writeln!(buf, "option \"operating_currency\" \"{}\"", currency)
-            .map_err(|e| e.to_string())?;
+        writeln!(
+            buf,
+            "option \"operating_currency\" \"{}\"",
+            escape_beancount_text(currency)
+        )
+        .map_err(|e| e.to_string())?;
     }
     writeln!(buf).map_err(|e| e.to_string())?;
 
@@ -256,8 +260,14 @@ pub fn export_beancount(
         if current_txn_id.as_ref() != Some(&row.transaction_id) {
             current_txn_id = Some(row.transaction_id.clone());
             let flag = if row.is_reconciled { "*" } else { "!" };
-            writeln!(buf, "{} {} \"{}\"", row.date, flag, row.description)
-                .map_err(|e| e.to_string())?;
+            writeln!(
+                buf,
+                "{} {} \"{}\"",
+                row.date,
+                flag,
+                escape_beancount_text(&row.description)
+            )
+            .map_err(|e| e.to_string())?;
         }
 
         let beancount_account = convert_account_to_beancount(&row.account_name, &row.account_type);
@@ -299,9 +309,60 @@ fn convert_account_to_beancount(account_name: &str, account_type: &str) -> Strin
         return format!("{}:{}", type_prefix, account_name);
     }
 
-    let rest: Vec<String> = parts.iter().map(|s| capitalize_first(s)).collect();
+    let rest: Vec<String> = parts
+        .iter()
+        .map(|s| sanitize_account_component(s))
+        .collect();
 
     format!("{}:{}", type_prefix, rest.join(":"))
+}
+
+/// Beancount strings are double-quoted and cannot span lines; a quote or a
+/// newline in a description would corrupt the whole file, so those characters
+/// are replaced rather than escaped.
+fn escape_beancount_text(raw: &str) -> String {
+    raw.chars()
+        .map(|c| match c {
+            '"' => '\'',
+            '\\' => '/',
+            '\n' | '\r' | '\t' => ' ',
+            c if c.is_control() => ' ',
+            c => c,
+        })
+        .collect()
+}
+
+/// Account name components cannot contain whitespace, quotes or the `:`
+/// separator (the parser would split or fail on them).
+///
+/// Non-ASCII names are left as-is: beancount's grammar only allows
+/// `[A-Za-z0-9-]`, but rewriting existing account names would change the export
+/// format for Chinese users, so that stays a documented limitation.
+fn sanitize_account_component(raw: &str) -> String {
+    let mut out = String::new();
+    let mut pending_dash = false;
+    for ch in raw.chars() {
+        let unsafe_char = ch.is_whitespace()
+            || ch.is_control()
+            || matches!(ch, '"' | '\'' | ':' | '\\' | ',' | ';');
+        if unsafe_char {
+            pending_dash = !out.is_empty();
+        } else {
+            if pending_dash {
+                out.push('-');
+                pending_dash = false;
+            }
+            out.push(ch);
+        }
+    }
+    if out.is_empty() {
+        return out;
+    }
+    // Capitalize every segment so "my bank" reads as "My-Bank".
+    out.split('-')
+        .map(capitalize_first)
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 fn capitalize_first(s: &str) -> String {
@@ -361,6 +422,81 @@ mod tests {
         assert_eq!(
             convert_account_to_beancount("娱乐", "expense"),
             "Expenses:娱乐"
+        );
+    }
+
+    #[test]
+    fn test_account_components_drop_unsafe_characters() {
+        // Spaces, quotes and separators would split the account name and make
+        // the file unparsable.
+        assert_eq!(
+            convert_account_to_beancount("my bank", "asset"),
+            "Assets:My-Bank"
+        );
+        assert_eq!(convert_account_to_beancount("a  b", "asset"), "Assets:A-B");
+        assert_eq!(
+            convert_account_to_beancount("we\"ird", "expense"),
+            "Expenses:We-Ird"
+        );
+        assert_eq!(
+            convert_account_to_beancount("trailing ", "asset"),
+            "Assets:Trailing"
+        );
+    }
+
+    #[test]
+    fn test_escape_beancount_text_keeps_values_on_one_line() {
+        assert_eq!(escape_beancount_text("lunch"), "lunch");
+        assert_eq!(escape_beancount_text("he said \"hi\""), "he said 'hi'");
+        assert_eq!(escape_beancount_text("line1\nline2"), "line1 line2");
+        assert_eq!(escape_beancount_text("a\tb"), "a b");
+        assert_eq!(escape_beancount_text("back\\slash"), "back/slash");
+    }
+
+    #[test]
+    fn test_export_beancount_quotes_description_safely() {
+        let conn = setup_test_db();
+        let now = crate::utils::time::now_rfc3339();
+        let today = crate::utils::time::today_date();
+
+        for (id, name, ty) in [("acc1", "Bank", "asset"), ("acc2", "Salary", "income")] {
+            conn.execute(
+                "INSERT INTO accounts (id, name, type, currency, description, is_system, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, 'CNY', '', 0, ?4, ?4)",
+                rusqlite::params![id, name, ty, &now],
+            )
+            .unwrap();
+        }
+
+        conn.execute(
+            "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES ('txn1', ?1, ?2, ?3, ?3)",
+            rusqlite::params![&today, "He said \"hi\"\nsecond line", &now],
+        )
+        .unwrap();
+
+        for (id, account, amount) in [("p1", "acc1", 500000i64), ("p2", "acc2", -500000i64)] {
+            conn.execute(
+                "INSERT INTO postings (id, transaction_id, account_id, amount, sequence, created_at)
+                 VALUES (?1, 'txn1', ?2, ?3, 0, ?4)",
+                rusqlite::params![id, account, amount, &now],
+            )
+            .unwrap();
+        }
+
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("test.beancount");
+        export_beancount(&conn, &path, None, None).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            content.contains(r#"He said 'hi' second line"#),
+            "description must stay on one line: {content}"
+        );
+        assert_eq!(
+            content.matches('"').count() % 2,
+            0,
+            "every string literal must be closed: {content}"
         );
     }
 

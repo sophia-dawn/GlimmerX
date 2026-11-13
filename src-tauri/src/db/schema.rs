@@ -1,17 +1,17 @@
-use rusqlite::{Connection, Result};
-
-use crate::db::AppError;
-
-/// Initialize database schema with all tables.
-/// Idempotent: safe to call on an already-initialized database.
-#[allow(dead_code)]
-pub fn init_schema(conn: &Connection) -> Result<(), AppError> {
+/// Create the baseline schema in a bare database (used by tests only).
+///
+/// This bypasses `user_version` on purpose so tests can build an in-memory
+/// database cheaply. Production code must use `Database::create` / `Database::open`,
+/// which both run [`crate::db::migrations::migrate`] and record the version.
+#[cfg(test)]
+pub fn init_schema(conn: &rusqlite::Connection) -> rusqlite::Result<(), crate::db::AppError> {
     crate::db::migrations::init_baseline(conn)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
     use tempfile::TempDir;
 
     struct TestEnv {

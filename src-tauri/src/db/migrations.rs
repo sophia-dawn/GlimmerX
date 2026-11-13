@@ -20,9 +20,11 @@ const MIGRATIONS: Migrations = Migrations::from_slice(MIGRATIONS_SLICE);
 
 /// Apply connection-level PRAGMAs and the baseline SQL directly.
 ///
-/// Used by `init_schema` for bare test/temporary databases. Real databases go
-/// through [`migrate`], which records the schema version.
-#[allow(dead_code)]
+/// Test-only: it does **not** stamp `user_version`, so a database created this
+/// way is indistinguishable from a pre-migration one. Production code always
+/// goes through [`migrate`]; keeping this behind `cfg(test)` makes it
+/// impossible to accidentally create an untracked schema.
+#[cfg(test)]
 pub fn init_baseline(conn: &Connection) -> Result<(), AppError> {
     apply_pragmas(conn)?;
     conn.execute_batch(include_str!("schema_v1.sql"))
@@ -89,6 +91,7 @@ fn backup_before_migration(conn: &Connection, path: &PathBuf) -> Result<(), AppE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
     use tempfile::TempDir;
 
     /// A pre-0.1.2 database: partially initialized, user_version still 0.
@@ -121,6 +124,27 @@ mod tests {
     #[test]
     fn test_migrations_validate() {
         MIGRATIONS.validate().unwrap();
+    }
+
+    /// `schema_v1.sql` is frozen: it already shipped in 0.1.2 and every existing
+    /// database is stamped `user_version = 1`.
+    ///
+    /// Editing it would give fresh installs a different schema than upgraded
+    /// ones — and because the file is only ever applied once, nothing else would
+    /// notice. If this test fails you edited a released baseline: revert it and
+    /// add `M::up(include_str!("schema_v2.sql"))` instead.
+    #[test]
+    fn test_schema_v1_is_frozen() {
+        const EXPECTED_SHA256: &str =
+            "50c32c6b37c886ef028a26a169ca95e0b535dd37e3d072ef2da8efc8897d0b01";
+        // Normalize line endings so a CRLF checkout does not trip the guard.
+        let normalized = include_str!("schema_v1.sql").replace("\r\n", "\n");
+        let digest = hex::encode(Sha256::digest(normalized.as_bytes()));
+        assert_eq!(
+            digest, EXPECTED_SHA256,
+            "schema_v1.sql is frozen (shipped in 0.1.2). Add a new M::up migration \
+             instead of editing the released baseline"
+        );
     }
 
     #[test]

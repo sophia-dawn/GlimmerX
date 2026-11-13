@@ -520,6 +520,8 @@
     "budgetAmountPositive": "预算金额必须大于零",
     "invalidPassword": "密码错误或数据库已损坏",
     "invalidDateFormat": "日期格式无效。请使用 YYYY-MM-DD 格式。",
+    "invalidDateValue": "日期无效",
+    "invalidYearMonth": "月份无效",
     "transaction": {
       "amountTooSmall": "金额太小。最小金额为 0.01。",
       "amountMustBePositive": "金额必须为正数。",
@@ -564,8 +566,13 @@
       "inactive": "该账户已停用，无法使用"
     },
     "backupFailed": "备份失败，请检查目标路径是否可写",
+    "backupSamePath": "不能把备份保存到数据库文件本身，请选择其他位置",
     "databaseError": "数据库操作失败，请重试或检查数据库文件",
-    "databaseLocked": "数据库未解锁，请先解锁"
+    "databaseFileNotFound": "找不到数据库文件",
+    "databaseOpenFailed": "无法打开数据库文件",
+    "databaseCreateFailed": "无法创建数据库文件",
+    "databaseLocked": "数据库未解锁，请先解锁",
+    "unknownError": "操作失败，请重试"
   },
   "quickAdd": {
     "title": "快速记账",

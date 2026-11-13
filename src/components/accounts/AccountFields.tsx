@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import type { AccountDto, AccountMetaSchema, AccountType } from "@/types";
 import { accountMetaSchema } from "@/utils/api";
+import { QUERY_CONFIG } from "@/constants/query";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,7 +66,8 @@ export function AccountFields({
   const { data: schema } = useQuery<AccountMetaSchema>({
     queryKey: ["account-meta-schema"],
     queryFn: accountMetaSchema,
-    staleTime: Infinity,
+    // Immutable metadata: the single source of truth lives in constants/query.ts.
+    ...QUERY_CONFIG.STATIC,
   });
   const subtypeOptions = schema
     ? accountType === "asset"

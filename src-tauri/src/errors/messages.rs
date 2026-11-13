@@ -59,6 +59,10 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::En, "backupFailed") => {
             Some("Backup failed. Please check that the destination is writable")
         }
+        (Lang::Zh, "backupSamePath") => Some("不能把备份保存到数据库文件本身，请选择其他位置"),
+        (Lang::En, "backupSamePath") => {
+            Some("Choose another location: the backup path is the live database file")
+        }
         (Lang::Zh, "budgetAlreadyExists") => Some("该分类已存在预算"),
         (Lang::En, "budgetAlreadyExists") => Some("A budget already exists for this category"),
         (Lang::Zh, "budgetAmountPositive") => Some("预算金额必须大于零"),
@@ -83,12 +87,18 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::En, "categoryNotFound") => Some("Category not found"),
         (Lang::Zh, "categoryTypeRequired") => Some("根分类必须指定类型"),
         (Lang::En, "categoryTypeRequired") => Some("Category type is required for root categories"),
+        (Lang::Zh, "databaseCreateFailed") => Some("无法创建数据库文件"),
+        (Lang::En, "databaseCreateFailed") => Some("Could not create the database file"),
         (Lang::Zh, "databaseError") => Some("数据库操作失败，请重试或检查数据库文件"),
         (Lang::En, "databaseError") => {
             Some("Database operation failed. Please retry or check the database file")
         }
+        (Lang::Zh, "databaseFileNotFound") => Some("找不到数据库文件"),
+        (Lang::En, "databaseFileNotFound") => Some("Database file not found"),
         (Lang::Zh, "databaseLocked") => Some("数据库未解锁，请先解锁"),
         (Lang::En, "databaseLocked") => Some("Database is locked. Please unlock it first"),
+        (Lang::Zh, "databaseOpenFailed") => Some("无法打开数据库文件"),
+        (Lang::En, "databaseOpenFailed") => Some("Could not open the database file"),
         (Lang::Zh, "import.currencyMismatch") => Some("账户货币不匹配"),
         (Lang::En, "import.currencyMismatch") => Some("Account currency mismatch"),
         (Lang::Zh, "import.emptyFile") => Some("CSV文件为空"),
@@ -107,8 +117,12 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         }
         (Lang::Zh, "invalidDateFormat") => Some("日期格式无效。请使用 YYYY-MM-DD 格式。"),
         (Lang::En, "invalidDateFormat") => Some("Invalid date format. Use YYYY-MM-DD."),
+        (Lang::Zh, "invalidDateValue") => Some("日期无效"),
+        (Lang::En, "invalidDateValue") => Some("Invalid date"),
         (Lang::Zh, "invalidPassword") => Some("密码错误或数据库已损坏"),
         (Lang::En, "invalidPassword") => Some("Invalid password or database is corrupted"),
+        (Lang::Zh, "invalidYearMonth") => Some("月份无效"),
+        (Lang::En, "invalidYearMonth") => Some("Invalid month"),
         (Lang::Zh, "transaction.amountMustBePositive") => Some("金额必须为正数。"),
         (Lang::En, "transaction.amountMustBePositive") => Some("Amount must be positive."),
         (Lang::Zh, "transaction.amountTooSmall") => Some("金额太小。最小金额为 0.01。"),
@@ -169,6 +183,8 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::En, "transactionMinPostings") => Some("Transaction requires at least two entries"),
         (Lang::Zh, "transactionUnbalanced") => Some("交易分录必须总和为零"),
         (Lang::En, "transactionUnbalanced") => Some("Transaction entries must sum to zero"),
+        (Lang::Zh, "unknownError") => Some("操作失败，请重试"),
+        (Lang::En, "unknownError") => Some("Something went wrong. Please try again"),
         _ => None,
     }
 }

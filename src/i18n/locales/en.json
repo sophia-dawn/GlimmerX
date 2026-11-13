@@ -520,6 +520,8 @@
     "budgetAmountPositive": "Budget amount must be positive",
     "invalidPassword": "Invalid password or database is corrupted",
     "invalidDateFormat": "Invalid date format. Use YYYY-MM-DD.",
+    "invalidDateValue": "Invalid date",
+    "invalidYearMonth": "Invalid month",
     "transaction": {
       "amountTooSmall": "Amount is too small. Minimum amount is 0.01.",
       "amountMustBePositive": "Amount must be positive.",
@@ -564,8 +566,13 @@
       "inactive": "This account is inactive and cannot be used"
     },
     "backupFailed": "Backup failed. Please check that the destination is writable",
+    "backupSamePath": "Choose another location: the backup path is the live database file",
     "databaseError": "Database operation failed. Please retry or check the database file",
-    "databaseLocked": "Database is locked. Please unlock it first"
+    "databaseFileNotFound": "Database file not found",
+    "databaseOpenFailed": "Could not open the database file",
+    "databaseCreateFailed": "Could not create the database file",
+    "databaseLocked": "Database is locked. Please unlock it first",
+    "unknownError": "Something went wrong. Please try again"
   },
   "quickAdd": {
     "title": "Quick Add",

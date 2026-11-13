@@ -1,5 +1,12 @@
 -- Baseline schema for schema version 1 (GlimmerX 0.1.2).
 --
+-- FROZEN: this file has already shipped in 0.1.2 and is recorded as
+-- `user_version = 1` on every existing database. Do NOT edit it — a column
+-- added here would appear for fresh installs but never for upgraded ones,
+-- silently producing two different schemas. Any change belongs in a new
+-- `M::up(include_str!("schema_v2.sql"))` step in db/migrations.rs.
+-- tests::test_schema_v1_is_frozen fails on the first edit on purpose.
+--
 -- Every statement is idempotent, so applying this as migration #1 to an
 -- already-released 0.1.2 database only fills in missing objects and never
 -- touches existing data. Connection-level PRAGMAs are applied separately by

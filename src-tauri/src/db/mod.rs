@@ -18,6 +18,7 @@ pub mod transactions;
 pub use export::{export_beancount, export_csv, ExportResult};
 #[allow(unused_imports)]
 pub use recent_dbs::{RecentDb, RecentDbs};
+#[cfg(test)]
 #[allow(unused_imports)]
 pub use schema::init_schema;
 
@@ -84,7 +85,10 @@ fn escape_password(password: &str) -> String {
 fn set_pragma_key(conn: &Connection, password: &str) -> Result<(), AppError> {
     let escaped = escape_password(password);
     conn.execute_batch(&format!("PRAGMA key = '{}';", escaped))
-        .map_err(|e| AppError::DatabaseError(format!("Failed to set encryption key: {}", e)))
+        .map_err(|e| {
+            eprintln!("[glimmerx] failed to set encryption key: {e}");
+            AppError::DatabaseError(crate::errors::message("errors.databaseError"))
+        })
 }
 
 impl Database {
@@ -92,14 +96,16 @@ impl Database {
     /// Returns an error if the password is incorrect or the file doesn't exist.
     pub fn open(path: &PathBuf, password: &str) -> Result<Self, AppError> {
         if !path.exists() {
-            return Err(AppError::NotFound(format!(
-                "Database file not found: {}",
-                path.display()
+            eprintln!("[glimmerx] database file not found: {}", path.display());
+            return Err(AppError::NotFound(crate::errors::message(
+                "errors.databaseFileNotFound",
             )));
         }
 
-        let mut conn = Connection::open(path)
-            .map_err(|e| AppError::DatabaseError(format!("Failed to open database file: {}", e)))?;
+        let mut conn = Connection::open(path).map_err(|e| {
+            eprintln!("[glimmerx] failed to open database file: {e}");
+            AppError::DatabaseError(crate::errors::message("errors.databaseOpenFailed"))
+        })?;
 
         set_pragma_key(&conn, password)?;
 
@@ -121,7 +127,8 @@ impl Database {
     /// Create a new SQLCipher database at the given path and initialize the schema.
     pub fn create(path: &PathBuf, password: &str) -> Result<Self, AppError> {
         let mut conn = Connection::open(path).map_err(|e| {
-            AppError::DatabaseError(format!("Failed to create database file: {}", e))
+            eprintln!("[glimmerx] failed to create database file: {e}");
+            AppError::DatabaseError(crate::errors::message("errors.databaseCreateFailed"))
         })?;
 
         set_pragma_key(&conn, password)?;
@@ -141,7 +148,10 @@ impl Database {
         let conn = self.get_conn()?;
         let escaped = escape_password(new_password);
         conn.execute_batch(&format!("PRAGMA rekey = '{}';", escaped))
-            .map_err(|e| AppError::DatabaseError(format!("Failed to change password: {}", e)))
+            .map_err(|e| {
+                eprintln!("[glimmerx] failed to change password: {e}");
+                AppError::DatabaseError(crate::errors::message("errors.databaseError"))
+            })
     }
 
     pub fn change_password_with_verification(
@@ -164,9 +174,10 @@ impl Database {
 
     /// Get a thread-safe reference to the underlying connection.
     pub fn get_conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>, AppError> {
-        self.conn
-            .lock()
-            .map_err(|e| AppError::DatabaseError(format!("Database mutex poisoned: {}", e)))
+        self.conn.lock().map_err(|e| {
+            eprintln!("[glimmerx] database mutex poisoned: {e}");
+            AppError::DatabaseError(crate::errors::message("errors.databaseError"))
+        })
     }
 }
 
