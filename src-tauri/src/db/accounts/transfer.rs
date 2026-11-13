@@ -30,8 +30,8 @@ pub fn create_transfer(
     let today = crate::utils::time::today_date();
 
     conn.execute(
-        "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-         VALUES (?1, ?2, ?3, NULL, ?4, ?5)",
+        "INSERT INTO transactions (id, date, description, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![&tx_id, &today, description, &now, &now],
     )?;
 

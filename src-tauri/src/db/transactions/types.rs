@@ -7,7 +7,6 @@ pub struct TransactionRecord {
     pub id: String,
     pub date: String,
     pub description: String,
-    pub category_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -63,8 +62,7 @@ pub struct TransactionDetail {
     pub id: String,
     pub date: String,
     pub description: String,
-    pub category_id: Option<String>,
-    pub category_name: Option<String>,
+    /// Categories live on the postings, so a split transaction has several.
     pub postings: Vec<PostingDetail>,
     pub created_at: String,
     pub updated_at: String,
@@ -83,6 +81,10 @@ pub struct PostingDetail {
     pub account_id: String,
     pub account_name: String,
     pub account_type: String,
+    /// Set when this account is the ledger account of a category, i.e. when the
+    /// posting *is* the categorised side of the transaction.
+    pub category_id: Option<String>,
+    pub category_name: Option<String>,
     pub amount: i64,
     pub amount_display: String,
     pub is_debit: bool,
@@ -97,7 +99,6 @@ pub struct PostingDetail {
 pub struct UpdateTransactionInput {
     pub date: Option<String>,
     pub description: Option<String>,
-    pub category_id: Option<String>,
     pub postings: Option<Vec<PostingInput>>,
 }
 
@@ -129,8 +130,9 @@ pub struct TransactionListItem {
     pub id: String,
     pub date: String,
     pub description: String,
-    pub category_id: Option<String>,
-    pub category_name: Option<String>,
+    /// Names of every category this transaction touches, in posting order.
+    /// A split transaction legitimately has more than one.
+    pub category_names: Vec<String>,
     pub category_icon: Option<String>,
     /// Postings summary: (account_name, amount) pairs
     pub postings_summary: Vec<(String, i64)>,
@@ -203,7 +205,7 @@ pub struct TransactionFilter {
 
 #[allow(dead_code)]
 pub(in crate::db::transactions) const TRANSACTION_COLUMNS: &str =
-    "id, date, description, category_id, created_at, updated_at";
+    "id, date, description, created_at, updated_at";
 
 #[allow(dead_code)]
 pub(in crate::db::transactions) const POSTING_COLUMNS: &str =
@@ -217,9 +219,8 @@ pub(in crate::db::transactions) fn row_to_transaction(
         id: row.get(0)?,
         date: row.get(1)?,
         description: row.get(2)?,
-        category_id: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
     })
 }
 

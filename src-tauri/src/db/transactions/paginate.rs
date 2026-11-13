@@ -49,11 +49,14 @@ pub fn list_transactions_paginated(
         "".to_string()
     };
 
+    // Categories are derived from the postings: `categories.account_id` is the
+    // ledger account a posting points at, so a split transaction yields several
+    // names here and one cached `transactions.category_id` could never do that.
     let items_sql = format!(
         "SELECT
-            t.id, t.date, t.description, t.category_id, t.created_at, t.updated_at,
-            c.name as category_name,
-            c.icon as category_icon,
+            t.id, t.date, t.description, t.created_at, t.updated_at,
+            COALESCE(cat.names, '') as category_names,
+            cat.icon as category_icon,
             COALESCE(SUM(CASE WHEN p.amount > 0 THEN p.amount ELSE 0 END), 0) as display_amount,
             GROUP_CONCAT(
                 a.name || ':' || CASE
@@ -63,9 +66,17 @@ pub fn list_transactions_paginated(
                 '|'
             ) as postings_data
          FROM transactions t
-         LEFT JOIN categories c ON c.id = t.category_id
          JOIN postings p ON p.transaction_id = t.id
          JOIN accounts a ON a.id = p.account_id
+         LEFT JOIN (
+             SELECT p2.transaction_id AS tid,
+                    GROUP_CONCAT(c.name, '|') AS names,
+                    MIN(c.icon) AS icon
+               FROM postings p2
+               JOIN accounts a2 ON a2.id = p2.account_id
+               JOIN categories c ON c.account_id = a2.id
+              GROUP BY p2.transaction_id
+         ) cat ON cat.tid = t.id
          WHERE {}
          GROUP BY t.id
          {}
@@ -95,7 +106,7 @@ pub fn list_transactions_paginated(
     let mut items: Vec<TransactionListItem> = conn
         .prepare(&items_sql)?
         .query_map(rusqlite::params_from_iter(param_refs), |row| {
-            let postings_data: Option<String> = row.get::<_, Option<String>>(9)?;
+            let postings_data: Option<String> = row.get::<_, Option<String>>(8)?;
 
             let postings_summary = postings_data
                 .and_then(|data| parse_postings_summary(&data))
@@ -105,13 +116,12 @@ pub fn list_transactions_paginated(
                 id: row.get(0)?,
                 date: row.get(1)?,
                 description: row.get(2)?,
-                category_id: row.get(3)?,
-                category_name: row.get(6)?,
-                category_icon: row.get(7)?,
+                created_at: row.get(3)?,
+                updated_at: row.get(4)?,
+                category_names: parse_category_names(row.get::<_, String>(5)?.as_str()),
+                category_icon: row.get(6)?,
                 postings_summary,
-                display_amount: row.get(8)?,
-                created_at: row.get(4)?,
-                updated_at: row.get(5)?,
+                display_amount: row.get(7)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -162,7 +172,15 @@ fn build_filter_where_clause(
     }
 
     if let Some(ref cat_id) = filter.category_id {
-        conditions.push("t.category_id = ?".to_string());
+        // A split transaction can contain the category on any of its postings,
+        // so this cannot be a plain column comparison.
+        conditions.push(
+            "EXISTS (SELECT 1 FROM postings pc
+                       JOIN accounts ac ON ac.id = pc.account_id
+                       JOIN categories cc ON cc.account_id = ac.id
+                      WHERE pc.transaction_id = t.id AND cc.id = ?)"
+                .to_string(),
+        );
         params.push(Box::new(cat_id.clone()));
     }
 
@@ -228,6 +246,15 @@ pub(in crate::db::transactions) fn format_date_display(date_str: &str) -> String
     } else {
         date_str.to_string()
     }
+}
+
+/// Split the `category_names` aggregate back into individual names.
+pub(in crate::db::transactions) fn parse_category_names(data: &str) -> Vec<String> {
+    data.split('|')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 pub(in crate::db::transactions) fn parse_postings_summary(

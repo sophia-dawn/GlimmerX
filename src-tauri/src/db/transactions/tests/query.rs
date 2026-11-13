@@ -14,7 +14,6 @@ fn test_list_transactions() {
         &conn,
         "2024-01-10",
         "Transaction 1",
-        None,
         &[
             PostingInput {
                 account_id: asset_id.clone(),
@@ -32,7 +31,6 @@ fn test_list_transactions() {
         &conn,
         "2024-01-20",
         "Transaction 2",
-        None,
         &[
             PostingInput {
                 account_id: asset_id.clone(),
@@ -65,7 +63,6 @@ fn test_get_transaction_by_id() {
         &conn,
         "2024-01-15",
         "Test transaction",
-        None,
         &[
             PostingInput {
                 account_id: asset_id.clone(),
@@ -110,7 +107,6 @@ fn test_list_transactions_by_account() {
         &conn,
         "2024-01-10",
         "Cash expense",
-        None,
         &[
             PostingInput {
                 account_id: cash_id.clone(),
@@ -129,7 +125,6 @@ fn test_list_transactions_by_account() {
         &conn,
         "2024-01-20",
         "Bank expense",
-        None,
         &[
             PostingInput {
                 account_id: bank_id.clone(),
@@ -165,7 +160,6 @@ fn test_list_transactions_by_date_range() {
         &conn,
         "2024-01-05",
         "Early transaction",
-        None,
         &[
             PostingInput {
                 account_id: asset_id.clone(),
@@ -183,7 +177,6 @@ fn test_list_transactions_by_date_range() {
         &conn,
         "2024-01-15",
         "Middle transaction",
-        None,
         &[
             PostingInput {
                 account_id: asset_id.clone(),
@@ -201,7 +194,6 @@ fn test_list_transactions_by_date_range() {
         &conn,
         "2024-01-25",
         "Late transaction",
-        None,
         &[
             PostingInput {
                 account_id: asset_id.clone(),
@@ -241,7 +233,6 @@ fn test_list_transactions_many_with_postings() {
             &conn,
             &format!("2024-01-{:02}", (i % 28) + 1),
             &format!("Transaction {}", i),
-            None,
             &[
                 PostingInput {
                     account_id: asset_id.clone(),
@@ -283,7 +274,6 @@ fn test_get_transaction_detail() {
         &conn,
         "2024-01-15",
         "Grocery shopping",
-        None,
         &[
             PostingInput {
                 account_id: asset_id.clone(),

@@ -38,8 +38,9 @@ pub fn get_trend_report(
         FROM postings p
         JOIN accounts a ON a.id = p.account_id
         JOIN transactions t ON t.id = p.transaction_id
+        LEFT JOIN categories c ON c.account_id = a.id
         WHERE t.date >= ?1 AND t.date <= ?2
-          AND (?3 IS NULL OR t.category_id IN (SELECT value FROM json_each(?3)))
+          AND (?3 IS NULL OR c.id IN (SELECT value FROM json_each(?3)))
         GROUP BY strftime('{}', t.date)
         ORDER BY period
         ",
@@ -108,8 +109,7 @@ pub fn get_category_breakdown_report(
             COUNT(DISTINCT t.id) as transaction_count
         FROM postings p
         JOIN transactions t ON t.id = p.transaction_id
-        JOIN accounts a ON a.id = p.account_id AND a.type = ?1
-        JOIN categories c ON c.id = t.category_id AND c.type = ?1
+        JOIN categories c ON c.account_id = p.account_id AND c.type = ?1
         WHERE t.date >= ?2 AND t.date <= ?3
           AND {}
           AND (?4 IS NULL OR c.id IN (SELECT value FROM json_each(?4)))
@@ -283,8 +283,7 @@ pub fn get_year_summary_report(
         SELECT c.id, c.name, -SUM(p.amount) as amount
         FROM postings p
         JOIN transactions t ON t.id = p.transaction_id
-        JOIN accounts a ON a.id = p.account_id AND a.type = '{}'
-        JOIN categories c ON c.id = t.category_id
+        JOIN categories c ON c.account_id = p.account_id AND c.type = '{}'
         WHERE t.date >= ?1 AND t.date <= ?2 AND p.amount < 0
         GROUP BY c.id
         ORDER BY amount DESC
@@ -300,8 +299,7 @@ pub fn get_year_summary_report(
         SELECT c.id, c.name, SUM(p.amount) as amount
         FROM postings p
         JOIN transactions t ON t.id = p.transaction_id
-        JOIN accounts a ON a.id = p.account_id AND a.type = '{}'
-        JOIN categories c ON c.id = t.category_id
+        JOIN categories c ON c.account_id = p.account_id AND c.type = '{}'
         WHERE t.date >= ?1 AND t.date <= ?2 AND p.amount > 0
         GROUP BY c.id
         ORDER BY amount DESC

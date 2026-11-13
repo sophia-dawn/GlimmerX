@@ -21,7 +21,6 @@ fn test_validate_accounts_active_inactive() {
         &conn,
         "2024-01-15",
         "Inactive",
-        None,
         &[
             PostingInput {
                 account_id: cash,
@@ -49,7 +48,6 @@ fn test_validate_no_equity_accounts() {
         &conn,
         "2024-01-15",
         "Equity",
-        None,
         &[
             PostingInput {
                 account_id: cash,

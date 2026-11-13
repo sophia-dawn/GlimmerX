@@ -25,7 +25,6 @@ pub struct TransactionRecord {
     pub id: String,
     pub date: String,
     pub description: String,
-    pub category_id: Option<String>,
     pub amount: i64,
     pub created_at: String,
     pub updated_at: String,

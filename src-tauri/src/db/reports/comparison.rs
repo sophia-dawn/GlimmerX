@@ -61,6 +61,9 @@ fn get_category_comparison(
     bounds1: &(String, String),
     bounds2: &(String, String),
 ) -> Result<Vec<CategoryComparisonItem>, String> {
+    // Join on the category's own account instead of the transaction's cached
+    // category: a split transaction puts several expense postings into one
+    // transaction, and each of them belongs to its own category.
     let sql = format!(
         "
         SELECT
@@ -69,9 +72,9 @@ fn get_category_comparison(
           COALESCE(SUM(CASE WHEN t.date >= ?1 AND t.date <= ?2 THEN p.amount ELSE 0 END), 0) as month1,
           COALESCE(SUM(CASE WHEN t.date >= ?3 AND t.date <= ?4 THEN p.amount ELSE 0 END), 0) as month2
         FROM categories c
-        INNER JOIN transactions t ON t.category_id = c.id
-        INNER JOIN postings p ON p.transaction_id = t.id AND p.amount > 0
-        INNER JOIN accounts a ON a.id = p.account_id AND a.type = '{}'
+        INNER JOIN postings p ON p.account_id = c.account_id AND p.amount > 0
+        INNER JOIN transactions t ON t.id = p.transaction_id
+        WHERE c.type = '{}'
         GROUP BY c.id
         HAVING month1 > 0 OR month2 > 0
         ORDER BY (month1 + month2) DESC

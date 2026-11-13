@@ -48,23 +48,32 @@ pub fn get_account_transactions_report(
         None => 1,
     };
 
+    // Categories and counter accounts come from the *other* postings of the
+    // transaction: a split transaction has several of each, so both are
+    // concatenated rather than picked arbitrarily. Reading them off
+    // `transactions.category_id` — a single cached category — would report one
+    // category for a transaction that legitimately has three.
     let sql = "
         SELECT
             t.id as transaction_id,
             t.date,
             t.description,
-            c.name as category_name,
+            (
+                SELECT GROUP_CONCAT(DISTINCT c2.name)
+                FROM postings p2
+                JOIN accounts a2 ON a2.id = p2.account_id
+                JOIN categories c2 ON c2.account_id = a2.id
+                WHERE p2.transaction_id = t.id
+            ) as category_name,
             p.amount,
             (
-                SELECT a2.name
+                SELECT GROUP_CONCAT(a2.name)
                 FROM postings p2
                 JOIN accounts a2 ON a2.id = p2.account_id AND a2.id != ?1
                 WHERE p2.transaction_id = t.id
-                LIMIT 1
             ) as counter_account_name
         FROM postings p
         JOIN transactions t ON t.id = p.transaction_id
-        LEFT JOIN categories c ON c.id = t.category_id
         WHERE p.account_id = ?1
           AND t.date >= ?2 AND t.date <= ?3
         ORDER BY t.date DESC, t.created_at DESC

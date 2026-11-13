@@ -48,13 +48,7 @@ pub fn quick_add_with_category(
         .unwrap_or_else(crate::utils::time::today_date);
     let description = resolved.description.clone().unwrap_or_default();
 
-    let tx_id = create_transaction(
-        &tx,
-        &date,
-        &description,
-        resolved.category_id.as_deref(),
-        &postings,
-    )?;
+    let tx_id = create_transaction(&tx, &date, &description, &postings)?;
 
     let result = get_transaction_with_postings(&tx, &tx_id)?
         .ok_or_else(|| AppError::DatabaseError("Created transaction not found".to_string()))?;

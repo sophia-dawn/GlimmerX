@@ -99,7 +99,7 @@ pub async fn dashboard_top_expenses(
 mod ipc_tests {
     use super::*;
     use crate::db::accounts::{create_account_with_path, CreateAccountFullInput};
-    use crate::db::categories::{create_category, CategoryType};
+    use crate::db::categories::{account_id_for_category, create_category, CategoryType};
     use crate::db::transactions::{create_transaction, PostingInput};
     use crate::db::{Database, RecentDbs};
     use std::sync::Mutex;
@@ -185,17 +185,18 @@ mod ipc_tests {
             }),
         )
         .unwrap();
-        let salary_account = create_account_with_path(&conn, "Income/Salary", None).unwrap();
-        let food_account = create_account_with_path(&conn, "Expenses/Food", None).unwrap();
+        // P&L accounts belong to categories; a second standalone account would
+        // take the postings while the category reports stay empty.
         let salary_category =
             create_category(&conn, "Salary", &CategoryType::Income, None).unwrap();
         let food_category = create_category(&conn, "Food", &CategoryType::Expense, None).unwrap();
+        let salary_account = account_id_for_category(&conn, &salary_category).unwrap();
+        let food_account = account_id_for_category(&conn, &food_category).unwrap();
 
         create_transaction(
             &conn,
             "2024-01-05",
             "Salary Jan",
-            Some(&salary_category),
             &[
                 PostingInput {
                     account_id: cash.clone(),
@@ -212,7 +213,6 @@ mod ipc_tests {
             &conn,
             "2024-01-10",
             "Lunch",
-            Some(&food_category),
             &[
                 PostingInput {
                     account_id: cash.clone(),

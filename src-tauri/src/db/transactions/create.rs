@@ -22,7 +22,6 @@ pub fn create_transaction(
     conn: &Connection,
     date: &str,
     description: &str,
-    category_id: Option<&str>,
     postings: &[PostingInput],
 ) -> Result<String, AppError> {
     if postings.len() < 2 {
@@ -58,10 +57,10 @@ pub fn create_transaction(
 
     conn.execute(
         &format!(
-            "INSERT INTO transactions ({}) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+            "INSERT INTO transactions ({}) VALUES (?1, ?2, ?3, ?4, ?4)",
             TRANSACTION_COLUMNS
         ),
-        rusqlite::params![&tx_id, date, description, category_id, &now],
+        rusqlite::params![&tx_id, date, description, &now],
     )?;
 
     for (seq, posting) in postings.iter().enumerate() {

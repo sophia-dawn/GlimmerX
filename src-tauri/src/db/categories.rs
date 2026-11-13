@@ -398,15 +398,11 @@ pub fn preview_delete(conn: &Connection, id: &str) -> Result<DeletePreview, AppE
         |row| row.get(0),
     )?;
 
-    // Transactions reach a category either through the cached `category_id` or
-    // through a posting on the mirror account (a split has only the latter).
+    // A category is reached only through a posting on its mirror account —
+    // that is the definition of the 1:1 binding.
     let transaction_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM (
-             SELECT id FROM transactions WHERE category_id = ?1
-             UNION
-             SELECT p.transaction_id FROM postings p WHERE p.account_id = ?2
-         )",
-        rusqlite::params![id, category.account_id.as_deref()],
+        "SELECT COUNT(DISTINCT transaction_id) FROM postings WHERE account_id = ?1",
+        rusqlite::params![category.account_id.as_deref()],
         |row| row.get(0),
     )?;
 
@@ -453,13 +449,6 @@ pub fn delete_category(conn: &Connection, id: &str, cascade: bool) -> Result<(),
     if cascade {
         conn.execute("DELETE FROM budgets WHERE category_id = ?1", [id])?;
     }
-
-    // Defensive: the account has no postings (checked above), so any lingering
-    // `category_id` reference is stale cache from a pre-v2 bug.
-    conn.execute(
-        "UPDATE transactions SET category_id = NULL WHERE category_id = ?1",
-        [id],
-    )?;
 
     conn.execute("DELETE FROM categories WHERE id = ?1", [id])?;
 

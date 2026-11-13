@@ -16,7 +16,6 @@ fn test_list_transactions_paginated_has_next() {
             &conn,
             &format!("2024-01-{:02}", (i % 28) + 1),
             &format!("Transaction {}", i),
-            None,
             &[
                 PostingInput {
                     account_id: asset_id.clone(),
@@ -73,7 +72,6 @@ fn test_list_transactions_paginated_sort_by_amount() {
         &conn,
         "2024-01-15",
         "A",
-        None,
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -121,4 +119,90 @@ fn test_parse_postings_summary_malformed() {
     let parsed = parse_postings_summary("Cash:-100|Food:100").unwrap();
     assert_eq!(parsed.len(), 2);
     assert_eq!(parsed[0].0, "Cash");
+}
+
+// ---------------------------------------------------------------------------
+// Split transactions
+// ---------------------------------------------------------------------------
+
+/// A split transaction reports every category it touches, and filtering by any
+/// one of them finds it. Before v3 the list could only show one cached
+/// category, so the other halves of a split were invisible.
+#[test]
+fn test_split_transaction_lists_every_category() {
+    let (_dir, conn) = test_conn();
+    let cash = make_account(&conn, "Cash", "asset");
+    let food_cat = make_category(&conn, "Food", "expense");
+    let transport_cat = make_category(&conn, "Transport", "expense");
+    let food = crate::db::categories::account_id_for_category(&conn, &food_cat).unwrap();
+    let transport = crate::db::categories::account_id_for_category(&conn, &transport_cat).unwrap();
+
+    create_transaction(
+        &conn,
+        "2024-01-15",
+        "Lunch and taxi",
+        &[
+            PostingInput {
+                account_id: cash.clone(),
+                amount: -300,
+            },
+            PostingInput {
+                account_id: food,
+                amount: 100,
+            },
+            PostingInput {
+                account_id: transport,
+                amount: 200,
+            },
+        ],
+    )
+    .unwrap();
+
+    let response = list_transactions_paginated(
+        &conn,
+        &TransactionFilter {
+            page: Some(1),
+            page_size: Some(10),
+            ..TransactionFilter::default()
+        },
+    )
+    .unwrap();
+    let item = &response.items[0];
+    assert_eq!(item.category_names, vec!["Food", "Transport"]);
+    assert_eq!(
+        item.display_amount, 300,
+        "the whole outflow is one transaction"
+    );
+
+    // Filtering by either category finds the transaction; the displayed amount
+    // stays the transaction total, because the filter asks "does this
+    // transaction touch Food", not "how much did Food cost".
+    for (category_id, name) in [(&food_cat, "Food"), (&transport_cat, "Transport")] {
+        let filtered = list_transactions_paginated(
+            &conn,
+            &TransactionFilter {
+                category_id: Some(category_id.clone()),
+                page: Some(1),
+                page_size: Some(10),
+                ..TransactionFilter::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(filtered.items.len(), 1, "{name} must match the split");
+        assert_eq!(filtered.items[0].display_amount, 300);
+    }
+
+    // A category the transaction does not touch must not match.
+    let other_cat = make_category(&conn, "Books", "expense");
+    let none = list_transactions_paginated(
+        &conn,
+        &TransactionFilter {
+            category_id: Some(other_cat),
+            page: Some(1),
+            page_size: Some(10),
+            ..TransactionFilter::default()
+        },
+    )
+    .unwrap();
+    assert!(none.items.is_empty());
 }

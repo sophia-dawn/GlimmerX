@@ -13,8 +13,7 @@ pub fn get_account_transactions(
     from_date: Option<&str>,
     to_date: Option<&str>,
 ) -> Result<Vec<TransactionRecord>, AppError> {
-    let base_sql =
-        "SELECT t.id, t.date, t.description, t.category_id, p.amount, t.created_at, t.updated_at
+    let base_sql = "SELECT t.id, t.date, t.description, p.amount, t.created_at, t.updated_at
                     FROM transactions t
                     JOIN postings p ON p.transaction_id = t.id AND p.account_id = ?1";
 
@@ -41,10 +40,9 @@ pub fn get_account_transactions(
                     id: row.get(0)?,
                     date: row.get(1)?,
                     description: row.get(2)?,
-                    category_id: row.get(3)?,
-                    amount: row.get(4)?,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
+                    amount: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?,
@@ -54,10 +52,9 @@ pub fn get_account_transactions(
                     id: row.get(0)?,
                     date: row.get(1)?,
                     description: row.get(2)?,
-                    category_id: row.get(3)?,
-                    amount: row.get(4)?,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
+                    amount: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?,
@@ -67,10 +64,9 @@ pub fn get_account_transactions(
                     id: row.get(0)?,
                     date: row.get(1)?,
                     description: row.get(2)?,
-                    category_id: row.get(3)?,
-                    amount: row.get(4)?,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
+                    amount: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?,
@@ -80,10 +76,9 @@ pub fn get_account_transactions(
                     id: row.get(0)?,
                     date: row.get(1)?,
                     description: row.get(2)?,
-                    category_id: row.get(3)?,
-                    amount: row.get(4)?,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
+                    amount: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?,

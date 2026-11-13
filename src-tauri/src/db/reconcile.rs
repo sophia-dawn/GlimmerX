@@ -600,8 +600,14 @@ mod tests {
         let food = make_account(&conn, "餐饮", "expense");
         let first = make_posting(&conn, &bank, &food, "2024-01-02", -1000);
 
-        let err =
-            create_reconciliation(&conn, &bank, "2024-01-31", -900, &[first.clone()]).unwrap_err();
+        let err = create_reconciliation(
+            &conn,
+            &bank,
+            "2024-01-31",
+            -900,
+            std::slice::from_ref(&first),
+        )
+        .unwrap_err();
         assert!(format!("{err}").contains("差额"));
 
         // Nothing was written.
@@ -640,7 +646,14 @@ mod tests {
         assert!(format!("{err}").contains("分录"));
 
         // Posting already reconciled.
-        create_reconciliation(&conn, &bank, "2024-01-31", -1000, &[bank_posting.clone()]).unwrap();
+        create_reconciliation(
+            &conn,
+            &bank,
+            "2024-01-31",
+            -1000,
+            std::slice::from_ref(&bank_posting),
+        )
+        .unwrap();
         let err =
             create_reconciliation(&conn, &bank, "2024-02-29", -1000, &[bank_posting]).unwrap_err();
         assert!(format!("{err}").contains("分录"));

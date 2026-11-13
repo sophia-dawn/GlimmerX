@@ -158,10 +158,10 @@ pub fn calculate_budget_status(
         r#"
         SELECT COALESCE(SUM(p.amount), 0)
         FROM postings p
-        JOIN transactions t ON t.id = p.transaction_id
         JOIN accounts a ON a.id = p.account_id
-        WHERE t.category_id = ?1
-          AND a.type = 'expense'
+        JOIN categories c ON c.account_id = a.id
+        JOIN transactions t ON t.id = p.transaction_id
+        WHERE c.id = ?1
           AND t.date >= ?2
           AND t.date <= ?3
         "#,
@@ -213,15 +213,13 @@ pub fn list_budget_statuses(
     let mut stmt = conn
         .prepare(
             r#"
-        SELECT 
+        SELECT
             b.id, b.category_id, c.name, c.icon, b.amount, b.period, b.rollover,
-            COALESCE(SUM(CASE WHEN a.type = 'expense' THEN p.amount ELSE 0 END), 0) as spent
+            COALESCE(SUM(CASE WHEN t.date >= ?1 AND t.date <= ?2 THEN p.amount ELSE 0 END), 0) as spent
         FROM budgets b
         JOIN categories c ON c.id = b.category_id
-        LEFT JOIN transactions t ON t.category_id = b.category_id 
-            AND t.date >= ?1 AND t.date <= ?2
-        LEFT JOIN postings p ON p.transaction_id = t.id 
-        LEFT JOIN accounts a ON a.id = p.account_id
+        LEFT JOIN postings p ON p.account_id = c.account_id
+        LEFT JOIN transactions t ON t.id = p.transaction_id
         GROUP BY b.id
         ORDER BY b.created_at DESC
         "#,
@@ -453,8 +451,10 @@ mod tests {
         id
     }
 
+    /// The category is carried by the postings themselves: one of them must sit
+    /// on the category's mirror account for the budget to see the spend.
     #[allow(dead_code)]
-    fn make_transaction(
+    fn make_categorized_transaction(
         conn: &Connection,
         date: &str,
         description: &str,
@@ -466,35 +466,6 @@ mod tests {
             "INSERT INTO transactions (id, date, description, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?4)",
             rusqlite::params![&tx_id, date, description, &now],
-        )
-        .unwrap();
-
-        for (seq, (account_id, amount)) in postings.iter().enumerate() {
-            let posting_id = Uuid::new_v4().to_string();
-            conn.execute(
-                "INSERT INTO postings (id, transaction_id, account_id, amount, sequence, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![&posting_id, &tx_id, account_id, *amount, seq as i32, &now],
-            )
-            .unwrap();
-        }
-
-        tx_id
-    }
-
-    fn make_transaction_with_category(
-        conn: &Connection,
-        date: &str,
-        description: &str,
-        category_id: &str,
-        postings: &[(String, i64)],
-    ) -> String {
-        let tx_id = Uuid::new_v4().to_string();
-        let now = crate::utils::time::now_rfc3339();
-        conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
-            rusqlite::params![&tx_id, date, description, category_id, &now],
         )
         .unwrap();
 
@@ -703,11 +674,10 @@ mod tests {
             create_budget(&conn, &cat_id, 10000, &BudgetPeriod::Monthly, false).unwrap();
         let budget = find_budget(&conn, &budget_id).unwrap().unwrap();
 
-        make_transaction_with_category(
+        make_categorized_transaction(
             &conn,
             "2024-04-15",
             "午餐",
-            &cat_id,
             &[(expense_acct.clone(), 5000), (asset_acct.clone(), -5000)],
         );
 
@@ -728,11 +698,10 @@ mod tests {
             create_budget(&conn, &cat_id, 10000, &BudgetPeriod::Monthly, false).unwrap();
         let budget = find_budget(&conn, &budget_id).unwrap().unwrap();
 
-        make_transaction_with_category(
+        make_categorized_transaction(
             &conn,
             "2024-01-15",
             "历史消费",
-            &cat_id,
             &[(expense_acct.clone(), 5000), (asset_acct.clone(), -5000)],
         );
 
@@ -753,11 +722,10 @@ mod tests {
             create_budget(&conn, &cat_id, 10000, &BudgetPeriod::Monthly, false).unwrap();
         let budget = find_budget(&conn, &budget_id).unwrap().unwrap();
 
-        let tx_id = make_transaction_with_category(
+        let tx_id = make_categorized_transaction(
             &conn,
             "2024-04-15",
             "午饭",
-            &cat_id,
             &[(expense_acct.clone(), 5000), (asset_acct.clone(), -5000)],
         );
         assert_eq!(
@@ -918,19 +886,17 @@ mod tests {
         create_budget(&conn, &cat1_id, 10000, &BudgetPeriod::Monthly, false).unwrap();
         create_budget(&conn, &cat2_id, 5000, &BudgetPeriod::Monthly, false).unwrap();
 
-        make_transaction_with_category(
+        make_categorized_transaction(
             &conn,
             "2024-04-15",
             "午餐",
-            &cat1_id,
             &[(food_acct.clone(), 3000), (asset_acct.clone(), -3000)],
         );
 
-        make_transaction_with_category(
+        make_categorized_transaction(
             &conn,
             "2024-04-15",
             "外卖",
-            &cat2_id,
             &[(delivery_acct.clone(), 2000), (asset_acct.clone(), -2000)],
         );
 
@@ -992,5 +958,54 @@ mod tests {
         let conn = Connection::open(dir.path().join("bare.db")).unwrap();
         let result = create_budget(&conn, "cat-1", 1000, &BudgetPeriod::Monthly, false);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_split_transaction_counts_toward_each_budget() {
+        let (_dir, conn) = test_conn();
+        let food_cat = make_category(&conn, "餐饮", &CategoryType::Expense);
+        let transport_cat = make_category(&conn, "交通", &CategoryType::Expense);
+        let food_acct = crate::db::categories::account_id_for_category(&conn, &food_cat).unwrap();
+        let transport_acct =
+            crate::db::categories::account_id_for_category(&conn, &transport_cat).unwrap();
+        let asset_acct = make_account(&conn, "Cash", "asset");
+
+        let food_budget =
+            create_budget(&conn, &food_cat, 10000, &BudgetPeriod::Monthly, false).unwrap();
+        let transport_budget =
+            create_budget(&conn, &transport_cat, 10000, &BudgetPeriod::Monthly, false).unwrap();
+
+        // One split payment: 3000 for food, 2000 for transport.
+        make_categorized_transaction(
+            &conn,
+            "2024-04-15",
+            "午餐+打车",
+            &[
+                (food_acct, 3000),
+                (transport_acct, 2000),
+                (asset_acct, -5000),
+            ],
+        );
+
+        let food_status = calculate_budget_status(
+            &conn,
+            &find_budget(&conn, &food_budget).unwrap().unwrap(),
+            2024,
+            4,
+        )
+        .unwrap();
+        assert_eq!(
+            food_status.spent, 3000,
+            "only the food half hits the budget"
+        );
+
+        let transport_status = calculate_budget_status(
+            &conn,
+            &find_budget(&conn, &transport_budget).unwrap().unwrap(),
+            2024,
+            4,
+        )
+        .unwrap();
+        assert_eq!(transport_status.spent, 2000);
     }
 }

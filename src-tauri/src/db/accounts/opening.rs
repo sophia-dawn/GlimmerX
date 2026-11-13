@@ -79,8 +79,8 @@ pub fn create_opening_balance(
         let tx_id = Uuid::new_v4().to_string();
 
         conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-             VALUES (?1, ?2, ?3, NULL, ?4, ?4)",
+            "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)",
             rusqlite::params![&tx_id, &tx_date, "Opening Balance", &now],
         )?;
 

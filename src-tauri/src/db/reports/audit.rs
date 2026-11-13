@@ -86,12 +86,26 @@ fn get_balance_check_result(conn: &Connection) -> Result<BalanceCheckResult, Str
     })
 }
 
+/// A transaction counts as uncategorized when none of its postings sits on a
+/// profit-and-loss account. There is no transaction-level category to test any
+/// more: a split transaction can touch three categories at once.
+const UNCATEGORIZED_PREDICATE: &str = "NOT EXISTS (
+                 SELECT 1 FROM postings p
+                 JOIN accounts a ON a.id = p.account_id
+                 WHERE p.transaction_id = t.id
+                   AND a.type IN ('income', 'expense')
+             )";
+
 fn get_category_check_result(conn: &Connection) -> Result<CategoryCheckResult, String> {
     const LIMIT: u32 = 100;
 
     let uncategorized_transactions: u32 = conn
         .query_row(
-            "SELECT COUNT(*) FROM transactions WHERE category_id IS NULL AND description != 'Opening Balance'",
+            &format!(
+                "SELECT COUNT(*) FROM transactions t
+                  WHERE {UNCATEGORIZED_PREDICATE}
+                    AND t.description != 'Opening Balance'"
+            ),
             [],
             |row| row.get(0),
         )
@@ -100,13 +114,14 @@ fn get_category_check_result(conn: &Connection) -> Result<CategoryCheckResult, S
     let uncategorized_has_more = uncategorized_transactions > LIMIT;
 
     let uncategorized_list: Vec<UncategorizedTransaction> = conn
-        .prepare(
+        .prepare(&format!(
             "SELECT t.id, t.date, t.description
              FROM transactions t
-             WHERE t.category_id IS NULL AND t.description != 'Opening Balance'
+             WHERE {UNCATEGORIZED_PREDICATE}
+               AND t.description != 'Opening Balance'
              ORDER BY t.date DESC
-             LIMIT 100",
-        )
+             LIMIT 100"
+        ))
         .and_then(|mut stmt| {
             stmt.query_map([], |row| {
                 Ok(UncategorizedTransaction {

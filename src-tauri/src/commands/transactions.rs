@@ -17,7 +17,6 @@ pub struct TransactionDto {
     pub id: String,
     pub date: String,
     pub description: String,
-    pub category_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub postings: Vec<PostingDto>,
@@ -29,6 +28,10 @@ pub struct PostingDto {
     pub id: String,
     pub transaction_id: String,
     pub account_id: String,
+    /// Set when the account is a category's ledger account — that posting *is*
+    /// the categorised side, so the frontend can label it by category name.
+    pub category_id: Option<String>,
+    pub category_name: Option<String>,
     pub amount: i64,
     pub sequence: i32,
     pub created_at: String,
@@ -43,7 +46,6 @@ pub struct PostingDto {
 pub struct CreateTransactionInput {
     pub date: String,
     pub description: String,
-    pub category_id: Option<String>,
     pub postings: Vec<CreatePostingInput>,
 }
 
@@ -62,7 +64,6 @@ pub struct CreatePostingInput {
 pub struct UpdateTransactionInput {
     pub date: Option<String>,
     pub description: Option<String>,
-    pub category_id: Option<String>,
     pub postings: Option<Vec<CreatePostingInput>>,
 }
 
@@ -111,8 +112,8 @@ pub struct TransactionListItemDto {
     pub id: String,
     pub date: String,
     pub description: String,
-    pub category_id: Option<String>,
-    pub category_name: Option<String>,
+    /// Every category the transaction touches; more than one means it is split.
+    pub category_names: Vec<String>,
     pub category_icon: Option<String>,
     pub postings_summary: Vec<PostingSummaryDto>,
     pub display_amount: i64,
@@ -164,7 +165,6 @@ pub fn to_dto(tx_with_postings: TransactionWithPostings) -> TransactionDto {
         id: tx_with_postings.transaction.id,
         date: tx_with_postings.transaction.date,
         description: tx_with_postings.transaction.description,
-        category_id: tx_with_postings.transaction.category_id,
         created_at: tx_with_postings.transaction.created_at,
         updated_at: tx_with_postings.transaction.updated_at,
         postings: tx_with_postings
@@ -174,6 +174,8 @@ pub fn to_dto(tx_with_postings: TransactionWithPostings) -> TransactionDto {
                 id: p.id,
                 transaction_id: p.transaction_id,
                 account_id: p.account_id,
+                category_id: None,
+                category_name: None,
                 amount: p.amount,
                 sequence: p.sequence,
                 created_at: p.created_at,
@@ -188,6 +190,8 @@ fn posting_record_to_dto(record: PostingRecord) -> PostingDto {
         id: record.id,
         transaction_id: record.transaction_id,
         account_id: record.account_id,
+        category_id: None,
+        category_name: None,
         amount: record.amount,
         sequence: record.sequence,
         created_at: record.created_at,
@@ -199,8 +203,7 @@ fn list_item_to_dto(item: TransactionListItem) -> TransactionListItemDto {
         id: item.id,
         date: item.date,
         description: item.description,
-        category_id: item.category_id,
-        category_name: item.category_name,
+        category_names: item.category_names,
         category_icon: item.category_icon,
         postings_summary: item
             .postings_summary
@@ -268,7 +271,6 @@ pub async fn transaction_create(
         &tx,
         &input.date,
         &input.description,
-        input.category_id.as_deref(),
         &postings,
     )
     .map_err(|e| e.to_string())?;
@@ -407,7 +409,6 @@ pub async fn transaction_update(
     let db_input = crate::db::transactions::UpdateTransactionInput {
         date: input.date,
         description: input.description,
-        category_id: input.category_id,
         postings: input
             .postings
             .map(to_db_postings)
@@ -462,7 +463,6 @@ mod tests {
             id: id.to_string(),
             date: "2024-01-15".to_string(),
             description: "Test transaction".to_string(),
-            category_id: Some("cat-123".to_string()),
             created_at: "2024-01-15T10:00:00Z".to_string(),
             updated_at: "2024-01-15T10:00:00Z".to_string(),
         }
@@ -497,7 +497,6 @@ mod tests {
         assert_eq!(dto.id, "tx-123");
         assert_eq!(dto.date, "2024-01-15");
         assert_eq!(dto.description, "Test transaction");
-        assert_eq!(dto.category_id, Some("cat-123".to_string()));
         assert_eq!(dto.created_at, "2024-01-15T10:00:00Z");
         assert_eq!(dto.updated_at, "2024-01-15T10:00:00Z");
         assert_eq!(dto.postings.len(), 2);
@@ -562,7 +561,6 @@ mod tests {
             id: "tx-nocat".to_string(),
             date: "2024-01-15".to_string(),
             description: "No category".to_string(),
-            category_id: None,
             created_at: "2024-01-15T10:00:00Z".to_string(),
             updated_at: "2024-01-15T10:00:00Z".to_string(),
         };
@@ -575,7 +573,7 @@ mod tests {
 
         let dto = to_dto(tx_with_postings);
 
-        assert_eq!(dto.category_id, None);
+        assert!(dto.postings[0].category_id.is_none());
     }
 
     #[test]
@@ -584,7 +582,6 @@ mod tests {
             id: "tx-123".to_string(),
             date: "2024-01-15".to_string(),
             description: "Test".to_string(),
-            category_id: None,
             created_at: "2024-01-15T10:00:00Z".to_string(),
             updated_at: "2024-01-15T10:00:00Z".to_string(),
             postings: vec![],
@@ -596,7 +593,10 @@ mod tests {
         assert!(json.contains("\"id\""));
         assert!(json.contains("\"date\""));
         assert!(json.contains("\"description\""));
-        assert!(json.contains("\"categoryId\"")); // camelCase
+        assert!(
+            !json.contains("\"categoryId\""),
+            "categories belong to postings"
+        );
         assert!(json.contains("\"createdAt\"")); // camelCase
         assert!(json.contains("\"updatedAt\"")); // camelCase
         assert!(json.contains("\"postings\""));
@@ -608,6 +608,8 @@ mod tests {
             id: "posting-1".to_string(),
             transaction_id: "tx-1".to_string(),
             account_id: "acc-1".to_string(),
+            category_id: Some("cat-1".to_string()),
+            category_name: Some("餐饮".to_string()),
             amount: -1000,
             sequence: 0,
             created_at: "2024-01-15T10:00:00Z".to_string(),
@@ -619,6 +621,8 @@ mod tests {
         assert!(json.contains("\"id\""));
         assert!(json.contains("\"transactionId\"")); // camelCase
         assert!(json.contains("\"accountId\"")); // camelCase
+        assert!(json.contains("\"categoryId\"")); // camelCase
+        assert!(json.contains("\"categoryName\"")); // camelCase
         assert!(json.contains("\"amount\""));
         assert!(json.contains("\"sequence\""));
         assert!(json.contains("\"createdAt\"")); // camelCase
@@ -629,7 +633,6 @@ mod tests {
         let json = r#"{
             "date": "2024-01-15",
             "description": "Grocery shopping",
-            "categoryId": "cat-123",
             "postings": [
                 {"accountId": "acc-1", "amount": "-500.00"},
                 {"accountId": "acc-2", "amount": "500.00"}
@@ -640,7 +643,6 @@ mod tests {
 
         assert_eq!(input.date, "2024-01-15");
         assert_eq!(input.description, "Grocery shopping");
-        assert_eq!(input.category_id, Some("cat-123".to_string()));
         assert_eq!(input.postings.len(), 2);
         assert_eq!(input.postings[0].account_id, "acc-1");
         assert_eq!(input.postings[0].amount, "-500.00");
@@ -649,34 +651,24 @@ mod tests {
     }
 
     #[test]
-    fn test_create_input_null_category() {
+    fn test_create_input_ignores_legacy_category_field() {
+        // v3 dropped `transactions.category_id`; an older frontend that still
+        // sends it must not fail the call, the category simply comes from the
+        // posting's account.
         let json = r#"{
             "date": "2024-01-15",
-            "description": "No category",
-            "categoryId": null,
+            "description": "Legacy payload",
+            "categoryId": "cat-123",
             "postings": [
-                {"accountId": "acc-1", "amount": "-100.00"}
+                {"accountId": "acc-1", "amount": "-100.00"},
+                {"accountId": "acc-2", "amount": "100.00"}
             ]
         }"#;
 
         let input: CreateTransactionInput = serde_json::from_str(json).unwrap();
 
-        assert_eq!(input.category_id, None);
-    }
-
-    #[test]
-    fn test_create_input_missing_category() {
-        let json = r#"{
-            "date": "2024-01-15",
-            "description": "Missing category",
-            "postings": [
-                {"accountId": "acc-1", "amount": "-100.00"}
-            ]
-        }"#;
-
-        let input: CreateTransactionInput = serde_json::from_str(json).unwrap();
-
-        assert_eq!(input.category_id, None);
+        assert_eq!(input.date, "2024-01-15");
+        assert_eq!(input.postings.len(), 2);
     }
 
     #[test]

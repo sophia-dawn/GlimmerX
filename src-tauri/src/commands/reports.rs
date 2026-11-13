@@ -143,7 +143,7 @@ pub async fn report_audit(state: State<'_, AppState>) -> Result<AuditReportDto, 
 mod ipc_tests {
     use super::*;
     use crate::db::accounts::{create_account_with_path, CreateAccountFullInput};
-    use crate::db::categories::{create_category, CategoryType};
+    use crate::db::categories::{account_id_for_category, create_category, CategoryType};
     use crate::db::transactions::{create_transaction, PostingInput};
     use crate::db::{Database, RecentDbs};
     use std::sync::Mutex;
@@ -232,20 +232,19 @@ mod ipc_tests {
         )
         .unwrap();
         let credit_card = create_account_with_path(&conn, "Liabilities/CreditCard", None).unwrap();
-        let salary_account = create_account_with_path(&conn, "Income/Salary", None).unwrap();
-        let food_account = create_account_with_path(&conn, "Expenses/Food", None).unwrap();
-        let transport_account =
-            create_account_with_path(&conn, "Expenses/Transport", None).unwrap();
-
         let salary_category =
             create_category(&conn, "Salary", &CategoryType::Income, None).unwrap();
         let food_category = create_category(&conn, "Food", &CategoryType::Expense, None).unwrap();
+        let transport_category =
+            create_category(&conn, "Transport", &CategoryType::Expense, None).unwrap();
+        let salary_account = account_id_for_category(&conn, &salary_category).unwrap();
+        let food_account = account_id_for_category(&conn, &food_category).unwrap();
+        let transport_account = account_id_for_category(&conn, &transport_category).unwrap();
 
         create_transaction(
             &conn,
             "2024-01-05",
             "Salary Jan",
-            Some(&salary_category),
             &[
                 PostingInput {
                     account_id: cash.clone(),
@@ -262,7 +261,6 @@ mod ipc_tests {
             &conn,
             "2024-01-10",
             "Lunch",
-            Some(&food_category),
             &[
                 PostingInput {
                     account_id: cash.clone(),
@@ -279,7 +277,6 @@ mod ipc_tests {
             &conn,
             "2024-01-20",
             "Metro",
-            None,
             &[
                 PostingInput {
                     account_id: cash.clone(),
@@ -296,7 +293,6 @@ mod ipc_tests {
             &conn,
             "2024-01-25",
             "Online",
-            Some(&food_category),
             &[
                 PostingInput {
                     account_id: credit_card.clone(),
@@ -313,7 +309,6 @@ mod ipc_tests {
             &conn,
             "2024-02-10",
             "Dinner",
-            Some(&food_category),
             &[
                 PostingInput {
                     account_id: cash.clone(),
@@ -373,8 +368,8 @@ mod ipc_tests {
             }),
         )
         .expect("report_category_breakdown should succeed");
-        assert_eq!(breakdown["totalAmount"], serde_json::json!(11500));
-        assert_eq!(breakdown["categories"].as_array().unwrap().len(), 1);
+        assert_eq!(breakdown["totalAmount"], serde_json::json!(12700));
+        assert_eq!(breakdown["categories"].as_array().unwrap().len(), 2);
 
         let balance_sheet = invoke(
             &webview,

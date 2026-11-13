@@ -358,13 +358,11 @@ pub fn get_category_breakdown(
         "
         SELECT c.id, c.name, c.icon, {} as amount
          FROM categories c
-         LEFT JOIN transactions t ON t.category_id = c.id
-         LEFT JOIN postings p ON p.transaction_id = t.id
-         LEFT JOIN accounts a ON a.id = p.account_id
+         LEFT JOIN postings p ON p.account_id = c.account_id
+         LEFT JOIN transactions t ON t.id = p.transaction_id
          WHERE c.type = ?1
-         AND (t.date IS NULL OR (t.date >= ?2 AND t.date <= ?3))
+         AND (p.id IS NULL OR (t.date >= ?2 AND t.date <= ?3))
          AND (p.amount IS NULL OR {})
-         AND (a.type IS NULL OR a.type = ?1)
          GROUP BY c.id
          ORDER BY amount DESC",
         amount_expr, amount_condition
@@ -451,7 +449,7 @@ pub fn get_top_expenses(
              FROM transactions t
              JOIN postings p ON p.transaction_id = t.id
              JOIN accounts a ON a.id = p.account_id
-             LEFT JOIN categories c ON c.id = t.category_id
+             LEFT JOIN categories c ON c.account_id = a.id
              WHERE a.type = '{}' AND p.amount > 0
              AND t.date >= ?1 AND t.date <= ?2
              ORDER BY p.amount DESC
@@ -689,8 +687,8 @@ mod tests {
     ) {
         let now = crate::utils::time::now_rfc3339();
         conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-             VALUES (?1, ?2, ?3, NULL, ?4, ?4)",
+            "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)",
             rusqlite::params![tx_id, date, description, now],
         )
         .unwrap();

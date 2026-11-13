@@ -31,11 +31,7 @@ pub fn update_transaction(
     // statement it was matched against.
     crate::db::reconcile::assert_not_reconciled(conn, tx_id)?;
 
-    if input.date.is_none()
-        && input.description.is_none()
-        && input.category_id.is_none()
-        && input.postings.is_none()
-    {
+    if input.date.is_none() && input.description.is_none() && input.postings.is_none() {
         return Err(AppError::ValidationError(
             "errors.transaction.noChanges".to_string(),
         ));
@@ -87,20 +83,6 @@ pub fn update_transaction(
             "UPDATE transactions SET description = ?1, updated_at = ?2 WHERE id = ?3",
             rusqlite::params![desc, &now, tx_id],
         )?;
-    }
-
-    if let Some(ref cat_id) = input.category_id {
-        if cat_id == "__clear__" {
-            tx.execute(
-                "UPDATE transactions SET category_id = NULL, updated_at = ?1 WHERE id = ?2",
-                rusqlite::params![&now, tx_id],
-            )?;
-        } else {
-            tx.execute(
-                "UPDATE transactions SET category_id = ?1, updated_at = ?2 WHERE id = ?3",
-                rusqlite::params![cat_id, &now, tx_id],
-            )?;
-        }
     }
 
     if let Some(ref new_postings) = parsed_postings {

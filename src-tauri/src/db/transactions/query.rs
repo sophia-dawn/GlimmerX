@@ -171,22 +171,21 @@ pub fn get_transaction_detail(
 ) -> Result<TransactionDetail, AppError> {
     let tx_data = conn
         .query_row(
-            "SELECT date, description, category_id, created_at, updated_at 
+            "SELECT date, description, created_at, updated_at
              FROM transactions WHERE id = ?1",
             [tx_id],
             |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
                 ))
             },
         )
         .optional();
 
-    let (date, description, category_id, created_at, updated_at) = match tx_data {
+    let (date, description, created_at, updated_at) = match tx_data {
         Ok(Some(data)) => data,
         Ok(None) => {
             return Err(AppError::NotFound(
@@ -198,27 +197,18 @@ pub fn get_transaction_detail(
         }
     };
 
-    let category_name = if let Some(ref cat_id) = category_id {
-        conn.query_row(
-            "SELECT name FROM categories WHERE id = ?1",
-            [cat_id],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()?
-    } else {
-        None
-    };
-
     let postings: Vec<PostingDetail> = conn
         .prepare(
-            "SELECT p.id, p.transaction_id, p.account_id, a.name, a.type, p.amount, p.sequence, p.created_at
+            "SELECT p.id, p.transaction_id, p.account_id, a.name, a.type,
+                    c.id, c.name, p.amount, p.sequence, p.created_at
              FROM postings p
              JOIN accounts a ON a.id = p.account_id
+             LEFT JOIN categories c ON c.account_id = a.id
              WHERE p.transaction_id = ?1
              ORDER BY p.amount ASC",
         )?
         .query_map([tx_id], |row| {
-            let amount: i64 = row.get(5)?;
+            let amount: i64 = row.get(7)?;
             let is_debit = amount > 0;
             let amount_display = format_amount_display(amount);
 
@@ -228,11 +218,13 @@ pub fn get_transaction_detail(
                 account_id: row.get(2)?,
                 account_name: row.get(3)?,
                 account_type: row.get(4)?,
+                category_id: row.get(5)?,
+                category_name: row.get(6)?,
                 amount,
                 amount_display,
                 is_debit,
-                sequence: row.get(6)?,
-                created_at: row.get(7)?,
+                sequence: row.get(8)?,
+                created_at: row.get(9)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -253,8 +245,6 @@ pub fn get_transaction_detail(
         id: tx_id.to_string(),
         date,
         description,
-        category_id,
-        category_name,
         postings,
         created_at,
         updated_at,

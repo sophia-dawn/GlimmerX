@@ -15,7 +15,7 @@ use crate::db::AppError;
 use uuid::Uuid;
 
 /// Current schema version stamped into `PRAGMA user_version`.
-pub(crate) const SCHEMA_VERSION: i64 = 2;
+pub(crate) const SCHEMA_VERSION: i64 = 3;
 
 /// Schema v1 shipped with 0.1.2. Existing databases have `user_version = 0`;
 /// applying this idempotent baseline stamps them as v1 without touching data.
@@ -26,6 +26,7 @@ static MIGRATIONS: LazyLock<Migrations> = LazyLock::new(|| {
     Migrations::new(vec![
         M::up(include_str!("schema_v1.sql")),
         M::up_with_hook(include_str!("schema_v2.sql"), up_v2_hook),
+        M::up(include_str!("schema_v3.sql")),
     ])
 });
 
@@ -49,6 +50,7 @@ pub fn init_baseline(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(include_str!("schema_v1.sql"))
         .and_then(|_| conn.execute_batch(include_str!("schema_v2.sql")))
         .and_then(|_| backfill_category_accounts(conn))
+        .and_then(|_| conn.execute_batch(include_str!("schema_v3.sql")))
         .and_then(|_| conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};")))
         .map_err(|e| AppError::DatabaseError(format!("数据库初始化失败：{e}")))
 }
@@ -406,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_v1_to_v2() {
+    fn test_migrate_v1_to_v3() {
         let (_dir, path, mut conn) = v1_db();
 
         // A bound pair (category 餐饮 with an account of the same name), an
@@ -451,7 +453,7 @@ mod tests {
 
         migrate(&mut conn, &path, false).unwrap();
 
-        assert_eq!(count(&conn, "PRAGMA user_version"), 2);
+        assert_eq!(count(&conn, "PRAGMA user_version"), 3);
 
         // Every category is bound, and no account is claimed twice.
         assert_eq!(
@@ -519,6 +521,8 @@ mod tests {
             .unwrap();
         assert!(!columns.contains(&"deleted_at".to_string()));
         assert!(!columns.contains(&"is_reconciled".to_string()));
+        // v3: the cached category is gone, categories come from the postings.
+        assert!(!columns.contains(&"category_id".to_string()));
 
         // Rows survive the column drops.
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM transactions"), 2);

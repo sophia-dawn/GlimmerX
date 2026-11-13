@@ -21,8 +21,7 @@ fn test_create_transaction_balanced() {
         },
     ];
 
-    let tx_id =
-        create_transaction(&conn, "2024-01-15", "Grocery shopping", None, &postings).unwrap();
+    let tx_id = create_transaction(&conn, "2024-01-15", "Grocery shopping", &postings).unwrap();
 
     assert!(!tx_id.is_empty());
 
@@ -59,13 +58,7 @@ fn test_create_transaction_unbalanced_blocked() {
         },
     ];
 
-    let result = create_transaction(
-        &conn,
-        "2024-01-15",
-        "Incomplete transaction",
-        None,
-        &postings,
-    );
+    let result = create_transaction(&conn, "2024-01-15", "Incomplete transaction", &postings);
 
     assert!(result.is_err(), "Unbalanced transaction should be rejected");
 
@@ -89,13 +82,7 @@ fn test_create_transaction_single_posting_blocked() {
         amount: 1000,
     }];
 
-    let result = create_transaction(
-        &conn,
-        "2024-01-15",
-        "Invalid single posting",
-        None,
-        &postings,
-    );
+    let result = create_transaction(&conn, "2024-01-15", "Invalid single posting", &postings);
 
     assert!(
         result.is_err(),
@@ -110,45 +97,39 @@ fn test_create_transaction_single_posting_blocked() {
     }
 }
 
-/// Test 9: Transaction with category_id.
+/// Test 9: the category is read off the posting, not stored on the transaction.
 #[test]
-fn test_create_transaction_with_category() {
+fn test_category_is_derived_from_posting_account() {
     let (_dir, conn) = test_conn();
     let asset_id = make_account(&conn, "Cash", "asset");
-    let expense_id = make_account(&conn, "Food", "expense");
-
-    // Create a category
-    let cat_id = Uuid::new_v4().to_string();
-    let now = crate::utils::time::now_rfc3339();
-    conn.execute(
-            "INSERT INTO categories (id, name, type, created_at, updated_at) VALUES (?1, 'Groceries', 'expense', ?2, ?2)",
-            rusqlite::params![&cat_id, &now],
-        )
-        .unwrap();
+    let cat_id = make_category(&conn, "Groceries", "expense");
+    let expense_id = crate::db::categories::account_id_for_category(&conn, &cat_id).unwrap();
 
     let tx_id = create_transaction(
         &conn,
         "2024-01-15",
         "Grocery shopping",
-        Some(&cat_id),
         &[
             PostingInput {
                 account_id: asset_id.clone(),
                 amount: -500,
             },
             PostingInput {
-                account_id: expense_id.clone(),
+                account_id: expense_id,
                 amount: 500,
             },
         ],
     )
     .unwrap();
 
-    let tx = get_transaction_with_postings(&conn, &tx_id)
-        .unwrap()
-        .expect("Transaction should exist");
-
-    assert_eq!(tx.transaction.category_id, Some(cat_id));
+    let detail = get_transaction_detail(&conn, &tx_id).unwrap();
+    let categorised = detail
+        .postings
+        .iter()
+        .find(|p| p.category_id.is_some())
+        .expect("the expense posting carries the category");
+    assert_eq!(categorised.category_id.as_deref(), Some(cat_id.as_str()));
+    assert_eq!(categorised.category_name.as_deref(), Some("Groceries"));
 }
 
 /// Test 10: Zero-sum transaction (all postings sum to 0).
@@ -175,7 +156,7 @@ fn test_create_transaction_zero_sum() {
         },
     ];
 
-    let tx_id = create_transaction(&conn, "2024-01-15", "Split payment", None, &postings).unwrap();
+    let tx_id = create_transaction(&conn, "2024-01-15", "Split payment", &postings).unwrap();
 
     let tx = get_transaction_with_postings(&conn, &tx_id)
         .unwrap()
@@ -212,7 +193,6 @@ fn test_create_transaction_invalid_account() {
         &conn,
         "2024-01-15",
         "Invalid account transaction",
-        None,
         &postings,
     );
 
@@ -253,7 +233,6 @@ fn test_create_transaction_duplicate_account() {
         &conn,
         "2024-01-15",
         "Duplicate account transaction",
-        None,
         &postings,
     );
 
@@ -284,7 +263,6 @@ fn test_create_transaction_missing_postings_table() {
         &conn,
         "2024-01-15",
         "Broken",
-        None,
         &[
             PostingInput {
                 account_id: cash,

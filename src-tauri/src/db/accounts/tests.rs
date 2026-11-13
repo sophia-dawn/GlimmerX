@@ -103,8 +103,8 @@ fn test_delete_account_with_transactions_blocked() {
     // Create a transaction with a posting to this account
     let tx_id = "test-tx-1";
     conn.execute(
-        "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-             VALUES (?1, '2024-01-01', 'Test Tx', NULL, ?2, ?2)",
+        "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES (?1, '2024-01-01', 'Test Tx', ?2, ?2)",
         rusqlite::params![tx_id, crate::utils::time::now_rfc3339()],
     )
     .unwrap();
@@ -205,8 +205,8 @@ fn test_balance_aggregation_no_sign_flip() {
     // Add a posting
     let tx_id = "test-tx";
     conn.execute(
-        "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-             VALUES (?1, '2024-01-01', 'Test', NULL, ?2, ?2)",
+        "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES (?1, '2024-01-01', 'Test', ?2, ?2)",
         rusqlite::params![tx_id, crate::utils::time::now_rfc3339()],
     )
     .unwrap();
@@ -359,8 +359,8 @@ fn test_get_account_transactions_multiple() {
         let tx_id = format!("tx-{}", i);
         let now = crate::utils::time::now_rfc3339();
         conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, NULL, ?4, ?4)",
+            "INSERT INTO transactions (id, date, description, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?4)",
             rusqlite::params![
                 &tx_id,
                 format!("2024-0{}-01", i),
@@ -509,8 +509,8 @@ fn test_get_account_balances_batch_multiple() {
     let tx_id = "test-tx";
     let now = crate::utils::time::now_rfc3339();
     conn.execute(
-        "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-             VALUES (?1, '2024-01-01', 'Test', NULL, ?2, ?2)",
+        "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES (?1, '2024-01-01', 'Test', ?2, ?2)",
         rusqlite::params![tx_id, &now],
     )
     .unwrap();
@@ -687,8 +687,8 @@ fn test_get_account_transactions_date_filters() {
 
     let now = crate::utils::time::now_rfc3339();
     conn.execute(
-        "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-             VALUES ('tx-1', '2024-01-15', 'Lunch', NULL, ?1, ?1)",
+        "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES ('tx-1', '2024-01-15', 'Lunch', ?1, ?1)",
         [&now],
     )
     .unwrap();

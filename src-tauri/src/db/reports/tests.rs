@@ -4,7 +4,7 @@ use super::common::{get_period_format, parse_month_bounds, resolve_date_range};
 
 use super::*;
 use crate::db::accounts::{create_account_with_path, CreateAccountFullInput};
-use crate::db::categories::{create_category, CategoryType};
+use crate::db::categories::{account_id_for_category, create_category, CategoryType};
 use crate::db::transactions::{create_transaction, PostingInput};
 use crate::utils::time::*;
 use rusqlite::params;
@@ -154,21 +154,24 @@ fn seed_data(conn: &Connection) -> SeededIds {
     let cash = create_account_with_path(conn, "Assets/Cash", Some(&net_worth_input())).unwrap();
     let credit_card =
         create_account_with_path(conn, "Liabilities/CreditCard", Some(&net_worth_input())).unwrap();
-    let salary_account = create_account_with_path(conn, "Income/Salary", None).unwrap();
-    let food_account = create_account_with_path(conn, "Expenses/Food", None).unwrap();
-    let transport_account = create_account_with_path(conn, "Expenses/Transport", None).unwrap();
 
+    // Every P&L account now belongs to a category, so the fixture takes the
+    // account from the category instead of creating a second one next to it —
+    // a standalone "Expenses/Food" account would carry the postings while the
+    // category reports looked at an empty, different account.
     let salary_category = create_category(conn, "Salary", &CategoryType::Income, None).unwrap();
     let food_category = create_category(conn, "Food", &CategoryType::Expense, None).unwrap();
     let transport_category =
         create_category(conn, "Transport", &CategoryType::Expense, None).unwrap();
+    let salary_account = account_id_for_category(conn, &salary_category).unwrap();
+    let food_account = account_id_for_category(conn, &food_category).unwrap();
+    let transport_account = account_id_for_category(conn, &transport_category).unwrap();
 
     // 2024-01-05 salary of 100000 cents (1000.00)
     create_transaction(
         conn,
         "2024-01-05",
         "Salary Jan",
-        Some(&salary_category),
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -186,7 +189,6 @@ fn seed_data(conn: &Connection) -> SeededIds {
         conn,
         "2024-01-10",
         "Lunch",
-        Some(&food_category),
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -204,7 +206,6 @@ fn seed_data(conn: &Connection) -> SeededIds {
         conn,
         "2024-01-20",
         "Metro",
-        Some(&transport_category),
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -222,7 +223,6 @@ fn seed_data(conn: &Connection) -> SeededIds {
         conn,
         "2024-01-25",
         "Online",
-        Some(&food_category),
         &[
             PostingInput {
                 account_id: credit_card.clone(),
@@ -240,7 +240,6 @@ fn seed_data(conn: &Connection) -> SeededIds {
         conn,
         "2024-02-10",
         "Dinner",
-        Some(&food_category),
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -255,8 +254,8 @@ fn seed_data(conn: &Connection) -> SeededIds {
     .unwrap();
     // Unbalanced transaction (single posting on cash) for audit coverage
     conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-             VALUES ('tx-unbalanced', '2024-01-30', 'Broken', NULL, '2024-01-30T00:00:00+08:00', '2024-01-30T00:00:00+08:00')",
+            "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES ('tx-unbalanced', '2024-01-30', 'Broken', '2024-01-30T00:00:00+08:00', '2024-01-30T00:00:00+08:00')",
             [],
         )
         .unwrap();
@@ -422,7 +421,6 @@ fn test_get_standard_report_current_month_change_pct() {
         &conn,
         &prev_start,
         "Prev Salary",
-        None,
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -439,7 +437,6 @@ fn test_get_standard_report_current_month_change_pct() {
         &conn,
         &prev_end,
         "Prev Food",
-        None,
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -457,7 +454,6 @@ fn test_get_standard_report_current_month_change_pct() {
         &conn,
         &month_start,
         "Cur Salary",
-        None,
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -474,7 +470,6 @@ fn test_get_standard_report_current_month_change_pct() {
         &conn,
         &month_end,
         "Cur Food",
-        None,
         &[
             PostingInput {
                 account_id: cash.clone(),
@@ -773,8 +768,8 @@ fn test_get_audit_report_more_than_limit() {
 
     let mut tx_stmt = conn
             .prepare(
-                "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
-                 VALUES (?1, '2024-03-01', 'Broken', NULL, '2024-03-01T00:00:00+08:00', '2024-03-01T00:00:00+08:00')",
+                "INSERT INTO transactions (id, date, description, created_at, updated_at)
+                 VALUES (?1, '2024-03-01', 'Broken', '2024-03-01T00:00:00+08:00', '2024-03-01T00:00:00+08:00')",
             )
             .unwrap();
     let mut posting_stmt = conn
@@ -798,4 +793,66 @@ fn test_get_audit_report_more_than_limit() {
     assert!(dto.category_check.uncategorized_has_more);
     assert_eq!(dto.category_check.uncategorized_list.len(), 100);
     assert_eq!(dto.category_check.uncategorized_transactions, 106);
+}
+
+/// A split transaction must be spread over its categories, not credited to one.
+#[test]
+fn test_split_transaction_splits_across_categories() {
+    let conn = setup_test_db();
+    let cash = create_account_with_path(&conn, "Assets/Cash", Some(&net_worth_input())).unwrap();
+    let food_category = create_category(&conn, "Food", &CategoryType::Expense, None).unwrap();
+    let transport_category =
+        create_category(&conn, "Transport", &CategoryType::Expense, None).unwrap();
+    let food = account_id_for_category(&conn, &food_category).unwrap();
+    let transport = account_id_for_category(&conn, &transport_category).unwrap();
+
+    // One payment, two categories.
+    create_transaction(
+        &conn,
+        "2024-01-15",
+        "Lunch and taxi",
+        &[
+            PostingInput {
+                account_id: cash.clone(),
+                amount: -30000,
+            },
+            PostingInput {
+                account_id: food,
+                amount: 10000,
+            },
+            PostingInput {
+                account_id: transport,
+                amount: 20000,
+            },
+        ],
+    )
+    .unwrap();
+
+    let filter = custom_filter("2024-01-01", "2024-01-31");
+    let dto = get_category_breakdown_report(&conn, &filter, "expense").unwrap();
+    assert_eq!(dto.total_amount, 30000);
+    assert_eq!(dto.categories.len(), 2);
+
+    let food_item = dto
+        .categories
+        .iter()
+        .find(|c| c.category_name == "Food")
+        .unwrap();
+    assert_eq!(food_item.amount, 10000);
+    assert_eq!(food_item.transaction_count, 1);
+
+    let transport_item = dto
+        .categories
+        .iter()
+        .find(|c| c.category_name == "Transport")
+        .unwrap();
+    assert_eq!(transport_item.amount, 20000);
+
+    // The trend report attributes the same split by category filter.
+    let mut by_category = custom_filter("2024-01-01", "2024-01-31");
+    by_category.period_granularity = PeriodGranularity::Monthly;
+    by_category.category_ids = Some(vec![transport_category.clone()]);
+    let trend = get_trend_report(&conn, &by_category).unwrap();
+    assert_eq!(trend.total_expense, 20000);
+    assert_eq!(trend.total_income, 0);
 }
