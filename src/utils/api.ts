@@ -668,11 +668,13 @@ export async function reconcileAutoMatch(
  */
 export async function reconcileTotals(
   accountId: string,
+  statementDate: string,
   closingBalance: string,
   postingIds: string[],
 ): Promise<ReconcileTotals> {
   return invokeCommand<ReconcileTotals>("reconcile_totals", {
     accountId,
+    statementDate,
     closingBalance,
     postingIds,
   });

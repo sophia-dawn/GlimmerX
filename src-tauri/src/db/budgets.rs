@@ -132,8 +132,171 @@ pub fn find_by_category(
 // Budget status calculation
 // ---------------------------------------------------------------------------
 
+/// Inclusive date window a budget's spending is measured over.
+#[derive(Debug, Clone)]
+struct Window {
+    from: String,
+    to: String,
+}
+
+fn invalid_month() -> AppError {
+    AppError::ValidationError("errors.budgetInvalidMonth".to_string())
+}
+
+fn first_of_month(year: i32, month: i32) -> Result<chrono::NaiveDate, AppError> {
+    chrono::NaiveDate::from_ymd_opt(year, month as u32, 1).ok_or_else(invalid_month)
+}
+
+fn last_of_month(first: chrono::NaiveDate) -> chrono::NaiveDate {
+    let (year, month) = (first.year(), first.month());
+    let next = if month == 12 {
+        chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+    } else {
+        chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+    };
+    next.expect("a first-of-month always has a successor") - chrono::Duration::days(1)
+}
+
+/// The window a budget of `period` is measured over for the requested month.
+///
+/// A weekly budget is a week, not a month: measuring it over 30 days made a
+/// ¥500/week budget report 360% overspend in a normal month. The week is the
+/// Monday-to-Sunday one containing "today" when the caller is looking at the
+/// current month, and the last week of that month otherwise — a month view of a
+/// past month has no "current week" to show, and the last one is at least a real
+/// week rather than a silently different unit.
+fn budget_window(period: &BudgetPeriod, year: i32, month: i32) -> Result<Window, AppError> {
+    let first = first_of_month(year, month)?;
+    let last = last_of_month(first);
+    match period {
+        BudgetPeriod::Monthly => Ok(Window {
+            from: first.to_string(),
+            to: last.to_string(),
+        }),
+        BudgetPeriod::Weekly => {
+            let today = crate::utils::time::today_date();
+            let anchor = if today.starts_with(&format!("{year:04}-{month:02}")) {
+                chrono::NaiveDate::parse_from_str(&today, "%Y-%m-%d").unwrap_or(last)
+            } else {
+                last
+            };
+            let monday =
+                anchor - chrono::Duration::days(i64::from(anchor.weekday().num_days_from_monday()));
+            Ok(Window {
+                from: monday.to_string(),
+                to: (monday + chrono::Duration::days(6)).to_string(),
+            })
+        }
+    }
+}
+
+fn spent_in_window(
+    conn: &Connection,
+    category_id: &str,
+    from: &str,
+    to: &str,
+) -> Result<i64, AppError> {
+    // `p.amount > 0` on purpose: reports count gross spending too
+    // (`reports/common.rs`), so a refund recorded as a negative posting on the
+    // category does not make the budget card and the category breakdown show
+    // two different numbers for the same month. Net-refund accounting is a
+    // product decision, tracked in docs/design/21; until then both sides use the
+    // same rule.
+    let spent = conn.query_row(
+        "SELECT COALESCE(SUM(p.amount), 0)
+           FROM postings p
+           JOIN accounts a ON a.id = p.account_id
+           JOIN categories c ON c.account_id = a.id
+           JOIN transactions t ON t.id = p.transaction_id
+          WHERE c.id = ?1 AND t.date >= ?2 AND t.date <= ?3 AND p.amount > 0",
+        rusqlite::params![category_id, from, to],
+        |row| row.get(0),
+    )?;
+    Ok(spent)
+}
+
+/// Start of the period that contains `date` (Monday for weekly budgets).
+fn period_start_of(
+    date: chrono::NaiveDate,
+    period: &BudgetPeriod,
+) -> Result<chrono::NaiveDate, AppError> {
+    match period {
+        BudgetPeriod::Monthly => first_of_month(date.year(), date.month() as i32),
+        BudgetPeriod::Weekly => {
+            Ok(date - chrono::Duration::days(i64::from(date.weekday().num_days_from_monday())))
+        }
+    }
+}
+
+/// Last day of the period starting at `start`.
+fn period_end_of(start: chrono::NaiveDate, period: &BudgetPeriod) -> chrono::NaiveDate {
+    match period {
+        BudgetPeriod::Monthly => last_of_month(start),
+        BudgetPeriod::Weekly => start + chrono::Duration::days(6),
+    }
+}
+
+fn next_period(
+    start: chrono::NaiveDate,
+    period: &BudgetPeriod,
+) -> Result<chrono::NaiveDate, AppError> {
+    match period {
+        BudgetPeriod::Monthly => {
+            let (year, month) = (start.year(), start.month());
+            if month == 12 {
+                chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1).ok_or_else(invalid_month)
+            } else {
+                chrono::NaiveDate::from_ymd_opt(year, month + 1, 1).ok_or_else(invalid_month)
+            }
+        }
+        BudgetPeriod::Weekly => Ok(start + chrono::Duration::days(7)),
+    }
+}
+
+/// Unused amount carried into the current period.
+///
+/// Walks forward from the period the budget was created in, clamping each period
+/// at zero: overspending is not debt that eats the next budget. Works for both
+/// periods — a weekly budget carries last week's leftover, a monthly one last
+/// month's.
+///
+/// Bounded at [`MAX_ROLLOVER_PERIODS`] periods (roughly five years either way),
+/// because an unbounded walk over a decade-old budget costs a query per period
+/// on every page load.
+fn rollover_carry(
+    conn: &Connection,
+    budget: &BudgetRecord,
+    current_start: &chrono::NaiveDate,
+) -> Result<i64, AppError> {
+    const MAX_ROLLOVER_PERIODS: usize = 260;
+
+    let created = budget
+        .created_at
+        .get(..10)
+        .and_then(|date| chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").ok());
+    let mut cursor = match created {
+        Some(date) => period_start_of(date, &budget.period)?,
+        None => return Ok(0),
+    };
+
+    let mut carry: i64 = 0;
+    let mut periods = 0;
+    while cursor < *current_start && periods < MAX_ROLLOVER_PERIODS {
+        let end = period_end_of(cursor, &budget.period);
+        let spent = spent_in_window(
+            conn,
+            &budget.category_id,
+            &cursor.to_string(),
+            &end.to_string(),
+        )?;
+        carry = (carry + budget.amount - spent).max(0);
+        cursor = next_period(cursor, &budget.period)?;
+        periods += 1;
+    }
+    Ok(carry)
+}
+
 /// Calculate budget status for a single budget.
-/// Computes spent amount from transactions with matching category_id in the date range.
 #[allow(dead_code)]
 pub fn calculate_budget_status(
     conn: &Connection,
@@ -144,38 +307,18 @@ pub fn calculate_budget_status(
     let category = find_category(conn, &budget.category_id)?
         .ok_or_else(|| AppError::ValidationError("errors.categoryNotFound".to_string()))?;
 
-    let from_date = format!("{:04}-{:02}-01", year, month);
-    let last_day = if month == 12 {
-        31
+    let window = budget_window(&budget.period, year, month)?;
+    let spent = spent_in_window(conn, &budget.category_id, &window.from, &window.to)?;
+    let current_start =
+        chrono::NaiveDate::parse_from_str(&window.from, "%Y-%m-%d").map_err(|_| invalid_month())?;
+    let rollover_amount = if budget.rollover {
+        rollover_carry(conn, budget, &current_start)?
     } else {
-        let next_month = chrono::NaiveDate::from_ymd_opt(year, (month + 1) as u32, 1)
-            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(year, month as u32, 1).unwrap());
-        (next_month - chrono::Duration::days(1)).day()
+        0
     };
-    let to_date = format!("{:04}-{:02}-{:02}", year, month, last_day);
-
-    let spent: i64 = conn.query_row(
-        r#"
-        SELECT COALESCE(SUM(p.amount), 0)
-        FROM postings p
-        JOIN accounts a ON a.id = p.account_id
-        JOIN categories c ON c.account_id = a.id
-        JOIN transactions t ON t.id = p.transaction_id
-        WHERE c.id = ?1
-          AND t.date >= ?2
-          AND t.date <= ?3
-        "#,
-        rusqlite::params![&budget.category_id, &from_date, &to_date],
-        |row| row.get(0),
-    )?;
-
-    // TODO: Implement rollover calculation in P1 (BUD-4)
-    // For now, rollover_amount is always 0
-    let rollover_amount: i64 = 0;
 
     let available = budget.amount + rollover_amount;
     let remaining = available - spent;
-    let over_budget = spent > available;
 
     Ok(BudgetStatusRecord {
         id: budget.id.clone(),
@@ -187,79 +330,128 @@ pub fn calculate_budget_status(
         rollover: budget.rollover,
         spent,
         remaining,
-        over_budget,
+        over_budget: spent > available,
         rollover_amount,
         available,
     })
 }
 
 /// List all budget statuses with spending information for a specific year/month.
-/// Uses a single aggregated query to avoid N+1 problem.
+///
+/// One aggregated query: each budget's window depends on its own period, so the
+/// two windows are passed in and selected per row instead of running a query per
+/// budget. Rollover is applied afterwards because it needs history, not a single
+/// aggregate.
 pub fn list_budget_statuses(
     conn: &Connection,
     year: i32,
     month: i32,
 ) -> Result<Vec<BudgetStatusRecord>, AppError> {
-    let from_date = format!("{:04}-{:02}-01", year, month);
-    let last_day = if month == 12 {
-        31
-    } else {
-        let next_month = chrono::NaiveDate::from_ymd_opt(year, (month + 1) as u32, 1)
-            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(year, month as u32, 1).unwrap());
-        (next_month - chrono::Duration::days(1)).day()
-    };
-    let to_date = format!("{:04}-{:02}-{:02}", year, month, last_day);
+    let month_window = budget_window(&BudgetPeriod::Monthly, year, month)?;
+    let week_window = budget_window(&BudgetPeriod::Weekly, year, month)?;
+
+    struct Row {
+        id: String,
+        category_id: String,
+        category_name: String,
+        category_icon: Option<String>,
+        amount: i64,
+        period: BudgetPeriod,
+        rollover: bool,
+        created_at: String,
+        spent: i64,
+    }
 
     let mut stmt = conn
         .prepare(
             r#"
-        SELECT
-            b.id, b.category_id, c.name, c.icon, b.amount, b.period, b.rollover,
-            COALESCE(SUM(CASE WHEN t.date >= ?1 AND t.date <= ?2 THEN p.amount ELSE 0 END), 0) as spent
-        FROM budgets b
-        JOIN categories c ON c.id = b.category_id
-        LEFT JOIN postings p ON p.account_id = c.account_id
-        LEFT JOIN transactions t ON t.id = p.transaction_id
-        GROUP BY b.id
-        ORDER BY b.created_at DESC
-        "#,
+            SELECT
+                b.id, b.category_id, c.name, c.icon, b.amount, b.period, b.rollover,
+                b.created_at,
+                COALESCE(SUM(
+                    CASE WHEN t.date >= (CASE WHEN b.period = 'weekly' THEN ?3 ELSE ?1 END)
+                          AND t.date <= (CASE WHEN b.period = 'weekly' THEN ?4 ELSE ?2 END)
+                          AND p.amount > 0
+                         THEN p.amount ELSE 0 END
+                ), 0) as spent
+            FROM budgets b
+            JOIN categories c ON c.id = b.category_id
+            LEFT JOIN postings p ON p.account_id = c.account_id
+            LEFT JOIN transactions t ON t.id = p.transaction_id
+            GROUP BY b.id
+            ORDER BY b.created_at DESC
+            "#,
         )
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let statuses = stmt
-        .query_map(rusqlite::params![&from_date, &to_date], |row| {
-            let period_str: String = row.get(5)?;
-            let period = match period_str.as_str() {
-                "monthly" => BudgetPeriod::Monthly,
-                "weekly" => BudgetPeriod::Weekly,
-                _ => return Err(rusqlite::Error::InvalidQuery),
-            };
-            let rollover: bool = row.get::<_, i32>(6)? != 0;
-            let amount: i64 = row.get(4)?;
-            let spent: i64 = row.get(7)?;
-            let rollover_amount: i64 = 0;
-            let available = amount + rollover_amount;
-            let remaining = available - spent;
-            let over_budget = spent > available;
-
-            Ok(BudgetStatusRecord {
-                id: row.get(0)?,
-                category_id: row.get(1)?,
-                category_name: row.get(2)?,
-                category_icon: row.get(3)?,
-                amount,
-                period,
-                rollover,
-                spent,
-                remaining,
-                over_budget,
-                rollover_amount,
-                available,
-            })
-        })
+    let rows: Vec<Row> = stmt
+        .query_map(
+            rusqlite::params![
+                &month_window.from,
+                &month_window.to,
+                &week_window.from,
+                &week_window.to
+            ],
+            |row| {
+                let period_str: String = row.get(5)?;
+                let period = match period_str.as_str() {
+                    "monthly" => BudgetPeriod::Monthly,
+                    "weekly" => BudgetPeriod::Weekly,
+                    _ => return Err(rusqlite::Error::InvalidQuery),
+                };
+                Ok(Row {
+                    id: row.get(0)?,
+                    category_id: row.get(1)?,
+                    category_name: row.get(2)?,
+                    category_icon: row.get(3)?,
+                    amount: row.get(4)?,
+                    period,
+                    rollover: row.get::<_, i32>(6)? != 0,
+                    created_at: row.get(7)?,
+                    spent: row.get(8)?,
+                })
+            },
+        )
         .map_err(|e| AppError::DatabaseError(e.to_string()))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+    drop(stmt);
+
+    let mut statuses = Vec::with_capacity(rows.len());
+    for row in rows {
+        let period_window = budget_window(&row.period, year, month)?;
+        let rollover_amount = if row.rollover {
+            let budget = BudgetRecord {
+                id: row.id.clone(),
+                category_id: row.category_id.clone(),
+                amount: row.amount,
+                period: row.period.clone(),
+                rollover: row.rollover,
+                created_at: row.created_at.clone(),
+                updated_at: row.created_at.clone(),
+            };
+            let current_start = chrono::NaiveDate::parse_from_str(&period_window.from, "%Y-%m-%d")
+                .map_err(|_| invalid_month())?;
+            rollover_carry(conn, &budget, &current_start)?
+        } else {
+            0
+        };
+        let available = row.amount + rollover_amount;
+        statuses.push(BudgetStatusRecord {
+            id: row.id,
+            category_id: row.category_id,
+            category_name: row.category_name,
+            category_icon: row.category_icon,
+            amount: row.amount,
+            period: row.period,
+            rollover: row.rollover,
+            spent: row.spent,
+            remaining: available - row.spent,
+            over_budget: row.spent > available,
+            rollover_amount,
+            available,
+        });
+    }
 
     Ok(statuses)
 }
@@ -918,6 +1110,139 @@ mod tests {
         let statuses = list_budget_statuses(&conn, 2024, 12).unwrap();
         assert_eq!(statuses.len(), 1);
         assert_eq!(statuses[0].spent, 0);
+    }
+
+    /// A weekly budget is measured over a week. Measuring it over the whole
+    /// month reported ~4x the real overspend for anyone who used one.
+    #[test]
+    fn test_weekly_budget_counts_only_the_current_week() {
+        let (_dir, conn) = test_conn();
+        let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
+        let food_acct = make_account(&conn, "餐饮", "expense");
+        let cash = make_account(&conn, "Cash", "asset");
+
+        create_budget(&conn, &cat_id, 50000, &BudgetPeriod::Weekly, false).unwrap();
+
+        let today =
+            chrono::NaiveDate::parse_from_str(&crate::utils::time::today_date(), "%Y-%m-%d")
+                .expect("today parses");
+        let (year, month) = (today.year(), today.month() as i32);
+        let window = budget_window(&BudgetPeriod::Weekly, year, month).unwrap();
+        let start = chrono::NaiveDate::parse_from_str(&window.from, "%Y-%m-%d").unwrap();
+        let end = chrono::NaiveDate::parse_from_str(&window.to, "%Y-%m-%d").unwrap();
+
+        assert_eq!((end - start).num_days(), 6, "a week is seven days");
+        assert_eq!(
+            start.weekday(),
+            chrono::Weekday::Mon,
+            "weeks run Monday to Sunday"
+        );
+
+        // Inside the week.
+        make_categorized_transaction(
+            &conn,
+            &start.to_string(),
+            "本周午餐",
+            &[(food_acct.clone(), 12000), (cash.clone(), -12000)],
+        );
+        // Outside it, but inside the same month: must not count.
+        make_categorized_transaction(
+            &conn,
+            &(start - chrono::Duration::days(20)).to_string(),
+            "三周前",
+            &[(food_acct.clone(), 30000), (cash.clone(), -30000)],
+        );
+
+        let statuses = list_budget_statuses(&conn, year, month).unwrap();
+        assert_eq!(
+            statuses[0].spent, 12000,
+            "only the current week's spending belongs to a weekly budget"
+        );
+        assert_eq!(statuses[0].available, 50000);
+        assert!(!statuses[0].over_budget);
+    }
+
+    /// Unused budget from the previous period carries over when the switch is
+    /// on — the field used to be hardcoded to zero while still being exposed.
+    #[test]
+    fn test_monthly_rollover_carries_last_months_leftover() {
+        let (_dir, conn) = test_conn();
+        let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
+        let food_acct = make_account(&conn, "餐饮", "expense");
+        let cash = make_account(&conn, "Cash", "asset");
+
+        let budget_id = create_budget(&conn, &cat_id, 50000, &BudgetPeriod::Monthly, true).unwrap();
+        // Pretend the budget has existed since October.
+        conn.execute(
+            "UPDATE budgets SET created_at = '2026-10-05T00:00:00Z' WHERE id = ?1",
+            [&budget_id],
+        )
+        .unwrap();
+
+        // October: 300.00 of 500.00 spent -> 200.00 carries into November.
+        make_categorized_transaction(
+            &conn,
+            "2026-10-15",
+            "十月午餐",
+            &[(food_acct.clone(), 30000), (cash.clone(), -30000)],
+        );
+
+        let statuses = list_budget_statuses(&conn, 2026, 11).unwrap();
+        assert_eq!(statuses[0].spent, 0);
+        assert_eq!(statuses[0].rollover_amount, 20000);
+        assert_eq!(statuses[0].available, 70000);
+        assert_eq!(statuses[0].remaining, 70000);
+
+        // November spending beyond 500.00 is still fine thanks to the carry.
+        make_categorized_transaction(
+            &conn,
+            "2026-11-03",
+            "十一月午餐",
+            &[(food_acct.clone(), 60000), (cash.clone(), -60000)],
+        );
+        let statuses = list_budget_statuses(&conn, 2026, 11).unwrap();
+        assert_eq!(statuses[0].spent, 60000);
+        assert_eq!(statuses[0].available, 70000);
+        assert!(!statuses[0].over_budget);
+        assert_eq!(statuses[0].remaining, 10000);
+    }
+
+    /// Overspending one period must not make the next period's budget smaller.
+    #[test]
+    fn test_rollover_never_goes_negative() {
+        let (_dir, conn) = test_conn();
+        let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
+        let food_acct = make_account(&conn, "餐饮", "expense");
+        let cash = make_account(&conn, "Cash", "asset");
+
+        let budget_id = create_budget(&conn, &cat_id, 50000, &BudgetPeriod::Monthly, true).unwrap();
+        conn.execute(
+            "UPDATE budgets SET created_at = '2026-10-05T00:00:00Z' WHERE id = ?1",
+            [&budget_id],
+        )
+        .unwrap();
+        make_categorized_transaction(
+            &conn,
+            "2026-10-15",
+            "十月超支",
+            &[(food_acct, 90000), (cash, -90000)],
+        );
+
+        let statuses = list_budget_statuses(&conn, 2026, 11).unwrap();
+        assert_eq!(statuses[0].rollover_amount, 0);
+        assert_eq!(statuses[0].available, 50000);
+    }
+
+    #[test]
+    fn test_budget_status_rejects_invalid_month() {
+        let (_dir, conn) = test_conn();
+        let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
+        create_budget(&conn, &cat_id, 10000, &BudgetPeriod::Monthly, false).unwrap();
+
+        // Used to panic in `from_ymd_opt(...).unwrap()` while holding both
+        // database mutexes.
+        assert!(list_budget_statuses(&conn, 2024, 13).is_err());
+        assert!(list_budget_statuses(&conn, 2024, 0).is_err());
     }
 
     #[test]

@@ -1,6 +1,7 @@
 {
   "common": {
     "appName": "GlimmerX",
+    "listSeparator": "、",
     "loading": "加载中...",
     "processing": "处理中...",
     "cancel": "取消",
@@ -20,6 +21,7 @@
     "inDevelopment": "开发中",
     "noRecords": "暂无记录",
     "errorGeneric": "操作失败，请重试",
+    "lockFailed": "锁定失败：数据库密钥未能释放，请重试或直接关闭应用",
     "close": "关闭",
     "actions": "操作",
     "all": "全部",
@@ -514,9 +516,11 @@
     "budgetOnlyForExpense": "只能为支出分类设置预算",
     "budgetAlreadyExists": "该分类已存在预算",
     "budgetAmountPositive": "预算金额必须大于零",
+    "budgetInvalidMonth": "月份无效",
     "invalidPassword": "密码错误或数据库已损坏",
     "invalidDateFormat": "日期格式无效。请使用 YYYY-MM-DD 格式。",
     "invalidDateValue": "日期无效",
+    "invalidDatabasePath": "无效的数据库文件路径",
     "invalidYearMonth": "月份无效",
     "transaction": {
       "amountTooSmall": "金额太小。最小金额为 0.01。",
@@ -551,7 +555,13 @@
       "insecureBaseUrl": "仅支持 https:// 的 API 地址（本地 127.0.0.1 可用 http）"
     },
     "account": {
-      "inactive": "该账户已停用，无法使用"
+      "inactive": "该账户已停用，无法使用",
+      "isCategoryMirror": "该账户是某个分类的镜像账户，请到分类页删除该分类",
+      "openingBalanceInconsistent": "期初余额交易已损坏（借贷不平），请重新设置期初余额",
+      "transferAmountInvalid": "转账金额必须大于零",
+      "transferAmountTooLarge": "转账金额超出允许范围",
+      "transferSameAccount": "不能转账给同一个账户",
+      "transferAccountInvalid": "转账账户不存在、已停用，或是不允许转账的账户类型"
     },
     "backupFailed": "备份失败，请检查目标路径是否可写",
     "backupSamePath": "不能把备份保存到数据库文件本身，请选择其他位置",
@@ -574,6 +584,7 @@
     },
     "savings": {
       "accountNotEmpty": "该目标账户仍有余额，请先将余额转出",
+      "accountIsGoal": "该账户属于一个储蓄目标，请先删除该储蓄目标",
       "duplicateName": "已存在同名的储蓄目标",
       "goalNotFound": "储蓄目标不存在",
       "invalidTarget": "目标金额必须大于零",
@@ -879,6 +890,7 @@
     "toAccount": "转入账户",
     "amount": "金额",
     "transferDone": "已记录",
+    "invalidAmount": "请输入大于零的金额",
     "editTitle": "编辑目标"
   }
 }

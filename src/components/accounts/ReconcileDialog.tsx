@@ -68,6 +68,13 @@ export function ReconcileDialog({
     }
   }, [open]);
 
+  // The candidate list is scoped to the statement date and the backend rejects
+  // a posting dated after it, so a selection carried across dates would fail to
+  // submit for a reason the user cannot see.
+  useEffect(() => {
+    setSelected([]);
+  }, [statementDate]);
+
   const previewQuery = useQuery({
     queryKey: ["reconcile-preview", accountId, statementDate],
     queryFn: () => reconcilePreview(accountId, statementDate),
@@ -83,8 +90,15 @@ export function ReconcileDialog({
   const selectedKey = useMemo(() => [...selected].sort().join(","), [selected]);
 
   const totalsQuery = useQuery({
-    queryKey: ["reconcile-totals", accountId, closingBalance, selectedKey],
-    queryFn: () => reconcileTotals(accountId, closingBalance, selected),
+    queryKey: [
+      "reconcile-totals",
+      accountId,
+      statementDate,
+      closingBalance,
+      selectedKey,
+    ],
+    queryFn: () =>
+      reconcileTotals(accountId, statementDate, closingBalance, selected),
     enabled: open && statementDate.length === 10,
   });
 

@@ -46,6 +46,19 @@ fn with_conn<T>(
     f(&conn).map_err(|e| e.to_string())
 }
 
+/// Parse the statement balance, treating an empty field as zero.
+///
+/// `reconcile_totals` and `reconcile_create` must agree: when only the totals
+/// call was lenient, the screen could show a balanced statement that the submit
+/// then rejected, with no way to tell which one was telling the truth.
+fn parse_closing(raw: &str) -> Result<i64, crate::db::AppError> {
+    if raw.trim().is_empty() {
+        Ok(0)
+    } else {
+        parse_amount_to_cents(raw)
+    }
+}
+
 #[tauri::command]
 pub async fn reconcile_preview(
     account_id: String,
@@ -81,25 +94,22 @@ pub async fn reconcile_auto_match(
 #[tauri::command]
 pub async fn reconcile_totals(
     account_id: String,
+    statement_date: String,
     closing_balance: String,
     posting_ids: Vec<String>,
     state: State<'_, AppState>,
 ) -> Result<ReconcileTotalsDto, String> {
     with_conn(&state, |conn| {
-        let closing = if closing_balance.trim().is_empty() {
-            0
-        } else {
-            parse_amount_to_cents(&closing_balance)?
-        };
-        crate::db::reconcile::totals(conn, &account_id, &posting_ids, closing).map(|t| {
-            ReconcileTotalsDto {
+        let closing = parse_closing(&closing_balance)?;
+        crate::db::reconcile::totals(conn, &account_id, &statement_date, &posting_ids, closing).map(
+            |t| ReconcileTotalsDto {
                 opening_balance: t.opening_balance,
                 selected_total: t.selected_total,
                 expected_balance: t.expected_balance,
                 difference: t.difference,
                 balanced: t.balanced,
-            }
-        })
+            },
+        )
     })
 }
 
@@ -109,7 +119,7 @@ pub async fn reconcile_create(
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     with_conn(&state, |conn| {
-        let closing = parse_amount_to_cents(&input.closing_balance)?;
+        let closing = parse_closing(&input.closing_balance)?;
         crate::db::reconcile::create_reconciliation(
             conn,
             &input.account_id,
@@ -298,6 +308,7 @@ mod ipc_tests {
             "reconcile_totals",
             serde_json::json!({
                 "accountId": seeded.account_id,
+                "statementDate": "2024-01-10",
                 "closingBalance": "300.00",
                 "postingIds": selection,
             }),
@@ -313,6 +324,7 @@ mod ipc_tests {
             "reconcile_totals",
             serde_json::json!({
                 "accountId": seeded.account_id,
+                "statementDate": "2024-01-10",
                 "closingBalance": "",
                 "postingIds": selection,
             }),
@@ -420,6 +432,7 @@ mod ipc_tests {
             "reconcile_totals",
             serde_json::json!({
                 "accountId": seeded.account_id,
+                "statementDate": "2024-01-10",
                 "closingBalance": "0",
                 "postingIds": ["not-a-posting"],
             }),

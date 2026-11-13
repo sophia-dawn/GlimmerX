@@ -36,6 +36,12 @@ static MIGRATIONS: LazyLock<Migrations> = LazyLock::new(|| {
 /// `Migrations` bookkeeping runs. Production code always goes through
 /// [`migrate`]; keeping this behind `cfg(test)` makes it impossible to
 /// accidentally create an untracked schema.
+///
+/// All versions share one transaction so a failure cannot leave a half-built
+/// schema behind (the individual `.sql` files are not idempotent when replayed
+/// from a partial state: v2 starts with `ALTER TABLE ... ADD COLUMN`).
+/// `test_init_baseline_matches_migrations` keeps this hand-written chain and
+/// [`MIGRATIONS`] from drifting apart.
 #[cfg(test)]
 pub fn init_baseline(conn: &Connection) -> Result<(), AppError> {
     apply_pragmas(conn)?;
@@ -43,15 +49,24 @@ pub fn init_baseline(conn: &Connection) -> Result<(), AppError> {
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(|e| AppError::DatabaseError(format!("数据库初始化失败：{e}")))?;
-    if version >= SCHEMA_VERSION {
+    if version > SCHEMA_VERSION {
+        return Err(AppError::DatabaseError(
+            "数据库由更新版本创建，请升级应用后再打开".to_string(),
+        ));
+    }
+    if version == SCHEMA_VERSION {
         return Ok(());
     }
 
-    conn.execute_batch(include_str!("schema_v1.sql"))
-        .and_then(|_| conn.execute_batch(include_str!("schema_v2.sql")))
-        .and_then(|_| backfill_category_accounts(conn))
-        .and_then(|_| conn.execute_batch(include_str!("schema_v3.sql")))
-        .and_then(|_| conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};")))
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| AppError::DatabaseError(format!("数据库初始化失败：{e}")))?;
+    tx.execute_batch(include_str!("schema_v1.sql"))?;
+    tx.execute_batch(include_str!("schema_v2.sql"))?;
+    backfill_category_accounts(&tx)?;
+    tx.execute_batch(include_str!("schema_v3.sql"))?;
+    tx.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION};"))?;
+    tx.commit()
         .map_err(|e| AppError::DatabaseError(format!("数据库初始化失败：{e}")))
 }
 
@@ -88,16 +103,32 @@ fn backfill_category_accounts(conn: &Connection) -> rusqlite::Result<()> {
     };
 
     for (category_id, name, category_type) in pending {
+        // `TRIM` because the old name matching was exact: '餐饮' and '餐饮 ' were
+        // two accounts, and binding only one of them would keep the duplicate
+        // the backfill exists to remove.
         let existing: Option<String> = conn
             .query_row(
-                "SELECT id FROM accounts WHERE type = ?1 AND name = ?2",
+                "SELECT id FROM accounts
+                  WHERE type = ?1 AND TRIM(name) = TRIM(?2)
+                  ORDER BY id LIMIT 1",
                 params![&category_type, &name],
                 |row| row.get(0),
             )
             .optional()?;
 
         let account_id = match existing {
-            Some(id) => id,
+            Some(id) => {
+                // A P&L account deactivated before v2 would become a category
+                // that cannot be used (validation rejects inactive accounts),
+                // cannot be seen (the account page only lists balance-sheet
+                // types) and cannot be deleted (it has postings). Re-activate
+                // it: the category is the user-facing object now.
+                conn.execute(
+                    "UPDATE accounts SET is_active = 1 WHERE id = ?1 AND is_active = 0",
+                    params![&id],
+                )?;
+                id
+            }
             None => {
                 let id = Uuid::new_v4().to_string();
                 insert_category_account(conn, &id, &name, &category_type, &now)?;
@@ -138,6 +169,12 @@ fn backfill_category_accounts(conn: &Connection) -> rusqlite::Result<()> {
                 &account_id,
                 &now
             ],
+        )?;
+        // Same reason as step ①: a deactivated account behind a category is a
+        // dead end for the user.
+        conn.execute(
+            "UPDATE accounts SET is_active = 1 WHERE id = ?1 AND is_active = 0",
+            params![&account_id],
         )?;
     }
 
@@ -535,6 +572,21 @@ mod tests {
             0
         );
 
+        // The dropped cache is archived rather than destroyed: it is the only
+        // record of the category the user picked before v3.
+        assert_eq!(
+            count(&conn, "SELECT COUNT(*) FROM legacy_transaction_categories"),
+            2
+        );
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT COUNT(*) FROM legacy_transaction_categories
+                  WHERE transaction_id = 'tx-1' AND category_id = 'cat-food'"
+            ),
+            1
+        );
+
         // New tables exist.
         for table in ["reconciliations", "savings_goals"] {
             assert_eq!(
@@ -545,5 +597,190 @@ mod tests {
                 1
             );
         }
+    }
+
+    /// A v2 database: v1 + v2 + backfill, stamped 2. This is the upgrade path a
+    /// database that has already been opened once on the v2 build takes, and it
+    /// only replays v3.
+    fn v2_db() -> (TempDir, PathBuf, Connection) {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("v2.db");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA foreign_keys = ON;",
+        )
+        .unwrap();
+        conn.execute_batch(include_str!("schema_v1.sql")).unwrap();
+        conn.execute_batch(include_str!("schema_v2.sql")).unwrap();
+        backfill_category_accounts(&conn).unwrap();
+        conn.execute_batch("PRAGMA user_version = 2;").unwrap();
+        (dir, path, conn)
+    }
+
+    /// v3 must leave a trail for the transactions whose category changes: the
+    /// user picked 餐饮, the postings point at 外卖, and after v3 the reports
+    /// follow the postings. The archive table is what makes that auditable.
+    #[test]
+    fn test_v3_archives_the_dropped_category() {
+        let (_dir, path, mut conn) = v2_db();
+
+        insert_account(&conn, "acc-bank", "招商银行", "asset");
+        insert_account(&conn, "acc-food", "餐饮", "expense");
+        insert_account(&conn, "acc-takeaway", "外卖", "expense");
+        conn.execute(
+            "INSERT INTO categories (id, name, type, account_id, created_at, updated_at)
+             VALUES ('cat-food', '餐饮', 'expense', 'acc-food', '2024-01-01T00:00:00Z',
+                     '2024-01-01T00:00:00Z'),
+                    ('cat-takeaway', '外卖', 'expense', 'acc-takeaway', '2024-01-01T00:00:00Z',
+                     '2024-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        // The disagreeing pair v2 allowed: cached category 餐饮, postings on 外卖.
+        conn.execute(
+            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
+             VALUES ('tx-split', '2024-02-01', '午饭', 'cat-food',
+                     '2024-02-01T00:00:00Z', '2024-02-01T00:00:00Z'),
+                    ('tx-plain', '2024-02-02', '打车', NULL,
+                     '2024-02-02T00:00:00Z', '2024-02-02T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO postings (id, transaction_id, account_id, amount, sequence, created_at)
+             VALUES ('p-1', 'tx-split', 'acc-takeaway', 3500, 0, '2024-02-01T00:00:00Z'),
+                    ('p-2', 'tx-split', 'acc-bank', -3500, 1, '2024-02-01T00:00:00Z'),
+                    ('p-3', 'tx-plain', 'acc-food', 1200, 0, '2024-02-02T00:00:00Z'),
+                    ('p-4', 'tx-plain', 'acc-bank', -1200, 1, '2024-02-02T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        migrate(&mut conn, &path, false).unwrap();
+
+        assert_eq!(
+            count(&conn, "PRAGMA user_version"),
+            3,
+            "v2 databases only replay v3"
+        );
+        // Only the row with a cached category is archived; NULL stays absent
+        // instead of becoming a meaningless row.
+        assert_eq!(
+            count(&conn, "SELECT COUNT(*) FROM legacy_transaction_categories"),
+            1
+        );
+        let archived: String = conn
+            .query_row(
+                "SELECT category_id FROM legacy_transaction_categories WHERE transaction_id = 'tx-split'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(archived, "cat-food");
+
+        // The live answer now comes from the posting.
+        let derived: String = conn
+            .query_row(
+                "SELECT c.name FROM postings p
+                   JOIN accounts a ON a.id = p.account_id
+                   JOIN categories c ON c.account_id = a.id
+                  WHERE p.transaction_id = 'tx-split' AND p.amount > 0",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(derived, "外卖");
+
+        // Reconciliation state written by v2 survives the upgrade.
+        assert_eq!(
+            count(&conn, "SELECT COUNT(*) FROM postings WHERE cleared = 1"),
+            0
+        );
+    }
+
+    /// `init_baseline` repeats the migration chain by hand (it cannot call
+    /// `to_latest`, which needs `&mut Connection`). This is the guard that keeps
+    /// the two from drifting: any v4 added to `MIGRATIONS` without a matching
+    /// line in `init_baseline` fails here instead of at runtime.
+    #[test]
+    fn test_init_baseline_matches_migrations() {
+        fn schema(conn: &Connection) -> Vec<(String, String, String)> {
+            conn.prepare(
+                "SELECT type, name, COALESCE(sql, '') FROM sqlite_master ORDER BY type, name",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+        }
+
+        let baseline = Connection::open_in_memory().unwrap();
+        init_baseline(&baseline).unwrap();
+
+        let mut migrated = Connection::open_in_memory().unwrap();
+        apply_pragmas(&migrated).unwrap();
+        MIGRATIONS.to_latest(&mut migrated).unwrap();
+
+        assert_eq!(
+            schema(&baseline),
+            schema(&migrated),
+            "init_baseline has drifted from MIGRATIONS"
+        );
+        assert_eq!(count(&baseline, "PRAGMA user_version"), SCHEMA_VERSION);
+        assert_eq!(count(&migrated, "PRAGMA user_version"), SCHEMA_VERSION);
+    }
+
+    /// A deactivated P&L account must come back to life when it becomes a
+    /// category: otherwise the category cannot be used, cannot be seen and
+    /// cannot be deleted.
+    #[test]
+    fn test_backfill_reactivates_category_accounts() {
+        let (_dir, path, mut conn) = v1_db();
+
+        conn.execute(
+            "INSERT INTO accounts (id, name, type, currency, description, is_system,
+                                   is_active, include_net_worth, created_at, updated_at)
+             VALUES ('acc-food', '餐饮', 'expense', 'CNY', '', 0, 0, 0,
+                     '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z'),
+                    ('acc-old', '旧分类', 'expense', 'CNY', '', 0, 0, 0,
+                     '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO categories (id, name, type, created_at, updated_at)
+             VALUES ('cat-food', '餐饮', 'expense', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        migrate(&mut conn, &path, false).unwrap();
+
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT COUNT(*) FROM accounts WHERE id = 'acc-food' AND is_active = 1"
+            ),
+            1,
+            "the adopted account must be active"
+        );
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT COUNT(*) FROM accounts WHERE id = 'acc-old' AND is_active = 1"
+            ),
+            1,
+            "the orphan account behind a new category must be active"
+        );
+        assert_eq!(
+            count(
+                &conn,
+                "SELECT COUNT(*) FROM categories WHERE name = '旧分类' AND account_id = 'acc-old'"
+            ),
+            1
+        );
     }
 }

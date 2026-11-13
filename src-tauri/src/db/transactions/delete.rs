@@ -24,13 +24,19 @@ pub fn get_delete_preview(conn: &Connection, tx_id: &str) -> Result<DeletePrevie
         |row| row.get(0),
     )?;
 
+    // `delete_transaction` refuses a reconciled transaction; saying "can delete"
+    // and then failing after the confirmation is a worse answer than saying so up
+    // front.
+    let locked = crate::db::reconcile::assert_not_reconciled(conn, tx_id).is_err();
+
     Ok(DeletePreview {
         transaction_id: tx_id.to_string(),
         description,
         date,
         posting_count,
-        can_delete: true,
-        warning_message: None,
+        can_delete: !locked,
+        warning_message: locked
+            .then(|| crate::errors::message("errors.reconcile.transactionLocked").to_string()),
     })
 }
 

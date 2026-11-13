@@ -212,6 +212,9 @@ pub fn update_account(conn: &Connection, params: &UpdateAccountParams<'_>) -> Re
 }
 
 /// Delete an account permanently. Only allowed if:
+/// - It is not the mirror of a category (deleting it would strand the category)
+/// - It is not the account of a savings goal (those cascade, and losing the goal
+///   would be a silent data loss)
 /// - It has no user-created transactions (opening balance transactions are auto-cleaned)
 pub fn delete_account(conn: &Connection, id: &str) -> Result<(), AppError> {
     let account = find_account(conn, id)?
@@ -222,11 +225,41 @@ pub fn delete_account(conn: &Connection, id: &str) -> Result<(), AppError> {
         return Err(AppError::ValidationError("errors.accountIsSystem".into()));
     }
 
+    // A category owns its mirror account; the category page is the place to
+    // delete it. Without this check the failure surfaces as a raw FOREIGN KEY
+    // error that the UI can only render as "database error".
+    let is_category_mirror: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM categories WHERE account_id = ?1)",
+        [id],
+        |row| row.get(0),
+    )?;
+    if is_category_mirror {
+        return Err(AppError::ValidationError(
+            "errors.account.isCategoryMirror".into(),
+        ));
+    }
+
+    // `savings_goals.account_id` is ON DELETE CASCADE, so deleting the account
+    // would delete the goal with it.
+    let is_goal_account: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM savings_goals WHERE account_id = ?1)",
+        [id],
+        |row| row.get(0),
+    )?;
+    if is_goal_account {
+        return Err(AppError::ValidationError(
+            "errors.savings.accountIsGoal".into(),
+        ));
+    }
+
     // 1. Check for user-created transactions FIRST — this is the red line
     let user_tx_count: i64 = conn.query_row(
-        "SELECT COUNT(DISTINCT t.id) FROM transactions t
-         JOIN postings p ON p.transaction_id = t.id
-         WHERE p.account_id = ?1 AND t.description != 'Opening Balance'",
+        &format!(
+            "SELECT COUNT(DISTINCT t.id) FROM transactions t
+               JOIN postings p ON p.transaction_id = t.id
+              WHERE p.account_id = ?1 AND NOT {}",
+            super::opening::OPENING_BALANCE_PREDICATE
+        ),
         [id],
         |row| row.get(0),
     )?;
@@ -237,11 +270,12 @@ pub fn delete_account(conn: &Connection, id: &str) -> Result<(), AppError> {
     }
 
     // 4. Safe to clean up opening balance entries
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare(&format!(
         "SELECT DISTINCT t.id FROM transactions t
-         JOIN postings p ON p.transaction_id = t.id
-         WHERE p.account_id = ?1 AND t.description = 'Opening Balance'",
-    )?;
+           JOIN postings p ON p.transaction_id = t.id
+          WHERE p.account_id = ?1 AND {}",
+        super::opening::OPENING_BALANCE_PREDICATE
+    ))?;
     let ob_tx_ids: Vec<String> = stmt
         .query_map([id], |row| row.get(0))?
         .filter_map(|r| r.ok())
@@ -265,11 +299,12 @@ pub(in crate::db::accounts) fn delete_opening_balance(
     account_id: &str,
 ) -> Result<(), AppError> {
     let ob_tx_ids: Vec<String> = conn
-        .prepare(
+        .prepare(&format!(
             "SELECT DISTINCT t.id FROM transactions t
-             JOIN postings p ON p.transaction_id = t.id
-             WHERE p.account_id = ?1 AND t.description = 'Opening Balance'",
-        )?
+               JOIN postings p ON p.transaction_id = t.id
+              WHERE p.account_id = ?1 AND {}",
+            super::opening::OPENING_BALANCE_PREDICATE
+        ))?
         .query_map([account_id], |row| row.get(0))?
         .filter_map(|r| r.ok())
         .collect();
@@ -289,10 +324,13 @@ pub fn get_opening_balance_for_account(
 ) -> Result<Option<(i64, String)>, AppError> {
     let result: Option<(i64, String)> = conn
         .query_row(
-            "SELECT p.amount, t.date FROM transactions t
-             JOIN postings p ON p.transaction_id = t.id
-             WHERE t.description = 'Opening Balance' AND p.account_id = ?1
-             LIMIT 1",
+            &format!(
+                "SELECT p.amount, t.date FROM transactions t
+                   JOIN postings p ON p.transaction_id = t.id
+                  WHERE p.account_id = ?1 AND {}
+                  LIMIT 1",
+                super::opening::OPENING_BALANCE_PREDICATE
+            ),
             [account_id],
             |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
         )

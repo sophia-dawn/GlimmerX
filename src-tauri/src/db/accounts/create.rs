@@ -44,7 +44,11 @@ pub fn create_account_with_path(
 
     let full_input = input.cloned().unwrap_or(CreateAccountFullInput {
         is_active: true,
-        include_net_worth: false,
+        // Same default as `account_create` (`unwrap_or(true)`): an asset or
+        // liability account counts toward net worth unless the user says
+        // otherwise. Defaulting to false here made the checkbox silently
+        // disagree between the command path and internal callers.
+        include_net_worth: true,
         description: None,
         account_number: None,
         iban: None,

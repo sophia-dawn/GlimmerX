@@ -8,6 +8,13 @@
 //! Invariant: `SUM(amount) over cleared postings == closing balance` after a
 //! reconciliation. `opening_balance` is recorded as the cleared sum *before*
 //! the run, so the history stays readable even after later reconciliations.
+//!
+//! **Sign convention**: everything this module returns or accepts is in
+//! *statement sign* — the number a bank statement prints. A liability carries a
+//! negative ledger balance (negative = owed) while a credit-card statement
+//! states the debt as a positive number, so liability amounts are flipped on the
+//! way in and out. Without that, `opening + selected == closing` could never
+//! hold for a liability and the account could never be reconciled.
 
 use rusqlite::{Connection, OptionalExtension};
 use uuid::Uuid;
@@ -79,26 +86,51 @@ pub struct AutoMatchResult {
 // Read
 // ---------------------------------------------------------------------------
 
-/// Balance already reconciled for the account (sum of cleared postings).
+/// Sign that turns a ledger amount into the number printed on the statement.
+///
+/// Also the single place that decides which account types may be reconciled, so
+/// the check and the sign can never disagree.
+fn statement_sign(conn: &Connection, account_id: &str) -> Result<i64, AppError> {
+    let account_type: Option<String> = conn
+        .query_row(
+            "SELECT type FROM accounts WHERE id = ?1",
+            [account_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    match account_type.as_deref() {
+        None => Err(AppError::NotFound("errors.accountNotFound".to_string())),
+        Some("asset") => Ok(1),
+        Some("liability") => Ok(-1),
+        Some(_) => Err(AppError::ValidationError(
+            "errors.reconcile.accountNotReconcilable".to_string(),
+        )),
+    }
+}
+
+/// Balance already reconciled for the account, in statement sign.
 pub fn cleared_balance(conn: &Connection, account_id: &str) -> Result<i64, AppError> {
-    let total = conn.query_row(
+    let sign = statement_sign(conn, account_id)?;
+    let total: i64 = conn.query_row(
         "SELECT COALESCE(SUM(p.amount), 0)
            FROM postings p
           WHERE p.account_id = ?1 AND p.cleared = 1",
         [account_id],
         |row| row.get(0),
     )?;
-    Ok(total)
+    Ok(sign * total)
 }
 
-/// Postings still open for reconciliation up to `statement_date`.
+/// Postings still open for reconciliation up to `statement_date`, in statement
+/// sign (so a pasted credit-card charge matches the ledger row).
 pub fn candidates(
     conn: &Connection,
     account_id: &str,
     statement_date: &str,
 ) -> Result<Vec<ReconcileCandidate>, AppError> {
+    let sign = statement_sign(conn, account_id)?;
     let mut stmt = conn.prepare(
-        "SELECT p.id, p.transaction_id, t.date, t.description, p.amount
+        "SELECT p.id, p.transaction_id, t.date, t.description, p.amount * ?3
            FROM postings p
            JOIN transactions t ON t.id = p.transaction_id
           WHERE p.account_id = ?1
@@ -107,7 +139,7 @@ pub fn candidates(
           ORDER BY t.date, p.id",
     )?;
     let rows = stmt
-        .query_map(rusqlite::params![account_id, statement_date], |row| {
+        .query_map(rusqlite::params![account_id, statement_date, sign], |row| {
             Ok(ReconcileCandidate {
                 posting_id: row.get(0)?,
                 transaction_id: row.get(1)?,
@@ -239,42 +271,45 @@ pub fn auto_match(
 // ---------------------------------------------------------------------------
 
 fn ensure_reconcilable(conn: &Connection, account_id: &str) -> Result<(), AppError> {
-    let account_type: Option<String> = conn
-        .query_row(
-            "SELECT type FROM accounts WHERE id = ?1",
-            [account_id],
-            |row| row.get(0),
-        )
-        .optional()?;
-    match account_type.as_deref() {
-        None => Err(AppError::NotFound("errors.accountNotFound".to_string())),
-        Some("asset") | Some("liability") => Ok(()),
-        Some(_) => Err(AppError::ValidationError(
-            "errors.reconcile.accountNotReconcilable".to_string(),
-        )),
-    }
+    // Delegates so the "may be reconciled" decision and the sign flip cannot
+    // drift apart.
+    statement_sign(conn, account_id).map(|_| ())
 }
 
-/// Validate a candidate selection and return its signed total.
+/// Validate a candidate selection and return its total in statement sign.
 ///
-/// A posting is only acceptable here if it belongs to the account and is still
-/// open; anything else means the screen is stale.
+/// A posting is only acceptable here if it belongs to the account, is still
+/// open, and is not dated after the statement; anything else means the screen is
+/// stale. Duplicates are rejected rather than summed twice: the `UPDATE` that
+/// clears them is idempotent, so a duplicated id would pass a check for
+/// `2 * amount` and then record a statement the ledger does not match.
 fn selected_total(
     conn: &Connection,
     account_id: &str,
+    statement_date: &str,
     posting_ids: &[String],
 ) -> Result<i64, AppError> {
+    let sign = statement_sign(conn, account_id)?;
+    let mut seen = std::collections::HashSet::new();
     let mut total: i64 = 0;
     for id in posting_ids {
+        if !seen.insert(id) {
+            return Err(AppError::ValidationError(
+                "errors.reconcile.postingNotAvailable".to_string(),
+            ));
+        }
         let row: Option<(i64, i64)> = conn
             .query_row(
-                "SELECT amount, cleared FROM postings WHERE id = ?1 AND account_id = ?2",
-                rusqlite::params![id, account_id],
+                "SELECT p.amount, p.cleared
+                   FROM postings p
+                   JOIN transactions t ON t.id = p.transaction_id
+                  WHERE p.id = ?1 AND p.account_id = ?2 AND t.date <= ?3",
+                rusqlite::params![id, account_id, statement_date],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
         match row {
-            Some((amount, 0)) => total += amount,
+            Some((amount, 0)) => total += sign * amount,
             _ => {
                 return Err(AppError::ValidationError(
                     "errors.reconcile.postingNotAvailable".to_string(),
@@ -293,11 +328,12 @@ fn selected_total(
 pub fn totals(
     conn: &Connection,
     account_id: &str,
+    statement_date: &str,
     posting_ids: &[String],
     closing_balance: i64,
 ) -> Result<ReconcileTotals, AppError> {
     let opening_balance = cleared_balance(conn, account_id)?;
-    let selected_total = selected_total(conn, account_id, posting_ids)?;
+    let selected_total = selected_total(conn, account_id, statement_date, posting_ids)?;
     let expected_balance = opening_balance + selected_total;
     let difference = expected_balance - closing_balance;
     Ok(ReconcileTotals {
@@ -342,7 +378,7 @@ pub fn create_reconciliation(
     }
 
     let opening_balance = cleared_balance(&tx, account_id)?;
-    let selected = selected_total(&tx, account_id, posting_ids)?;
+    let selected = selected_total(&tx, account_id, statement_date, posting_ids)?;
     if opening_balance + selected != closing_balance {
         return Err(AppError::ValidationError(
             "errors.reconcile.differenceNotZero".to_string(),
@@ -401,9 +437,16 @@ pub fn undo_reconciliation(conn: &Connection, reconciliation_id: &str) -> Result
 }
 
 /// Guard for edit/delete paths: a reconciled transaction is frozen.
+///
+/// `cleared` is checked as well as `reconcile_id`: a posting can be cleared
+/// without belonging to a statement row (that is what v2's backfill produced),
+/// and such a posting would otherwise be editable *and* impossible to
+/// reconcile again, silently moving the cleared balance away from the
+/// statements it was counted in.
 pub fn assert_not_reconciled(conn: &Connection, transaction_id: &str) -> Result<(), AppError> {
     let reconciled: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM postings WHERE transaction_id = ?1 AND reconcile_id IS NOT NULL)",
+        "SELECT EXISTS(SELECT 1 FROM postings
+                        WHERE transaction_id = ?1 AND (cleared = 1 OR reconcile_id IS NOT NULL))",
         [transaction_id],
         |row| row.get(0),
     )?;
@@ -718,5 +761,119 @@ mod tests {
     fn test_undo_missing_reconciliation() {
         let (_dir, conn) = test_conn();
         assert!(undo_reconciliation(&conn, "nope").is_err());
+    }
+
+    /// A credit card stores the debt as a negative ledger balance while the
+    /// statement prints it as a positive number. Everything the screen sees has
+    /// to be in statement sign, or the account can never balance.
+    #[test]
+    fn test_liability_is_reconciled_in_statement_sign() {
+        let (_dir, conn) = test_conn();
+        let card = make_account(&conn, "信用卡", "liability");
+        let shop = make_account(&conn, "超市", "expense");
+
+        // Owed 10.00: ledger -1000, statement +1000.
+        let jan = make_posting(&conn, &card, &shop, "2024-01-03", -1000);
+
+        let preview_jan = preview(&conn, &card, "2024-01-31").unwrap();
+        assert_eq!(preview_jan.opening_balance, 0);
+        assert_eq!(preview_jan.candidates.len(), 1);
+        assert_eq!(
+            preview_jan.candidates[0].amount, 1000,
+            "candidates are offered in statement sign"
+        );
+
+        let t = totals(&conn, &card, "2024-01-31", std::slice::from_ref(&jan), 1000).unwrap();
+        assert_eq!(t.expected_balance, 1000);
+        assert!(t.balanced, "typing the printed debt must balance");
+
+        create_reconciliation(&conn, &card, "2024-01-31", 1000, std::slice::from_ref(&jan))
+            .unwrap();
+        assert_eq!(cleared_balance(&conn, &card).unwrap(), 1000);
+
+        // A second statement still opens at the printed figure, and auto-match
+        // accepts the pasted positive amount.
+        let feb = make_posting(&conn, &card, &shop, "2024-02-03", -500);
+        let preview_feb = preview(&conn, &card, "2024-02-29").unwrap();
+        assert_eq!(preview_feb.opening_balance, 1000);
+        assert_eq!(preview_feb.candidates[0].amount, 500);
+        assert_eq!(
+            auto_match(&preview_feb.candidates, &[500], "2024-02-29").matched,
+            vec![feb]
+        );
+
+        create_reconciliation(
+            &conn,
+            &card,
+            "2024-02-29",
+            1500,
+            &[preview_feb.candidates[0].posting_id.clone()],
+        )
+        .unwrap();
+        let rows = list_reconciliations(&conn, &card).unwrap();
+        assert_eq!(rows[0].opening_balance, 1000);
+        assert_eq!(rows[0].closing_balance, 1500);
+    }
+
+    #[test]
+    fn test_reconcile_rejects_duplicate_and_future_postings() {
+        let (_dir, conn) = test_conn();
+        let bank = make_account(&conn, "银行", "asset");
+        let food = make_account(&conn, "餐饮", "expense");
+
+        let jan = make_posting(&conn, &bank, &food, "2024-01-02", -1000);
+        let future = make_posting(&conn, &bank, &food, "2024-03-02", -700);
+
+        // The UPDATE that clears postings is idempotent, so a duplicated id
+        // would pass a check for twice the amount and record a wrong closing
+        // balance.
+        let duplicated = vec![jan.clone(), jan.clone()];
+        assert!(totals(&conn, &bank, "2024-01-31", &duplicated, -2000).is_err());
+
+        // A posting dated after the statement cannot appear on it.
+        assert!(totals(
+            &conn,
+            &bank,
+            "2024-01-31",
+            std::slice::from_ref(&future),
+            -700
+        )
+        .is_err());
+        // Same guard on the write path, not just the preview.
+        assert!(create_reconciliation(
+            &conn,
+            &bank,
+            "2024-01-31",
+            -700,
+            std::slice::from_ref(&future)
+        )
+        .is_err());
+    }
+
+    /// v2's backfill can leave a posting cleared without a statement row. That
+    /// state must be as frozen as a reconciled one, otherwise editing it moves
+    /// the cleared balance away from the statements it was counted in.
+    #[test]
+    fn test_assert_not_reconciled_covers_cleared_without_statement() {
+        let (_dir, conn) = test_conn();
+        let bank = make_account(&conn, "银行", "asset");
+        let food = make_account(&conn, "餐饮", "expense");
+        let posting = make_posting(&conn, &bank, &food, "2024-01-02", -1000);
+
+        let transaction_id: String = conn
+            .query_row(
+                "SELECT transaction_id FROM postings WHERE id = ?1",
+                [&posting],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        conn.execute(
+            "UPDATE postings SET cleared = 1, reconcile_id = NULL WHERE id = ?1",
+            [&posting],
+        )
+        .unwrap();
+
+        assert!(assert_not_reconciled(&conn, &transaction_id).is_err());
     }
 }

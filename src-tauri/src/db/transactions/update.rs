@@ -44,7 +44,9 @@ pub fn update_transaction(
             ));
         }
 
-        let total: i64 = postings.iter().map(|p| p.amount).sum();
+        // i128 like `create_transaction`: an i64 sum can wrap in release builds
+        // and pass a check it should fail.
+        let total: i128 = postings.iter().map(|p| i128::from(p.amount)).sum();
         if total != 0 {
             return Err(AppError::ValidationError(
                 "errors.transactionUnbalanced".to_string(),
@@ -86,6 +88,10 @@ pub fn update_transaction(
     }
 
     if let Some(ref new_postings) = parsed_postings {
+        // Rebuilding is safe only because `assert_not_reconciled` above rejects
+        // any posting that is cleared or attached to a statement: every row
+        // deleted here has `cleared = 0` and `reconcile_id IS NULL`, so there
+        // is no reconciliation state to carry over.
         tx.execute("DELETE FROM postings WHERE transaction_id = ?1", [tx_id])?;
 
         for (seq, posting) in new_postings.iter().enumerate() {
