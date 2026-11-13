@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { dbChangePassword, dbLock } from "@/utils/api";
+import { dbChangePassword } from "@/utils/api";
 import { translateErrorMessage } from "@/utils/errorTranslation";
-import { useDbStore } from "@/stores/dbStore";
+import { lockSession } from "@/utils/session";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,6 @@ export function ChangePasswordDialog({
 }: ChangePasswordDialogProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { setLocked } = useDbStore();
   const [loading, setLoading] = useState(false);
 
   const {
@@ -57,8 +56,8 @@ export function ChangePasswordDialog({
       await dbChangePassword(data.oldPassword, data.newPassword);
       toast.success(t("settings.passwordChanged"));
       handleClose();
-      await dbLock();
-      setLocked();
+      // The password changed, so the old key is gone: re-lock and clear the cache.
+      await lockSession();
       navigate("/unlock");
     } catch (err: unknown) {
       console.error("Password change failed:", err);

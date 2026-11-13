@@ -9,22 +9,12 @@ import {
   Lock,
   Wallet,
 } from "lucide-react";
-import { useDbStore } from "@/stores/dbStore";
-import { dbLock } from "@/utils/api";
+import { lockSession } from "@/utils/session";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
   const { t } = useTranslation();
-  const { setLocked } = useDbStore();
-
-  const handleLock = async () => {
-    try {
-      await dbLock();
-    } catch {
-      // ignore
-    }
-    setLocked();
-  };
+  const handleLock = () => void lockSession();
 
   const navItems = [
     { label: t("navigation.overview"), to: "/", icon: LayoutDashboard },

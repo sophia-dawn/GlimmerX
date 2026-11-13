@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AppShell } from "@/components/layout/AppShell";
 import { UnlockPage } from "@/pages/UnlockPage";
 import { OnboardingPage } from "@/pages/OnboardingPage";
@@ -15,23 +15,64 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import { ReportsPage } from "@/pages/ReportsPage";
 import { ToasterProvider } from "@/components/ui/ToasterProvider";
 import { useDbStore } from "@/stores/dbStore";
+import { useSecurityStore } from "@/stores/securityStore";
+import { useUiStore } from "@/stores/uiStore";
+import { useAutoLock } from "@/hooks/useAutoLock";
+import { useGlobalShortcut } from "@/hooks/useGlobalShortcut";
+import { queryClient } from "@/lib/queryClient";
+import { displayAccelerator } from "@/utils/shortcut";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { toast } from "sonner";
 
-// Global defaults mirror QUERY_CONFIG.FINANCIAL: never serve stale financial
-// data, but do not refetch the whole screen every time the window regains focus
-// (single-writer desktop app; mutations invalidate explicitly).
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 0,
-      gcTime: 5 * 60 * 1000,
-      refetchOnMount: "always",
-      refetchOnWindowFocus: false,
+/**
+ * System-wide "open quick add" binding.
+ *
+ * Rendered above the routes so it exists on the unlock screen too: pressing the
+ * shortcut there should bring the window forward, which is exactly what a user
+ * who minimised the app expects.
+ */
+function GlobalQuickAddShortcut() {
+  const { t } = useTranslation();
+  const isUnlocked = useDbStore((state) => state.isUnlocked);
+  const accelerator = useSecurityStore((state) => state.quickAddShortcut);
+  const openQuickAdd = useUiStore((state) => state.openQuickAdd);
+  // Outside a Tauri runtime (vite dev in a browser) there is nothing to bind.
+  const inTauri =
+    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+  useGlobalShortcut(
+    accelerator,
+    () => {
+      void (async () => {
+        try {
+          const win = getCurrentWindow();
+          await win.unminimize();
+          await win.show();
+          await win.setFocus();
+        } catch (err) {
+          console.error("[Shortcut] could not focus window:", err);
+        }
+        // Locked: bringing the unlock screen forward is the whole point.
+        if (isUnlocked) openQuickAdd();
+      })();
     },
-  },
-});
+    inTauri,
+    () =>
+      toast.error(
+        t("settings.shortcutRegisterFailed", {
+          accelerator: displayAccelerator(accelerator),
+        }),
+      ),
+  );
+
+  return null;
+}
 
 function AppRoutes() {
   const { isUnlocked } = useDbStore();
+  // Idle / blur lock. Lives above the routes so it keeps running while the user
+  // navigates, and unmounts nothing when it fires (the guard only navigates).
+  useAutoLock();
 
   return (
     <Routes>
@@ -89,6 +130,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AppRoutes />
+        <GlobalQuickAddShortcut />
         <ToasterProvider />
       </BrowserRouter>
     </QueryClientProvider>

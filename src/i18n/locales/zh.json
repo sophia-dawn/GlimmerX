@@ -476,7 +476,18 @@
     "dataManagement": "数据管理",
     "backupDatabaseDesc": "创建账本数据库的备份副本。后续可通过「打开已有账本」打开备份文件。",
     "backupDatabase": "备份数据库",
-    "backupSuccess": "数据库备份已成功创建"
+    "backupSuccess": "数据库备份已成功创建",
+    "autoLock": "自动锁定",
+    "autoLockDesc": "超过设定时间没有任何操作时自动锁定账本。输入、点击、滚动都会重新计时。",
+    "autoLockOff": "关闭",
+    "autoLockMinutes": "{{count}} 分钟",
+    "lockOnBlur": "离开窗口即锁定",
+    "lockOnBlurDesc": "窗口失去焦点时立刻锁定。适合公共环境，代价是每次切换应用都要重新解锁。",
+    "quickAddShortcut": "快速记账快捷键",
+    "quickAddShortcutDesc": "在任意应用中按下即可唤起快速记账窗口。修改后立即生效。",
+    "shortcutRecording": "按下快捷键…",
+    "shortcutReset": "恢复默认",
+    "shortcutRegisterFailed": "快捷键 {{accelerator}} 注册失败，可能已被其他应用占用"
   },
   "errors": {
     "accountSystemManaged": "股权类账户由系统管理，无法手动创建",

@@ -476,7 +476,18 @@
     "dataManagement": "Data Management",
     "backupDatabaseDesc": "Create a backup copy of your ledger database. You can open backup files later using 'Open Existing Ledger'.",
     "backupDatabase": "Backup Database",
-    "backupSuccess": "Database backup created successfully"
+    "backupSuccess": "Database backup created successfully",
+    "autoLock": "Auto-lock",
+    "autoLockDesc": "Lock the ledger after this long without activity. Typing, clicking and scrolling all reset the timer.",
+    "autoLockOff": "Off",
+    "autoLockMinutes": "{{count}} minutes",
+    "lockOnBlur": "Lock when the window loses focus",
+    "lockOnBlurDesc": "Lock immediately when you switch away. Suited to shared machines; every app switch costs an unlock.",
+    "quickAddShortcut": "Quick-add shortcut",
+    "quickAddShortcutDesc": "Summons the quick-add window from any application. Changes take effect immediately.",
+    "shortcutRecording": "Press a key combination…",
+    "shortcutReset": "Reset to default",
+    "shortcutRegisterFailed": "Could not register {{accelerator}} — another application may already use it"
   },
   "errors": {
     "accountSystemManaged": "Equity accounts are system-managed and cannot be created manually",

@@ -7,6 +7,13 @@ import {
   type AtmosphericTheme,
 } from "@/stores/themeStore";
 import { useLanguageStore } from "@/stores/languageStore";
+import {
+  useSecurityStore,
+  AUTO_LOCK_CHOICES,
+  DEFAULT_QUICK_ADD_SHORTCUT,
+} from "@/stores/securityStore";
+import { ShortcutRecorder } from "@/components/settings/ShortcutRecorder";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { DataManagementSection } from "@/components/DataManagementSection";
 import { AiSettingsSection } from "@/components/settings/AiSettingsSection";
@@ -116,6 +123,14 @@ export function SettingsPage() {
   const { mode, setMode, color, setColor, atmosphere, setAtmosphere } =
     useThemeStore();
   const { language, setLanguage } = useLanguageStore();
+  const {
+    autoLockMinutes,
+    setAutoLockMinutes,
+    lockOnBlur,
+    setLockOnBlur,
+    quickAddShortcut,
+    setQuickAddShortcut,
+  } = useSecurityStore();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   return (
@@ -220,10 +235,63 @@ export function SettingsPage() {
         </div>
 
         {/* Security */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           <label className="text-sm font-medium">
             {t("settings.security")}
           </label>
+
+          <div className="space-y-2">
+            <label className="text-sm">{t("settings.autoLock")}</label>
+            <Select
+              value={String(autoLockMinutes)}
+              onValueChange={(v) => setAutoLockMinutes(Number(v))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AUTO_LOCK_CHOICES.map((minutes) => (
+                  <SelectItem key={minutes} value={String(minutes)}>
+                    {minutes === 0
+                      ? t("settings.autoLockOff")
+                      : t("settings.autoLockMinutes", { count: minutes })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {t("settings.autoLockDesc")}
+            </p>
+          </div>
+
+          <div className="flex items-start space-x-2">
+            <Checkbox
+              id="lock-on-blur"
+              checked={lockOnBlur}
+              onCheckedChange={(checked) => setLockOnBlur(checked === true)}
+            />
+            <div className="space-y-0.5">
+              <label htmlFor="lock-on-blur" className="text-sm cursor-pointer">
+                {t("settings.lockOnBlur")}
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {t("settings.lockOnBlurDesc")}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm">{t("settings.quickAddShortcut")}</label>
+            <ShortcutRecorder
+              value={quickAddShortcut}
+              onChange={setQuickAddShortcut}
+              onReset={() => setQuickAddShortcut(DEFAULT_QUICK_ADD_SHORTCUT)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("settings.quickAddShortcutDesc")}
+            </p>
+          </div>
+
           <button
             onClick={() => setPasswordDialogOpen(true)}
             className="flex items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
