@@ -5,6 +5,9 @@
 本文对应 8 条产品决策的落地方案。所有涉及表结构的改动统一进 **schema v2**，
 `src-tauri/src/db/schema_v1.sql` 保持冻结不动（见 `test_schema_v1_is_frozen`）。
 
+**状态：批 A、批 B 均已实现**（2026-11-13），`user_version = 2`；剩余批 C（拆分交易 UI +
+报表切 `v_posting_category` 视图）未开始。
+
 ## 0. 决策摘要
 
 | # | 需求 | 落地动作 | 批次 | 动 schema |
@@ -337,36 +340,74 @@ ALTER TABLE transactions DROP COLUMN deleted_at;
 
 ---
 
-## 9. schema v2 全量 DDL
+## 9. schema v2 全量 DDL（已落地）
+
+实际文件：`src-tauri/src/db/schema_v2.sql`。下面的顺序是**必须**的，两处顺序错误
+在实现时都真实触发过报错（见 §9.1）：
 
 ```sql
--- ① 分类 ↔ 损益账户 1:1
-ALTER TABLE categories ADD COLUMN account_id TEXT REFERENCES accounts(id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_account
-    ON categories(account_id) WHERE account_id IS NOT NULL;
-
--- ② 对账
-CREATE TABLE IF NOT EXISTS reconciliations (...);       -- 见 2.3
+-- ① 对账：粒度下沉到分录
+CREATE TABLE IF NOT EXISTS reconciliations (
+    id               TEXT PRIMARY KEY,
+    account_id       TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    statement_date   TEXT NOT NULL,
+    opening_balance  INTEGER NOT NULL,
+    closing_balance  INTEGER NOT NULL,
+    created_at       TEXT NOT NULL,
+    UNIQUE(account_id, statement_date)
+);
 ALTER TABLE postings ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0
     CHECK (cleared IN (0, 1));
 ALTER TABLE postings ADD COLUMN reconcile_id TEXT REFERENCES reconciliations(id);
 
--- ③ 储蓄目标
-CREATE TABLE IF NOT EXISTS savings_goals (...);        -- 见 3.2
-
--- ④ 视图（v3 报表迁移用）
-CREATE VIEW IF NOT EXISTS v_posting_category AS ...;   -- 见 1.5
-
--- ⑤ 数据归一 / 清理
-UPDATE accounts SET currency = 'CNY' WHERE currency <> 'CNY';
+-- 平移整笔对账标记（必须在 DROP COLUMN is_reconciled 之前）
 UPDATE postings SET cleared = 1
-WHERE transaction_id IN (SELECT id FROM transactions WHERE is_reconciled = 1);
-DROP TABLE IF EXISTS transaction_hashes;
-ALTER TABLE transactions DROP COLUMN is_reconciled;
+ WHERE transaction_id IN (SELECT id FROM transactions WHERE is_reconciled = 1);
+
+-- ② 数据归一：单币种
+UPDATE accounts SET currency = 'CNY' WHERE currency <> 'CNY';
+
+-- ③ 分类 ↔ 损益账户 1:1
+ALTER TABLE categories ADD COLUMN account_id TEXT REFERENCES accounts(id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_account
+    ON categories(account_id) WHERE account_id IS NOT NULL;
+
+-- ④ 储蓄目标
+CREATE TABLE IF NOT EXISTS savings_goals (
+    id             TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    account_id     TEXT NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+    target_amount  INTEGER NOT NULL CHECK (target_amount > 0),
+    target_date    TEXT,
+    monthly_plan   INTEGER,
+    status         TEXT NOT NULL DEFAULT 'active'
+                   CHECK (status IN ('active', 'achieved', 'archived')),
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL
+);
+
+-- ⑤ 分录维度的分类视图（v3 报表迁移用，v2 不动报表）
+CREATE VIEW IF NOT EXISTS v_posting_category AS
+SELECT p.id AS posting_id, p.transaction_id, p.account_id, p.amount, p.cleared,
+       c.id AS category_id
+  FROM postings p
+  JOIN accounts a ON a.id = p.account_id
+  LEFT JOIN categories c ON c.account_id = a.id;
+
+-- ⑥ 硬删除残留列（索引先删，否则 DROP COLUMN 被拒）
+DROP INDEX IF EXISTS idx_transactions_date_deleted;
 ALTER TABLE transactions DROP COLUMN deleted_at;
+ALTER TABLE transactions DROP COLUMN is_reconciled;
+DROP TABLE IF EXISTS transaction_hashes;   -- 仅 CSV 导入去重用，已下线
+
+-- ⑦ 新索引
+CREATE INDEX IF NOT EXISTS idx_postings_reconcile ON postings(reconcile_id);
+CREATE INDEX IF NOT EXISTS idx_postings_account_cleared ON postings(account_id, cleared);
+CREATE INDEX IF NOT EXISTS idx_reconciliations_account ON reconciliations(account_id, statement_date);
 ```
 
-需要 Rust 侧逻辑的部分用 `M::up_with_hook("...", |tx| { ... })`：
+需要 Rust 侧逻辑的部分走 `M::up_with_hook(schema_v2, up_v2_hook)`（带 hook 的迁移
+无法 `const`，因此 `MIGRATIONS_SLICE` 改为 `static MIGRATIONS: LazyLock<Migrations>`）：
 
 - 分类回填：按 `type + name` 匹配账户 → 命中则写 `account_id`；
   未命中则建账户（uuid、`include_net_worth = 0`）；
@@ -374,6 +415,20 @@ ALTER TABLE transactions DROP COLUMN deleted_at;
 
 整个 hook 在迁移事务内执行，失败即整体回滚（`rusqlite_migration` 保证），
 且 `db/migrations.rs` 已有的 `*.db.bak-YYYYmmdd-HHMMSS` 备份仍在迁移前落盘。
+
+### 9.1 实现踩到的顺序 / 细节坑
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `no such column: cleared` | `UPDATE postings SET cleared = 1` 写在了 `ADD COLUMN` 之前 | 先建表加列，再回填，最后删旧列 |
+| `error in index idx_transactions_date_deleted` | SQLite 不允许删除被索引引用的列 | 迁移开头 `DROP INDEX IF EXISTS` |
+| `8 values for 6 columns` | `deleted_at`/`is_reconciled` 删列后 `create_transaction` 仍按 8 个占位符绑定 | 改 `(?1,?2,?3,?4,?5,?5)`，`TRANSACTION_COLUMNS` 减为 6 列 |
+| `near "AND": syntax error` | 删掉 `deleted_at` 过滤后 `list_transactions` 的 `AND` 拼在没有 `WHERE` 的语句后 | 基础 SQL 加 `WHERE 1 = 1` |
+| 夹具 `UNIQUE constraint failed: accounts.type, name` | 分类镜像账户与手写夹具同名 | 所有夹具改走 `crate::db::init_schema`，且建账户时先查后建 |
+
+`insert_category_account` 与 `backfill_category_accounts` 都是幂等的，`init_baseline`
+（测试夹具入口）直接跑 v1 + v2 + 回填并写 `user_version = 2`，避免手写 DDL 与真实
+schema 漂移。
 
 ---
 
@@ -389,7 +444,7 @@ ALTER TABLE transactions DROP COLUMN deleted_at;
 验收：`cargo test` 369 passed、前端 98 passed、`make check` 全绿；
 手动验证：闲置 5 分钟回解锁页；`Ctrl+Shift+A` 唤起快速记账；账户向导无币种项；数据管理页只剩备份。
 
-### 批 B — schema v2
+### 批 B — schema v2（✅ 2026-11-13 完成）
 
 5. 分类 1:1 绑定 + 迁移回填；
 6. 对账（表 + 命令 + 界面 + 锁定校验）；
@@ -401,9 +456,33 @@ ALTER TABLE transactions DROP COLUMN deleted_at;
 > 第 9 项**必须与第 5 项同批**：在 `categories.account_id` 落地之前先隐藏损益账户，
 > 用户会陷入「建得出来、看不到、也改不了」的中间态。
 
-验收：新增 `test_migrate_v1_to_v2`（构造 v1 库 → migrate → 断言 `user_version = 2`、
-分类全部绑定账户、`cleared` 平移正确、数据行数不变）；对账单元测试（差额计算、
-锁定后禁改、撤销后可改）；目标进度随转账变化。
+验收：`cargo test` **400 passed**、`vitest` **99 passed**、`make check` 全绿、
+行覆盖率 **94.46%**（门禁 94%）。
+
+落地清单：
+
+| 项 | 主要落点 |
+| --- | --- |
+| 迁移 | `db/schema_v2.sql`、`db/migrations.rs`（`MIGRATIONS` 改 `LazyLock`、`SCHEMA_VERSION = 2`、`up_v2_hook`、`backfill_category_accounts`、`init_baseline`） |
+| 分类绑定 | `db/categories.rs`（`bind_account` / `account_id_for_category` / 改名时同步账户名 / 删除时校验分录引用）、`commands/categories.rs`（DTO 增 `accountId` + `balance`，余额一次聚合查询） |
+| 对账 | `db/reconcile.rs`、`commands/reconcile.rs`（6 命令）、`components/accounts/ReconcileDialog.tsx` |
+| 储蓄目标 | `db/savings.rs`、`commands/savings.rs`（5 命令）、`pages/SavingsPage.tsx` |
+| 硬删除 | 删 `transactions.deleted_at` / `is_reconciled` 及全库 ~30 处过滤（报表、dashboard、预算、分页、审计） |
+| 账户页收敛 | `AccountsPage` 只查 `["asset","liability"]`、`AccountWizard` 去掉损益类型、`CategoryList` 显示分类余额 |
+
+与方案的差异与取舍：
+
+- **对账总额一律由后端算**（`reconcile_totals`）：勾选变化即重新请求，前端不参与加法，
+  提交时用同一份整数再校验一次，避免「界面显示平了、写库时不为零」。
+- **`cleared` 平移不生成对账单**：旧 `is_reconciled = 1` 的分录只置 `cleared = 1`，
+  `reconcile_id` 留空，界面显示「已核对（无对账单）」，之后仍可纳入正式对账。
+- **储蓄目标删除区分两种拒绝**：余额非 0 → `errors.savings.accountNotEmpty`；
+  有分录历史 → `errors.savings.goalHasHistory`（提示改归档）。硬删账户会触发外键约束，
+  所以必须显式拦截。
+- **目标状态不自动回退**：取出后余额低于目标，仍保持 `achieved`，由用户手动改回
+  `active`——自动翻转会让「达成」变成闪烁的状态。
+- **`errors.*` 新增 13 个键**（`reconcile.*` 7 个、`savings.*` 5 个、`categoryAccountInUse`），
+  `errors/messages.rs` 由 `tools/gen_error_messages.py` 重新生成（73 键）。
 
 ### 批 C — v3（拆分交易 UI + 报表切视图）
 
