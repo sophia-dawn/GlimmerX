@@ -9,7 +9,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { CATEGORY_COLORS, DEFAULT_CURRENCY } from "@/constants";
+import { CATEGORY_COLORS } from "@/constants";
 import { formatAmount } from "@/utils/format";
 
 export function CategoryBreakdownChart() {
@@ -83,9 +83,7 @@ export function CategoryBreakdownChart() {
                   border: "1px solid var(--color-border)",
                   borderRadius: "var(--radius)",
                 }}
-                formatter={(value) =>
-                  formatAmount((value as number) * 100, DEFAULT_CURRENCY)
-                }
+                formatter={(value) => formatAmount((value as number) * 100)}
               />
               <Legend
                 layout="horizontal"

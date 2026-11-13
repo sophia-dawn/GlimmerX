@@ -13,11 +13,10 @@ import {
 import { AlertCircle, Loader2 } from "lucide-react";
 import { ReportFilterBar } from "./ReportFilterBar";
 import { useTrendReport } from "@/hooks/useTrendReport";
-import { formatAmount } from "@/utils/format";
+import { formatAmount, MONEY_SYMBOL } from "@/utils/format";
 import { getDefaultRangePresetDates } from "@/utils/date";
 import { GRANULARITY_OPTIONS, REPORT_CHART_COLORS } from "@/constants/report";
 import { useTranslation } from "react-i18next";
-import { useCurrency } from "@/hooks/useCurrency";
 import { useState } from "react";
 import type {
   DateRangePreset,
@@ -27,7 +26,7 @@ import type {
 
 export function TrendReport() {
   const { t } = useTranslation();
-  const { symbol } = useCurrency();
+  const symbol = MONEY_SYMBOL;
 
   // 篩选状态
   const [dateRangePreset, setDateRangePreset] =

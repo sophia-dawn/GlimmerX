@@ -151,19 +151,12 @@ fn net_worth_input() -> CreateAccountFullInput {
 }
 
 fn seed_data(conn: &Connection) -> SeededIds {
-    let cash =
-        create_account_with_path(conn, "Assets/Cash", "CNY", Some(&net_worth_input())).unwrap();
-    let credit_card = create_account_with_path(
-        conn,
-        "Liabilities/CreditCard",
-        "CNY",
-        Some(&net_worth_input()),
-    )
-    .unwrap();
-    let salary_account = create_account_with_path(conn, "Income/Salary", "CNY", None).unwrap();
-    let food_account = create_account_with_path(conn, "Expenses/Food", "CNY", None).unwrap();
-    let transport_account =
-        create_account_with_path(conn, "Expenses/Transport", "CNY", None).unwrap();
+    let cash = create_account_with_path(conn, "Assets/Cash", Some(&net_worth_input())).unwrap();
+    let credit_card =
+        create_account_with_path(conn, "Liabilities/CreditCard", Some(&net_worth_input())).unwrap();
+    let salary_account = create_account_with_path(conn, "Income/Salary", None).unwrap();
+    let food_account = create_account_with_path(conn, "Expenses/Food", None).unwrap();
+    let transport_account = create_account_with_path(conn, "Expenses/Transport", None).unwrap();
 
     let salary_category = create_category(conn, "Salary", &CategoryType::Income, None).unwrap();
     let food_category = create_category(conn, "Food", &CategoryType::Expense, None).unwrap();
@@ -420,10 +413,9 @@ fn test_get_standard_report_current_month_change_pct() {
     let (month_start, month_end) = current_month_bounds();
     let (prev_start, prev_end) = last_month_bounds();
 
-    let cash =
-        create_account_with_path(&conn, "Assets/Cash2", "CNY", Some(&net_worth_input())).unwrap();
-    let income = create_account_with_path(&conn, "Income/Salary2", "CNY", None).unwrap();
-    let expense = create_account_with_path(&conn, "Expenses/Food2", "CNY", None).unwrap();
+    let cash = create_account_with_path(&conn, "Assets/Cash2", Some(&net_worth_input())).unwrap();
+    let income = create_account_with_path(&conn, "Income/Salary2", None).unwrap();
+    let expense = create_account_with_path(&conn, "Expenses/Food2", None).unwrap();
 
     // Previous month: income 50000, expense 10000
     create_transaction(

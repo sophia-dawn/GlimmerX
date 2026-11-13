@@ -167,7 +167,6 @@ export function AccountForm({
             accountType={editNode.account_type}
             values={formValues}
             onChange={setFormValues}
-            existingAccount={editNode}
           />
 
           {/* Initial balance for asset/liability — edit mode */}

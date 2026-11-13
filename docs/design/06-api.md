@@ -44,7 +44,6 @@ async fn account_create(input: CreateAccountInput) -> Result<AccountDto, String>
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `name` | `String` | 路径格式：`{type}/{账户名}`，如 `asset/招商银行` |
-| `currency` | `Option<String>` | 货币，默认 CNY |
 | `initial_balance` | `Option<String>` | 期初余额（十进制字符串，如 "1000.50"） |
 | `initial_balance_date` | `Option<String>` | 期初日期（ISO 8601） |
 | `description` | `Option<String>` | 备注 |
@@ -121,7 +120,7 @@ async fn account_meta_schema() -> Result<AccountMetaSchema, String>;
 
 ### 返回类型
 
-**`AccountDto`**: 账户响应对象，包含 `id`, `name`, `account_type`, `currency`, `description`, `account_number`, `is_system`, `iban`, `is_active`, `include_net_worth`, `created_at`, `updated_at`, `meta: Vec<AccountMeta>`, `initial_balance`, `initial_balance_date`。
+**`AccountDto`**: 账户响应对象，包含 `id`, `name`, `account_type`, `description`, `account_number`, `is_system`, `iban`, `is_active`, `include_net_worth`, `created_at`, `updated_at`, `meta: Vec<AccountMeta>`, `initial_balance`, `initial_balance_date`。
 
 **`AccountTransaction`**: 账户交易记录，包含 `id`, `date`, `description`, `category_id`, `amount`（分，正=借方，负=贷方）, `created_at`, `updated_at`。
 

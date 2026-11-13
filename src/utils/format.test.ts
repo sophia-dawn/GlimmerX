@@ -36,36 +36,33 @@ describe("yuanToCents", () => {
 
 describe("formatAmount", () => {
   it("formats zero amount with CNY symbol", () => {
-    expect(formatAmount(0, "CNY")).toBe("¥0.00");
+    expect(formatAmount(0)).toBe("¥0.00");
   });
 
   it("formats positive amount with symbol", () => {
-    expect(formatAmount(123456, "CNY")).toBe("¥1,234.56");
+    expect(formatAmount(123456)).toBe("¥1,234.56");
   });
 
   it("formats negative amount with negative sign", () => {
-    expect(formatAmount(-5000, "CNY")).toBe("¥-50.00");
+    expect(formatAmount(-5000)).toBe("¥-50.00");
   });
 
-  it("uses USD symbol for USD currency", () => {
-    expect(formatAmount(10000, "USD")).toBe("$100.00");
-  });
-
-  it("falls back to currency code for unknown currency", () => {
-    expect(formatAmount(10000, "THB")).toBe("THB100.00");
+  it("always uses the CNY symbol — the ledger has one currency", () => {
+    // No currency argument exists; this guards against reintroducing one.
+    expect(formatAmount(10000)).toBe("¥100.00");
   });
 });
 
 describe("formatAmountWithSign", () => {
   it("formats zero without sign", () => {
-    expect(formatAmountWithSign(0, "CNY")).toBe("¥0.00");
+    expect(formatAmountWithSign(0)).toBe("¥0.00");
   });
 
   it("adds + prefix for positive", () => {
-    expect(formatAmountWithSign(10000, "CNY")).toBe("+¥100.00");
+    expect(formatAmountWithSign(10000)).toBe("+¥100.00");
   });
 
   it("shows negative sign without extra prefix", () => {
-    expect(formatAmountWithSign(-5000, "CNY")).toBe("¥-50.00");
+    expect(formatAmountWithSign(-5000)).toBe("¥-50.00");
   });
 });

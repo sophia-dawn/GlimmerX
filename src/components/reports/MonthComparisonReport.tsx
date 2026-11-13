@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MonthPicker } from "@/components/ui/month-picker";
 import { useMonthComparisonReport } from "@/hooks/useMonthComparisonReport";
-import { formatAmount, centsToYuan } from "@/utils/format";
+import { centsToYuan, formatAmount, MONEY_SYMBOL } from "@/utils/format";
 import { REPORT_CHART_COLORS } from "@/constants/report";
 import {
   ResponsiveContainer,
@@ -16,12 +16,11 @@ import {
   Legend,
 } from "recharts";
 import { useTranslation } from "react-i18next";
-import { useCurrency } from "@/hooks/useCurrency";
 import { todayLocalDate } from "@/utils/date";
 
 export function MonthComparisonReport() {
   const { t } = useTranslation();
-  const { symbol } = useCurrency();
+  const symbol = MONEY_SYMBOL;
 
   const getMonthLabel = (value: string): string => {
     const [year, month] = value.split("-");

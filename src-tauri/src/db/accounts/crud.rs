@@ -8,8 +8,12 @@ use crate::db::AppError;
 use super::types::{AccountRecord, UpdateAccountParams};
 
 /// Common columns for SELECT queries.
+///
+/// `currency` is deliberately absent: the product is single-currency (CNY) and
+/// the column is only kept because `schema_v1.sql` is frozen. Writing the
+/// currency is `insert_account`'s job; nothing reads it back.
 const ACCOUNT_COLUMNS: &str =
-    "id, name, type, currency, description, account_number, is_system, iban, is_active, include_net_worth, created_at, updated_at";
+    "id, name, type, description, account_number, is_system, iban, is_active, include_net_worth, created_at, updated_at";
 
 /// Read an AccountRecord from a row.
 fn row_to_account(row: &rusqlite::Row<'_>) -> rusqlite::Result<AccountRecord> {
@@ -17,15 +21,14 @@ fn row_to_account(row: &rusqlite::Row<'_>) -> rusqlite::Result<AccountRecord> {
         id: row.get(0)?,
         name: row.get(1)?,
         account_type: row.get(2)?,
-        currency: row.get(3)?,
-        description: row.get(4)?,
-        account_number: row.get(5)?,
-        is_system: row.get::<_, i32>(6)? != 0,
-        iban: row.get(7)?,
-        is_active: row.get::<_, i32>(8)? != 0,
-        include_net_worth: row.get::<_, i32>(9)? != 0,
-        created_at: row.get(10)?,
-        updated_at: row.get(11)?,
+        description: row.get(3)?,
+        account_number: row.get(4)?,
+        is_system: row.get::<_, i32>(5)? != 0,
+        iban: row.get(6)?,
+        is_active: row.get::<_, i32>(7)? != 0,
+        include_net_worth: row.get::<_, i32>(8)? != 0,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
     })
 }
 
@@ -35,22 +38,20 @@ pub fn insert_account(conn: &Connection, acct: &AccountRecord) -> Result<String,
     let id = Uuid::new_v4().to_string();
 
     conn.execute(
-        &format!(
-            "INSERT INTO accounts ({}) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
-            ACCOUNT_COLUMNS
-        ),
+        "INSERT INTO accounts
+             (id, name, type, currency, description, account_number, is_system, iban,
+              is_active, include_net_worth, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'CNY', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
         rusqlite::params![
             &id,
             &acct.name,
             &acct.account_type,
-            &acct.currency,
             &acct.description,
             &acct.account_number,
             &(acct.is_system as i32),
             &acct.iban,
             &(acct.is_active as i32),
             &(acct.include_net_worth as i32),
-            &now,
             &now,
         ],
     )?;

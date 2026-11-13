@@ -28,12 +28,12 @@ import type {
 } from "@/types/report";
 import { DATE_RANGE_PRESETS, GRANULARITY_OPTIONS } from "@/constants/report";
 import { getDefaultRangePresetDates } from "@/utils/date";
+import { MONEY_SYMBOL } from "@/utils/format";
 import { useTranslation } from "react-i18next";
-import { useCurrency } from "@/hooks/useCurrency";
 
 export function AccountBalanceTrend() {
   const { t } = useTranslation();
-  const { symbol } = useCurrency();
+  const symbol = MONEY_SYMBOL;
   const { data: accounts, isLoading: accountsLoading } = useAccountList();
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [preset, setPreset] = useState<DateRangePreset>("currentMonth");

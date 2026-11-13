@@ -824,8 +824,8 @@ mod ipc_tests {
 
     fn seed_accounts(db: &Database) -> (String, String, String) {
         let conn = db.get_conn().unwrap();
-        let cash = create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
-        let food_account = create_account_with_path(&conn, "Expenses/Food", "CNY", None).unwrap();
+        let cash = create_account_with_path(&conn, "Assets/Cash", None).unwrap();
+        let food_account = create_account_with_path(&conn, "Expenses/Food", None).unwrap();
         let food_category = create_category(&conn, "Food", &CategoryType::Expense, None).unwrap();
         (cash, food_account, food_category)
     }

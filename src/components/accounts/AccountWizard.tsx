@@ -14,19 +14,11 @@ import type { AccountType } from "@/types";
 import { accountCreate } from "@/utils/api";
 import { translateErrorMessage } from "@/utils/errorTranslation";
 import { todayLocalDate } from "@/utils/date";
-import { CURRENCY_SYMBOLS } from "@/utils/format";
 import { AccountFields, type AccountFieldValues } from "./AccountFields";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -53,7 +45,6 @@ interface WizardState {
   accountType: AccountType | null;
   initialBalance: string;
   initialBalanceDate: string;
-  currency: string;
   formValues: AccountFieldValues;
 }
 
@@ -75,17 +66,6 @@ const WIZARD_ACCOUNT_TYPE_KEYS = ACCOUNT_TYPE_KEYS.filter(
 
 // English type labels for DB account paths (data layer, not display)
 
-const COMMON_CURRENCIES = [
-  "CNY",
-  "USD",
-  "EUR",
-  "GBP",
-  "JPY",
-  "HKD",
-  "KRW",
-  "TWD",
-] as const;
-
 const emptyFormValues: AccountFieldValues = {
   name: "",
   description: "",
@@ -101,7 +81,6 @@ const initialState: WizardState = {
   accountType: null,
   initialBalance: "0",
   initialBalanceDate: "",
-  currency: "CNY",
   formValues: { ...emptyFormValues },
 };
 
@@ -128,7 +107,6 @@ export function AccountWizard({
         accountType: initialType ?? null,
         initialBalance: "0",
         initialBalanceDate: todayLocalDate(),
-        currency: "CNY",
         formValues: { ...emptyFormValues },
       });
     }
@@ -189,7 +167,6 @@ export function AccountWizard({
 
       await accountCreate({
         name: accountPath,
-        currency: state.currency,
         initial_balance: initialBalanceDecimal,
         initial_balance_date: state.initialBalanceDate || undefined,
         description: state.formValues.description.trim() || undefined,
@@ -375,28 +352,6 @@ export function AccountWizard({
               </div>
             )}
 
-            {/* Currency selector — create mode only */}
-            <div className="space-y-2">
-              <Label>{t("accounts.wizard.currency")}</Label>
-              <Select
-                value={state.currency}
-                onValueChange={(val) =>
-                  setState((prev) => ({ ...prev, currency: val }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COMMON_CURRENCIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleBack}>
                 {t("common.previous")}
@@ -482,8 +437,7 @@ export function AccountWizard({
                     {t("accounts.wizard.initialBalance")}
                   </span>
                   <span className="font-medium">
-                    {CURRENCY_SYMBOLS[state.currency] ?? state.currency}
-                    {parseFloat(state.initialBalance) || 0}
+                    ¥{parseFloat(state.initialBalance) || 0}
                   </span>
                 </div>
               )}
@@ -498,12 +452,6 @@ export function AccountWizard({
                   </span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  {t("accounts.wizard.currency")}
-                </span>
-                <span className="font-medium">{state.currency}</span>
-              </div>
             </div>
 
             <DialogFooter>

@@ -561,7 +561,6 @@ mod tests {
             id: String::new(),
             name: name.to_string(),
             account_type: account_type.to_string(),
-            currency: "CNY".to_string(),
             description: String::new(),
             account_number: None,
             is_system: false,

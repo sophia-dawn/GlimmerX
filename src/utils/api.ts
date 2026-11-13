@@ -15,8 +15,6 @@ import type {
   DashboardSummary,
   DbInfo,
   EnhancedTransactionFilter,
-  ExportResult,
-  ImportResult,
   MonthlyChartData,
   CategoryBreakdownData,
   TopExpensesData,
@@ -604,57 +602,10 @@ export async function dbBackup(backupPath: string): Promise<void> {
 }
 
 /**
- * Export transactions to CSV format.
- */
-export async function exportTransactionsCsv(
-  outputPath: string,
-  startDate?: string,
-  endDate?: string,
-): Promise<ExportResult> {
-  return invokeCommand<ExportResult>("export_transactions_csv", {
-    outputPath,
-    startDate: startDate || null,
-    endDate: endDate || null,
-  });
-}
-
-/**
- * Export transactions to Beancount format.
- */
-export async function exportTransactionsBeancount(
-  outputPath: string,
-  startDate?: string,
-  endDate?: string,
-): Promise<ExportResult> {
-  return invokeCommand<ExportResult>("export_transactions_beancount", {
-    outputPath,
-    startDate: startDate || null,
-    endDate: endDate || null,
-  });
-}
-
-/**
  * Keep backend error messages in sync with the UI language.
  */
 export async function setUiLanguage(language: string): Promise<void> {
   // No Tauri runtime in web dev / unit tests; nothing to synchronize.
   if (!("__TAURI_INTERNALS__" in window)) return;
   return invokeCommand<void>("set_ui_language", { language });
-}
-
-/**
- * Import transactions from CSV format.
- */
-export async function importTransactionsCsv(
-  inputPath: string,
-  options: {
-    createMissingAccounts: boolean;
-    skipDuplicates: boolean;
-  },
-): Promise<ImportResult> {
-  return invokeCommand<ImportResult>("import_transactions_csv", {
-    inputPath,
-    createMissingAccounts: options.createMissingAccounts,
-    skipDuplicates: options.skipDuplicates,
-  });
 }

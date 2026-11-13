@@ -27,8 +27,6 @@
     "clearFilter": "Clear Filter",
     "optional": "Optional",
     "loadingMore": "Loading more...",
-    "currencySymbol": "$",
-    "currencyLocale": "en-US",
     "datePicker": {
       "placeholder": "Pick a date"
     },
@@ -138,7 +136,6 @@
     "accountNumber": "Account Number",
     "accountNumberPlaceholder": "e.g. bank card number, credit card number",
     "subtype": "Subtype",
-    "currency": "Currency",
     "isPlaceholder": "Placeholder Account",
     "isPlaceholderDesc": "Used for grouping only, cannot receive postings",
     "placeholderBadge": "Placeholder",
@@ -231,7 +228,6 @@
       "creating": "Creating...",
       "enterAccountName": "Please enter an account name",
       "summaryInitialBalance": "Initial Balance",
-      "currency": "Currency",
       "placeholderAccount": "Placeholder (grouping only)"
     },
     "types": {
@@ -480,24 +476,7 @@
     "dataManagement": "Data Management",
     "backupDatabaseDesc": "Create a backup copy of your ledger database. You can open backup files later using 'Open Existing Ledger'.",
     "backupDatabase": "Backup Database",
-    "backupSuccess": "Database backup created successfully",
-    "dateRange": "Date Range",
-    "thisMonth": "This Month",
-    "thisYear": "This Year",
-    "allTime": "All Time",
-    "customRange": "Custom",
-    "startDate": "Start Date",
-    "endDate": "End Date",
-    "exportCsv": "Export to CSV",
-    "exportBeancount": "Export to Beancount",
-    "exportSuccess": "Export successful: {{count}} transactions, {{postings}} postings",
-    "importCsv": "Import Transactions (CSV)",
-    "importSuccess": "Successfully imported {{count}} transactions",
-    "importSkipped": "Skipped {{count}} duplicate transactions",
-    "importErrors": "{{count}} transactions failed to import",
-    "createMissingAccounts": "Auto-create missing accounts",
-    "skipDuplicates": "Skip duplicate transactions",
-    "newAccountsCreated": "New accounts created: {{accounts}}"
+    "backupSuccess": "Database backup created successfully"
   },
   "errors": {
     "accountSystemManaged": "Equity accounts are system-managed and cannot be created manually",
@@ -538,14 +517,6 @@
       "invalidMode": "Invalid transaction mode",
       "noChanges": "No fields to update",
       "notFound": "Transaction not found"
-    },
-    "import": {
-      "fileNotFound": "Import file not found",
-      "invalidCsvFormat": "Invalid CSV format",
-      "emptyFile": "CSV file is empty",
-      "noTransactions": "CSV contains no valid transactions",
-      "currencyMismatch": "Account currency mismatch",
-      "tooManyRows": "CSV has too many rows (limit: 200000). Please split the file"
     },
     "ai": {
       "noApiKey": "AI API Key not configured, please set it in Settings",

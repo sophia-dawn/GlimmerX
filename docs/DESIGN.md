@@ -39,6 +39,7 @@
 | [16-transaction-quick-add](design/16-transaction-quick-add.md)     | 快速记账模式设计（UI层Posting推导、分类映射、前端弹窗） | 实现快速记账功能       |
 | [17-transaction-list](design/17-transaction-list.md)               | 交易列表设计（数据结构、过滤搜索、分页分组、前端页面）  | 实现交易列表页面       |
 | [18-transaction-detail-edit](design/18-transaction-detail-edit.md) | 交易详情与编辑设计（详情页、编辑表单、删除确认）        | 实现交易详情和编辑删除 |
+| [21-double-entry-upgrade](design/21-double-entry-upgrade.md)       | schema v2：分类账户 1:1、对账、储蓄目标、单币种、硬删除 | 实施 v2 能力升级       |
 
 ---
 
@@ -77,16 +78,16 @@
 
 ### 数据管理模块（Phase 5）
 
-> **架构**: 设置页面新增"数据管理"区块，支持数据库备份、交易数据导出和导入。
-> **导出设计**: [19-data-export](design/19-data-export.md)
-> **导入设计**: [20-data-import](design/20-data-import.md)
+> **架构**: 设置页面的"数据管理"区块**只保留数据库备份**。
+> CSV / Beancount 导入导出已于 2026-11-13 下线（单币种 + 硬删除决策的连带结果），
+> 历史设计存档见 [19-data-export](design/19-data-export.md) / [20-data-import](design/20-data-import.md)。
 
 | 功能 | ID | 优先级 | 说明 |
 |---|---|---|---|
 | 数据库备份 | DATA-4 | P0 | 一键复制加密数据库文件到用户指定位置 ✅ |
-| CSV 导出 | DATA-1 | P0 | 交易数据导出为 CSV（多行格式，含 transaction_id） ✅ |
-| Beancount 导出 | DATA-3 | P1 | 交易数据导出为 Beancount 纯文本格式 ✅ |
-| CSV 导入 | DATA-2 | P1 | 从 CSV 文件导入交易数据（已设计） 📝 |
+| CSV 导出 | DATA-1 | — | 已下线（2026-11-13 移除代码） ❌ |
+| Beancount 导出 | DATA-3 | — | 已下线（2026-11-13 移除代码） ❌ |
+| CSV 导入 | DATA-2 | — | 已下线（2026-11-13 移除代码） ❌ |
 
 ---
 
@@ -107,5 +108,4 @@
 > - BUD-1~BUD-4 预算管理 ✅ P0/P1 已实现（含预算执行报告）
 > - DASH-1~DASH-15 概览模块 ✅ P0/P1 已实现，P2 预留
 > - RPT 报表分析 ✅ P0/P1/P2 已实现（9 个报表）
-> - DATA 数据管理 ✅ 已实现（备份、CSV导出、Beancount导出）+ 📝 已设计（CSV导入）
-> - 待实现: DATA-2 CSV导入
+> - DATA 数据管理 ✅ 仅保留数据库备份（导入导出已于 2026-11-13 下线）

@@ -6,7 +6,6 @@ use uuid::Uuid;
 use crate::db::AppError;
 
 /// Create a transfer transaction between two accounts with balanced postings.
-/// Validates that both accounts use the same currency.
 /// Returns the transaction ID.
 pub fn create_transfer(
     conn: &Connection,
@@ -24,24 +23,6 @@ pub fn create_transfer(
         return Err(AppError::ValidationError(
             "Cannot transfer to the same account".into(),
         ));
-    }
-
-    // Validate currency match
-    let from_currency: String = conn.query_row(
-        "SELECT currency FROM accounts WHERE id = ?1",
-        [from_id],
-        |row| row.get(0),
-    )?;
-    let to_currency: String = conn.query_row(
-        "SELECT currency FROM accounts WHERE id = ?1",
-        [to_id],
-        |row| row.get(0),
-    )?;
-    if from_currency != to_currency {
-        return Err(AppError::ValidationError(format!(
-            "Cannot transfer between accounts with different currencies ({} and {})",
-            from_currency, to_currency
-        )));
     }
 
     let tx_id = Uuid::new_v4().to_string();

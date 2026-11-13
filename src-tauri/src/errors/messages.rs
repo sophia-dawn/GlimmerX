@@ -99,22 +99,6 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::En, "databaseLocked") => Some("Database is locked. Please unlock it first"),
         (Lang::Zh, "databaseOpenFailed") => Some("无法打开数据库文件"),
         (Lang::En, "databaseOpenFailed") => Some("Could not open the database file"),
-        (Lang::Zh, "import.currencyMismatch") => Some("账户货币不匹配"),
-        (Lang::En, "import.currencyMismatch") => Some("Account currency mismatch"),
-        (Lang::Zh, "import.emptyFile") => Some("CSV文件为空"),
-        (Lang::En, "import.emptyFile") => Some("CSV file is empty"),
-        (Lang::Zh, "import.fileNotFound") => Some("导入文件未找到"),
-        (Lang::En, "import.fileNotFound") => Some("Import file not found"),
-        (Lang::Zh, "import.invalidCsvFormat") => Some("CSV格式无效"),
-        (Lang::En, "import.invalidCsvFormat") => Some("Invalid CSV format"),
-        (Lang::Zh, "import.noTransactions") => Some("CSV不包含有效交易"),
-        (Lang::En, "import.noTransactions") => Some("CSV contains no valid transactions"),
-        (Lang::Zh, "import.tooManyRows") => {
-            Some("CSV 行数超过上限（最多 200000 行），请拆分文件后重试")
-        }
-        (Lang::En, "import.tooManyRows") => {
-            Some("CSV has too many rows (limit: 200000). Please split the file")
-        }
         (Lang::Zh, "invalidDateFormat") => Some("日期格式无效。请使用 YYYY-MM-DD 格式。"),
         (Lang::En, "invalidDateFormat") => Some("Invalid date format. Use YYYY-MM-DD."),
         (Lang::Zh, "invalidDateValue") => Some("日期无效"),

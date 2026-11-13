@@ -9,16 +9,15 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useBalanceSheetReport } from "@/hooks/useBalanceSheetReport";
-import { formatAmount } from "@/utils/format";
+import { formatAmount, MONEY_SYMBOL } from "@/utils/format";
 import { todayLocalDate } from "@/utils/date";
 import { useState } from "react";
 import { REPORT_CHART_COLORS } from "@/constants/report";
 import { useTranslation } from "react-i18next";
-import { useCurrency } from "@/hooks/useCurrency";
 
 export function BalanceSheetReport() {
   const { t } = useTranslation();
-  const { symbol } = useCurrency();
+  const symbol = MONEY_SYMBOL;
   const [snapshotDate, setSnapshotDate] = useState(todayLocalDate());
   const { data, isLoading, error } = useBalanceSheetReport(snapshotDate);
 

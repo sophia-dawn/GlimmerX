@@ -73,7 +73,6 @@ fn make_account(name: &str, account_type: &str) -> AccountRecord {
         id: String::new(),
         name: name.to_string(),
         account_type: account_type.to_string(),
-        currency: "CNY".to_string(),
         description: String::new(),
         account_number: None,
         is_system: false,
@@ -184,13 +183,13 @@ fn test_delete_account_with_transactions_blocked() {
 fn test_create_account_with_path_flat() {
     let (_dir, conn) = test_conn();
 
-    let id = create_account_with_path(&conn, "Assets/招商银行", "CNY", None).unwrap();
+    let id = create_account_with_path(&conn, "Assets/招商银行", None).unwrap();
     let acct = find_account(&conn, &id).unwrap().unwrap();
     assert_eq!(acct.name, "招商银行");
     assert_eq!(acct.account_type, "asset");
 
     // Sub-path becomes name
-    let id2 = create_account_with_path(&conn, "Liabilities/信用卡/花呗", "CNY", None).unwrap();
+    let id2 = create_account_with_path(&conn, "Liabilities/信用卡/花呗", None).unwrap();
     let acct2 = find_account(&conn, &id2).unwrap().unwrap();
     assert_eq!(acct2.name, "信用卡/花呗");
     assert_eq!(acct2.account_type, "liability");
@@ -583,7 +582,7 @@ fn test_get_account_balances_batch_multiple() {
 #[test]
 fn test_create_account_with_path_invalid_root() {
     let (_dir, conn) = test_conn();
-    let result = create_account_with_path(&conn, "Foo/Cash", "CNY", None);
+    let result = create_account_with_path(&conn, "Foo/Cash", None);
     assert!(result.is_err());
     match result.unwrap_err() {
         AppError::ValidationError(msg) => assert!(msg.contains("Invalid account root type")),
@@ -594,8 +593,8 @@ fn test_create_account_with_path_invalid_root() {
 #[test]
 fn test_create_account_with_path_duplicate_blocked() {
     let (_dir, conn) = test_conn();
-    create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
-    let result = create_account_with_path(&conn, "Assets/Cash", "CNY", None);
+    create_account_with_path(&conn, "Assets/Cash", None).unwrap();
+    let result = create_account_with_path(&conn, "Assets/Cash", None);
     assert!(result.is_err());
 }
 
@@ -702,7 +701,7 @@ fn test_delete_account_system_blocked() {
 #[test]
 fn test_delete_account_with_opening_balance() {
     let (_dir, conn) = test_conn();
-    let id = create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+    let id = create_account_with_path(&conn, "Assets/Cash", None).unwrap();
     create_opening_balance(&conn, &id, 100000, "Equity", "Opening Balances", None).unwrap();
 
     delete_account(&conn, &id).unwrap();
@@ -729,12 +728,6 @@ fn test_create_transfer_validation() {
 
     // Same account
     let result = create_transfer(&conn, &id1, &id1, 100, "x");
-    assert!(result.is_err());
-
-    // Different currencies
-    conn.execute("UPDATE accounts SET currency = 'USD' WHERE id = ?1", [&id2])
-        .unwrap();
-    let result = create_transfer(&conn, &id1, &id2, 100, "x");
     assert!(result.is_err());
 }
 
@@ -778,7 +771,7 @@ fn test_get_account_transactions_date_filters() {
 #[test]
 fn test_create_opening_balance_updates_existing() {
     let (_dir, conn) = test_conn();
-    let id = create_account_with_path(&conn, "Assets/Cash", "CNY", None).unwrap();
+    let id = create_account_with_path(&conn, "Assets/Cash", None).unwrap();
 
     create_opening_balance(&conn, &id, 100000, "Equity", "Opening Balances", None).unwrap();
     create_opening_balance(&conn, &id, 200000, "Equity", "Opening Balances", None).unwrap();
@@ -798,7 +791,7 @@ fn test_create_opening_balance_updates_existing() {
 #[test]
 fn test_opening_balance_liability_negative() {
     let (_dir, conn) = test_conn();
-    let id = create_account_with_path(&conn, "Liabilities/Card", "CNY", None).unwrap();
+    let id = create_account_with_path(&conn, "Liabilities/Card", None).unwrap();
     create_opening_balance(&conn, &id, 50000, "Equity", "Opening Balances", None).unwrap();
     let (balance, _date) = get_opening_balance_for_account(&conn, &id)
         .unwrap()
@@ -814,14 +807,12 @@ fn test_batch_create_accounts() {
         vec![
             BatchAccountInput {
                 name: "Assets/Cash".to_string(),
-                currency: "CNY".to_string(),
                 initial_balance: Some(100000),
                 description: Some("main".to_string()),
                 account_number: Some("0001".to_string()),
             },
             BatchAccountInput {
                 name: "Expenses/Food".to_string(),
-                currency: "CNY".to_string(),
                 initial_balance: None,
                 description: None,
                 account_number: None,

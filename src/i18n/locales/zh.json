@@ -27,8 +27,6 @@
     "clearFilter": "清除筛选",
     "optional": "可选",
     "loadingMore": "加载更多...",
-    "currencySymbol": "¥",
-    "currencyLocale": "zh-CN",
     "datePicker": {
       "placeholder": "选择日期"
     },
@@ -138,7 +136,6 @@
     "accountNumber": "账户号",
     "accountNumberPlaceholder": "如银行卡号、信用卡号",
     "subtype": "子类型",
-    "currency": "货币",
     "isPlaceholder": "占位账户",
     "isPlaceholderDesc": "仅用于分组，不能直接记入交易",
     "placeholderBadge": "占位",
@@ -231,7 +228,6 @@
       "creating": "创建中...",
       "enterAccountName": "请输入账户名称",
       "summaryInitialBalance": "初始余额",
-      "currency": "货币",
       "placeholderAccount": "占位账户（仅用于分组）"
     },
     "types": {
@@ -480,24 +476,7 @@
     "dataManagement": "数据管理",
     "backupDatabaseDesc": "创建账本数据库的备份副本。后续可通过「打开已有账本」打开备份文件。",
     "backupDatabase": "备份数据库",
-    "backupSuccess": "数据库备份已成功创建",
-    "dateRange": "日期范围",
-    "thisMonth": "本月",
-    "thisYear": "本年",
-    "allTime": "全部时间",
-    "customRange": "自定义",
-    "startDate": "开始日期",
-    "endDate": "结束日期",
-    "exportCsv": "导出为 CSV",
-    "exportBeancount": "导出为 Beancount",
-    "exportSuccess": "导出成功：{{count}} 条交易，{{postings}} 条分录",
-    "importCsv": "导入交易(CSV)",
-    "importSuccess": "成功导入 {{count}} 笔交易",
-    "importSkipped": "跳过 {{count}} 笔重复交易",
-    "importErrors": "{{count}} 笔交易导入失败",
-    "createMissingAccounts": "自动创建缺失账户",
-    "skipDuplicates": "跳过重复交易",
-    "newAccountsCreated": "新建账户：{{accounts}}"
+    "backupSuccess": "数据库备份已成功创建"
   },
   "errors": {
     "accountSystemManaged": "股权类账户由系统管理，无法手动创建",
@@ -538,14 +517,6 @@
       "invalidMode": "交易类型无效",
       "noChanges": "没有需要更新的字段",
       "notFound": "交易不存在"
-    },
-    "import": {
-      "fileNotFound": "导入文件未找到",
-      "invalidCsvFormat": "CSV格式无效",
-      "emptyFile": "CSV文件为空",
-      "noTransactions": "CSV不包含有效交易",
-      "currencyMismatch": "账户货币不匹配",
-      "tooManyRows": "CSV 行数超过上限（最多 200000 行），请拆分文件后重试"
     },
     "ai": {
       "noApiKey": "未配置 AI API Key，请先在设置中配置",

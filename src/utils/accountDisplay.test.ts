@@ -15,7 +15,6 @@ const makeAccount = (overrides: Partial<AccountDto> = {}): AccountDto => ({
   id: "1",
   name: "Test Account",
   account_type: "asset" as const,
-  currency: "CNY",
   description: "",
   account_number: null,
   is_system: false,

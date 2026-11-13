@@ -1,12 +1,14 @@
 //! Row types and command-facing input structs for accounts.
 
 /// Internal DB row representation for an account.
+///
+/// No `currency` field: the ledger is CNY-only, and the DB column is frozen
+/// legacy that `insert_account` writes as a literal.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct AccountRecord {
     pub id: String,
     pub name: String,
     pub account_type: String,
-    pub currency: String,
     pub description: String,
     pub account_number: Option<String>,
     pub is_system: bool,
@@ -63,7 +65,6 @@ pub struct CreateAccountFullInput {
 /// Name for a single account in a batch creation request.
 pub struct BatchAccountInput {
     pub name: String,
-    pub currency: String,
     pub initial_balance: Option<i64>,
     pub description: Option<String>,
     pub account_number: Option<String>,

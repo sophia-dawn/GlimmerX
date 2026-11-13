@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import type { AccountDto, AccountMetaSchema, AccountType } from "@/types";
+import type { AccountMetaSchema, AccountType } from "@/types";
 import { accountMetaSchema } from "@/utils/api";
 import { QUERY_CONFIG } from "@/constants/query";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -38,8 +38,6 @@ export interface AccountFieldsProps {
   values: AccountFieldValues;
   /** Called when any field changes */
   onChange: (values: AccountFieldValues) => void;
-  /** Only in edit mode: the existing account (for read-only currency display) */
-  existingAccount?: AccountDto | null;
   /** Validation errors keyed by field name */
   errors?: Record<string, string | undefined>;
 }
@@ -59,7 +57,6 @@ export function AccountFields({
   accountType,
   values,
   onChange,
-  existingAccount,
   errors,
 }: AccountFieldsProps) {
   const { t } = useTranslation();
@@ -293,16 +290,6 @@ export function AccountFields({
           </div>
         </div>
       )}
-
-      {/* Currency: editable in create mode, read-only in edit mode */}
-      {mode === "edit" && existingAccount ? (
-        <div className="space-y-2">
-          <Label>{t("accounts.currency")}</Label>
-          <p className="text-sm text-muted-foreground">
-            {existingAccount.currency}
-          </p>
-        </div>
-      ) : null}
 
       <div className="flex items-center space-x-2">
         <Checkbox

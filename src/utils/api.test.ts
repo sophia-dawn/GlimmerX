@@ -101,7 +101,7 @@ describe("api database commands", () => {
 
 describe("api account commands", () => {
   it("accountCreate calls invoke", async () => {
-    const input = { name: "Test", currency: "CNY" };
+    const input = { name: "Test" };
     mockedInvoke.mockResolvedValueOnce({ id: "1", ...input });
     const result = await api.accountCreate(input);
     expect(mockedInvoke).toHaveBeenCalledWith("account_create", { input });
@@ -150,9 +150,9 @@ describe("api account commands", () => {
 
   it("accountBatchCreate calls invoke", async () => {
     mockedInvoke.mockResolvedValueOnce([]);
-    await api.accountBatchCreate([{ name: "A", currency: "CNY" }]);
+    await api.accountBatchCreate([{ name: "A" }]);
     expect(mockedInvoke).toHaveBeenCalledWith("account_batch_create", {
-      inputs: [{ name: "A", currency: "CNY" }],
+      inputs: [{ name: "A" }],
     });
   });
 

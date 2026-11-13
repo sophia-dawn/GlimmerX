@@ -240,7 +240,6 @@ mod tests {
         create_account_with_path(
             conn,
             path,
-            "CNY",
             Some(&CreateAccountFullInput {
                 description: None,
                 account_number: None,
@@ -406,7 +405,6 @@ mod tests {
             id: id.into(),
             name: name.into(),
             account_type: "asset".into(),
-            currency: "CNY".into(),
             description: String::new(),
             account_number: None,
             is_system: false,

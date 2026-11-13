@@ -222,7 +222,6 @@ mod ipc_tests {
         let cash = create_account_with_path(
             &conn,
             "Assets/Cash",
-            "CNY",
             Some(&CreateAccountFullInput {
                 description: None,
                 account_number: None,
@@ -232,12 +231,11 @@ mod ipc_tests {
             }),
         )
         .unwrap();
-        let credit_card =
-            create_account_with_path(&conn, "Liabilities/CreditCard", "CNY", None).unwrap();
-        let salary_account = create_account_with_path(&conn, "Income/Salary", "CNY", None).unwrap();
-        let food_account = create_account_with_path(&conn, "Expenses/Food", "CNY", None).unwrap();
+        let credit_card = create_account_with_path(&conn, "Liabilities/CreditCard", None).unwrap();
+        let salary_account = create_account_with_path(&conn, "Income/Salary", None).unwrap();
+        let food_account = create_account_with_path(&conn, "Expenses/Food", None).unwrap();
         let transport_account =
-            create_account_with_path(&conn, "Expenses/Transport", "CNY", None).unwrap();
+            create_account_with_path(&conn, "Expenses/Transport", None).unwrap();
 
         let salary_category =
             create_category(&conn, "Salary", &CategoryType::Income, None).unwrap();

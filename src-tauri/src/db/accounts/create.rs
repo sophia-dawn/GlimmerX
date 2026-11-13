@@ -13,10 +13,11 @@ use super::types::{AccountRecord, BatchAccountInput, CreateAccountFullInput};
 /// Create an account from a path like "Assets/招商银行".
 /// First segment determines type. Remaining segments joined by "/" become the name.
 /// Returns the created account's ID.
+///
+/// No currency parameter: every account is CNY (see `crud::insert_account`).
 pub fn create_account_with_path(
     conn: &Connection,
     full_path: &str,
-    currency: &str,
     input: Option<&CreateAccountFullInput>,
 ) -> Result<String, AppError> {
     let segments = parse_path(full_path);
@@ -59,7 +60,6 @@ pub fn create_account_with_path(
         id: String::new(),
         name,
         account_type,
-        currency: currency.to_string(),
         description: full_input.description.unwrap_or_default(),
         account_number: full_input.account_number,
         is_system: false,
@@ -115,7 +115,6 @@ pub fn batch_create_accounts(
             id: String::new(),
             name,
             account_type,
-            currency: input.currency.clone(),
             description: input.description.clone().unwrap_or_default(),
             account_number: input.account_number.clone(),
             is_system: false,

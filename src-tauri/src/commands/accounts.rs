@@ -70,7 +70,6 @@ fn parse_decimal_to_cents(s: &str) -> Result<i64, AppError> {
 #[derive(Deserialize)]
 pub struct CreateAccountInput {
     pub name: String,
-    pub currency: Option<String>,
     pub initial_balance: Option<String>,
     pub equity_account_name: Option<String>,
     pub opening_balance_name: Option<String>,
@@ -105,7 +104,6 @@ pub struct AccountDto {
     pub id: String,
     pub name: String,
     pub account_type: String,
-    pub currency: String,
     pub description: String,
     pub account_number: Option<String>,
     pub is_system: bool,
@@ -145,7 +143,6 @@ fn to_dto_with_opening_balance(
         id: record.id,
         name: record.name,
         account_type: record.account_type,
-        currency: record.currency,
         description: record.description,
         account_number: record.account_number,
         is_system: record.is_system,
@@ -221,8 +218,6 @@ pub async fn account_create(
     // Start transaction for atomicity
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    let currency = input.currency.unwrap_or_else(|| "CNY".to_string());
-
     // Reject equity account creation (matches Firefly III behavior)
     let segments: Vec<&str> = input
         .name
@@ -245,7 +240,7 @@ pub async fn account_create(
         include_net_worth: input.include_net_worth.unwrap_or(true),
     };
 
-    let id = accounts::create_account_with_path(&tx, &input.name, &currency, Some(&full_input))
+    let id = accounts::create_account_with_path(&tx, &input.name, Some(&full_input))
         .map_err(|e| e.to_string())?;
 
     let created_account = accounts::find_account(&tx, &id)
@@ -303,7 +298,6 @@ pub async fn account_create(
         id: record.id,
         name: record.name,
         account_type: record.account_type,
-        currency: record.currency,
         description: record.description,
         account_number: record.account_number,
         is_system: record.is_system,
@@ -425,7 +419,6 @@ pub async fn account_update(
         id: record.id,
         name: record.name,
         account_type: record.account_type,
-        currency: record.currency,
         description: record.description,
         account_number: record.account_number,
         is_system: record.is_system,
@@ -536,7 +529,6 @@ pub async fn account_batch_create(
         };
         batch_inputs.push(accounts::BatchAccountInput {
             name: input.name,
-            currency: input.currency.unwrap_or_else(|| "CNY".to_string()),
             initial_balance,
             description: input.description,
             account_number: input.account_number,
@@ -702,7 +694,6 @@ mod tests {
             id: uuid::Uuid::new_v4().to_string(),
             name: name.to_string(),
             account_type: account_type.to_string(),
-            currency: "CNY".to_string(),
             description: String::new(),
             account_number: None,
             is_system: false,

@@ -33,6 +33,3 @@ export const DATE_FORMATS = {
   short: "MM-dd",
   full: "yyyy-MM-dd",
 } as const;
-
-// 默认货币
-export const DEFAULT_CURRENCY = "CNY";

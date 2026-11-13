@@ -24,6 +24,7 @@
 ## accounts 表设计
 
 - 当前 12 列：`id, name, type, currency, description, account_number, is_system, iban, is_active, include_net_worth, created_at, updated_at`
+- `currency` 是**遗留列**：单币种产品固定写入 `'CNY'`，不读出、不展示、不可选（见 [21-double-entry-upgrade](21-double-entry-upgrade.md) §6）
 - 层级用**路径式名称**表达（如 `Assets/招商银行`）：首段决定 `type`，其余段以 `/` 连接为 `name`；**没有** `parent_id` 列
 - 唯一索引：`(type, name)`（`idx_accounts_type_name`）
 - **没有** `subtype` 列；资产/负债细分目前不落库

@@ -10,7 +10,7 @@ CREATE TABLE accounts (
     id                  TEXT PRIMARY KEY,
     name                TEXT NOT NULL UNIQUE,       -- 格式: "{type}/{账户名}"，如 "asset/招商银行"
     type                TEXT NOT NULL CHECK (type IN ('asset', 'liability', 'income', 'expense', 'equity')),
-    currency            TEXT NOT NULL DEFAULT 'CNY',
+    currency            TEXT NOT NULL DEFAULT 'CNY',  -- 遗留列，仅写入 'CNY'，全系统不读取
     description         TEXT NOT NULL DEFAULT '',
     account_number      TEXT,
     is_system           INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
@@ -140,7 +140,6 @@ interface AccountDto {
   id: string;
   name: string; // 格式: "{type}/{账户名}"
   account_type: AccountType;
-  currency: string;
   description: string;
   account_number: string | null;
   is_system: boolean;
@@ -164,7 +163,6 @@ interface AccountMeta {
 
 interface CreateAccountInput {
   name: string; // 路径格式: "资产/银行/招商银行" 或 "{type}/{name}"
-  currency?: string;
   initial_balance?: string | number; // 十进制字符串或整数
   initial_balance_date?: string;
   description?: string;

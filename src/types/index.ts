@@ -101,7 +101,6 @@ export interface RecentDbEntry {
 /** Input for creating a new account using Beancount-style path. */
 export interface CreateAccountInput {
   name: string; // full path like "资产/银行/招商银行"
-  currency?: string;
   initial_balance?: string | number; // decimal string or cents
   initial_balance_date?: string; // ISO date for opening balance, defaults to today
   description?: string;
@@ -149,7 +148,6 @@ export interface AccountDto {
   id: string;
   name: string;
   account_type: AccountType;
-  currency: string;
   description: string;
   account_number: string | null;
   is_system: boolean;
@@ -374,4 +372,3 @@ export interface AccountBalanceItem {
 
 export * from "./dashboard";
 export * from "./report";
-export * from "./export";

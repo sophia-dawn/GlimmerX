@@ -118,7 +118,6 @@ fn ensure_opening_balance_equity(
         id: String::new(),
         name: full_name,
         account_type: "equity".to_string(),
-        currency: "CNY".to_string(),
         description: String::new(),
         account_number: None,
         is_system: true,
