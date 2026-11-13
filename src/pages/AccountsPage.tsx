@@ -323,7 +323,6 @@ function AccountRow({
     queryFn: () => accountBalance(account.id),
     enabled:
       account.account_type === "asset" || account.account_type === "liability",
-    staleTime: 0,
   });
   return (
     <div

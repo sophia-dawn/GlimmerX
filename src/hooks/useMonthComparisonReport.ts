@@ -15,9 +15,6 @@ export function useMonthComparisonReport({
   return useQuery({
     queryKey: ["monthComparisonReport", month1, month2],
     queryFn: () => reportMonthComparison(month1, month2),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
     enabled,
   });
 }

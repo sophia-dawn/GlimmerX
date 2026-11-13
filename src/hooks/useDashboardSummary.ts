@@ -15,8 +15,5 @@ export function useDashboardSummary() {
   return useQuery({
     queryKey: ["dashboard-summary", params.fromDate, params.toDate],
     queryFn: () => dashboardSummary(params),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

@@ -14,8 +14,5 @@ export function useBudgetList() {
   return useQuery({
     queryKey: ["budget-list", params.year, params.month],
     queryFn: () => budgetListStatuses(params.year, params.month),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

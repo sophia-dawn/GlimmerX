@@ -6,8 +6,5 @@ export function useCategoryList(type?: "income" | "expense") {
   return useQuery<Category[]>({
     queryKey: ["categoryList", type],
     queryFn: () => categoryList(type),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

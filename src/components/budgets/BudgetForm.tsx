@@ -58,9 +58,6 @@ export function BudgetForm({
   const { data: categories } = useQuery({
     queryKey: ["categoryList", "expense"],
     queryFn: () => categoryList("expense"),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 
   // Pre-fill form in edit mode

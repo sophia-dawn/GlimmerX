@@ -9,8 +9,5 @@ export function useCategoryBreakdownReport(
   return useQuery({
     queryKey: ["report_category_breakdown", filter, incomeOrExpense],
     queryFn: () => reportCategoryBreakdown(filter, incomeOrExpense),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

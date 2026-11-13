@@ -21,8 +21,5 @@ export function useTopExpenses(year?: number, month?: number, limit?: number) {
       params.limit,
     ],
     queryFn: () => dashboardTopExpenses(params),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

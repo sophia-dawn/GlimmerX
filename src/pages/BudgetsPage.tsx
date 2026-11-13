@@ -74,9 +74,6 @@ export function BudgetsPage() {
   const { data: budgets, isLoading } = useQuery({
     queryKey: ["budgetStatuses", currentYear, currentMonth],
     queryFn: () => budgetListStatuses(currentYear, currentMonth),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 
   const handleEdit = (budget: BudgetStatus) => {

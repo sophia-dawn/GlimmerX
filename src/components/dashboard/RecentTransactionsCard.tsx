@@ -20,9 +20,6 @@ export function RecentTransactionsCard() {
         sortBy: "date",
         sortOrder: "desc",
       }),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 
   if (error) {

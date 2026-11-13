@@ -111,9 +111,6 @@ export function TransactionsPage() {
     getNextPageParam: (lastPage) =>
       lastPage.pagination.hasNext ? lastPage.pagination.page + 1 : undefined,
     initialPageParam: 1,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 
   // Extract and merge data

@@ -64,7 +64,10 @@ The dashboard (概览) module displays aggregated financial data on the home pag
 | `RecentTransactionsCard` | Recent 8 transactions with links |
 | `AccountBalanceList` | Collapsible list of account balances |
 
-All hooks use `staleTime: 0, gcTime: 0, refetchOnMount: "always"` per project rule (no caching).
+Query defaults are defined once in `src/App.tsx` and `src/constants/query.ts`:
+`staleTime: 0` + `refetchOnMount: "always"` (never serve stale financial data),
+`gcTime: 5min`, `refetchOnWindowFocus: false`. Do not repeat these overrides in
+individual hooks — only spread `QUERY_CONFIG.STATIC` for immutable metadata.
 
 ## Dependencies
 

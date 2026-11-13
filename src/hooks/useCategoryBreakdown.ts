@@ -24,8 +24,5 @@ export function useCategoryBreakdown(
       params.categoryType,
     ],
     queryFn: () => dashboardCategoryBreakdown(params),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

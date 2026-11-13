@@ -5,8 +5,5 @@ export function useYearSummaryReport(year: number) {
   return useQuery({
     queryKey: ["report_year_summary", year],
     queryFn: () => reportYearSummary(year),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

@@ -38,9 +38,6 @@ export function AccountBalanceList() {
   } = useQuery({
     queryKey: ["accounts-for-dashboard"],
     queryFn: () => accountList(),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 
   const filteredAccounts = (accounts ?? [])
@@ -54,9 +51,6 @@ export function AccountBalanceList() {
   const { data: balancesData } = useQuery({
     queryKey: ["account-balances-batch", accountIds],
     queryFn: () => accountBalancesBatch(accountIds),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
     enabled: accountIds.length > 0,
   });
 

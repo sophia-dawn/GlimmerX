@@ -6,8 +6,5 @@ export function useStandardReport(filter: ReportFilter) {
   return useQuery({
     queryKey: ["standardReport", filter],
     queryFn: () => reportStandard(filter),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

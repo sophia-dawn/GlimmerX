@@ -17,9 +17,6 @@ export function useAccountTransactionsReport(
       pageSize,
     ],
     queryFn: () => reportAccountTransactions(accountId, filter, page, pageSize),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
     enabled: accountId.length > 0,
   });
 }

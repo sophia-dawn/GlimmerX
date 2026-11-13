@@ -14,8 +14,5 @@ export function useMonthlyChart(year?: number, month?: number) {
   return useQuery({
     queryKey: ["dashboard-monthly-chart", params.year, params.month],
     queryFn: () => dashboardMonthlyChart(params),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }

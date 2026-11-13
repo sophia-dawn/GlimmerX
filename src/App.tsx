@@ -16,7 +16,19 @@ import { ReportsPage } from "@/pages/ReportsPage";
 import { ToasterProvider } from "@/components/ui/ToasterProvider";
 import { useDbStore } from "@/stores/dbStore";
 
-const queryClient = new QueryClient();
+// Global defaults mirror QUERY_CONFIG.FINANCIAL: never serve stale financial
+// data, but do not refetch the whole screen every time the window regains focus
+// (single-writer desktop app; mutations invalidate explicitly).
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 0,
+      gcTime: 5 * 60 * 1000,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function AppRoutes() {
   const { isUnlocked } = useDbStore();

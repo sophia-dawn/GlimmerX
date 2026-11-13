@@ -9,9 +9,6 @@ export function useAccountBalanceTrendReport(
   return useQuery({
     queryKey: ["report_account_balance_trend", accountId, filter],
     queryFn: () => reportAccountBalanceTrend(accountId, filter),
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
     enabled: accountId.length > 0,
   });
 }

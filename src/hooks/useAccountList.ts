@@ -6,8 +6,5 @@ export function useAccountList() {
   return useQuery<AccountDto[]>({
     queryKey: ["accounts"],
     queryFn: accountList,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
   });
 }
