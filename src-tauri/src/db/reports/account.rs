@@ -27,11 +27,14 @@ pub fn get_account_transactions_report(
         )
         .map_err(|e| e.to_string())?;
 
-    // Count total matching transactions
+    // Count is posting-level, matching the row granularity below: each row is
+    // one posting on this account, so `COUNT(DISTINCT t.id)` would undercount
+    // the moment a transaction touches the same account twice, and the page
+    // count would then disagree with the rows actually returned.
     let count_sql = "
-        SELECT COUNT(DISTINCT t.id)
-        FROM transactions t
-        JOIN postings p ON p.transaction_id = t.id
+        SELECT COUNT(*)
+        FROM postings p
+        JOIN transactions t ON t.id = p.transaction_id
         WHERE p.account_id = ?1
           AND t.date >= ?2 AND t.date <= ?3
     ";
@@ -175,18 +178,17 @@ pub fn get_account_balance_trend_report(
         ),
         running AS (
             SELECT 
-                p.rowid as rn_id,
+                ROW_NUMBER() OVER (ORDER BY t.date, p.rowid) as rn,
                 strftime('{pf}', t.date) as period,
                 t.date,
                 (SELECT initial_balance FROM initial) + 
-                    SUM(p.amount) OVER (ORDER BY t.date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as balance
+                    SUM(p.amount) OVER (ORDER BY t.date, p.rowid ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as balance
             FROM postings p
             JOIN transactions t ON t.id = p.transaction_id
             WHERE p.account_id = ?1 AND t.date >= ?2 AND t.date <= ?3
-            ORDER BY t.date
         ),
         period_info AS (
-            SELECT period, MIN(date) as period_start, MAX(date) as period_end, MAX(rn_id) as last_rn_id
+            SELECT period, MIN(date) as period_start, MAX(date) as period_end, MAX(rn) as last_rn
             FROM running
             GROUP BY period
         )
@@ -196,7 +198,7 @@ pub fn get_account_balance_trend_report(
             pi.period_end,
             r.balance
         FROM period_info pi
-        JOIN running r ON r.rn_id = pi.last_rn_id
+        JOIN running r ON r.rn = pi.last_rn
         ORDER BY pi.period_start",
         pf = period_format
     );

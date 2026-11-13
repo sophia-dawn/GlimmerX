@@ -64,6 +64,12 @@ fn get_category_comparison(
     // Join on the category's own account instead of the transaction's cached
     // category: a split transaction puts several expense postings into one
     // transaction, and each of them belongs to its own category.
+    // The `CASE WHEN` split keeps the two months separate, but on its own it
+    // also means "read every posting ever recorded and discard most of them".
+    // The WHERE clause prunes to the union of both months — it cannot change
+    // the result, because anything outside both months contributed 0 to both
+    // sums and was filtered out by the HAVING anyway. Dates are ISO strings, so
+    // `MIN`/`MAX` compare lexicographically in the right order.
     let sql = format!(
         "
         SELECT
@@ -75,6 +81,7 @@ fn get_category_comparison(
         INNER JOIN postings p ON p.account_id = c.account_id AND p.amount > 0
         INNER JOIN transactions t ON t.id = p.transaction_id
         WHERE c.type = '{}'
+          AND t.date >= MIN(?1, ?3) AND t.date <= MAX(?2, ?4)
         GROUP BY c.id
         HAVING month1 > 0 OR month2 > 0
         ORDER BY (month1 + month2) DESC

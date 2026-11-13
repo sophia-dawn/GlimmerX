@@ -121,6 +121,19 @@ fn test_parse_postings_summary_malformed() {
     assert_eq!(parsed[0].0, "Cash");
 }
 
+/// `duplicateAccount` keeps the same category out of a transaction twice, so a
+/// repeated name should not reach the parser — but if it ever does, "餐饮、餐饮"
+/// and an inflated "and N more" count is a worse failure than a set join.
+#[test]
+fn test_parse_category_names_drops_repeats() {
+    assert_eq!(
+        parse_category_names("Food|Food|Transport"),
+        vec!["Food", "Transport"]
+    );
+    assert_eq!(parse_category_names(""), Vec::<String>::new());
+    assert_eq!(parse_category_names("Food||"), vec!["Food"]);
+}
+
 // ---------------------------------------------------------------------------
 // Split transactions
 // ---------------------------------------------------------------------------
@@ -173,6 +186,7 @@ fn test_split_transaction_lists_every_category() {
         item.display_amount, 300,
         "the whole outflow is one transaction"
     );
+    assert_eq!(item.flow_amount, -300, "money left the balance sheet");
 
     // Filtering by either category finds the transaction; the displayed amount
     // stays the transaction total, because the filter asks "does this
@@ -205,4 +219,101 @@ fn test_split_transaction_lists_every_category() {
     )
     .unwrap();
     assert!(none.items.is_empty());
+}
+
+/// `display_amount` is the debit total, so it is always positive and an
+/// expense looked exactly like an income. `flow_amount` carries the sign the
+/// card colours by: balance-sheet movement only.
+#[test]
+fn test_flow_amount_distinguishes_expense_income_and_transfer() {
+    let (_dir, conn) = test_conn();
+    let cash = make_account(&conn, "Cash", "asset");
+    let wallet = make_account(&conn, "Wallet", "asset");
+    let food = make_account(&conn, "Food", "expense");
+    let salary = make_account(&conn, "Salary", "income");
+
+    let expense = create_transaction(
+        &conn,
+        "2024-01-10",
+        "Lunch",
+        &[
+            PostingInput {
+                account_id: cash.clone(),
+                amount: -100,
+            },
+            PostingInput {
+                account_id: food,
+                amount: 100,
+            },
+        ],
+    )
+    .unwrap();
+
+    let income = create_transaction(
+        &conn,
+        "2024-01-11",
+        "Payday",
+        &[
+            PostingInput {
+                account_id: cash.clone(),
+                amount: 5000,
+            },
+            PostingInput {
+                account_id: salary,
+                amount: -5000,
+            },
+        ],
+    )
+    .unwrap();
+
+    let transfer = create_transaction(
+        &conn,
+        "2024-01-12",
+        "Top up wallet",
+        &[
+            PostingInput {
+                account_id: cash,
+                amount: -300,
+            },
+            PostingInput {
+                account_id: wallet,
+                amount: 300,
+            },
+        ],
+    )
+    .unwrap();
+
+    let response = list_transactions_paginated(
+        &conn,
+        &TransactionFilter {
+            page: Some(1),
+            page_size: Some(10),
+            sort_by: Some("date".to_string()),
+            sort_order: Some("asc".to_string()),
+            ..TransactionFilter::default()
+        },
+    )
+    .unwrap();
+
+    let by_id = |id: &str| {
+        response
+            .items
+            .iter()
+            .find(|item| item.id == id)
+            .unwrap_or_else(|| panic!("missing transaction {id}"))
+    };
+
+    assert_eq!(by_id(&expense).display_amount, 100);
+    assert_eq!(
+        by_id(&expense).flow_amount,
+        -100,
+        "expense leaves the wallet"
+    );
+
+    assert_eq!(by_id(&income).display_amount, 5000);
+    assert_eq!(by_id(&income).flow_amount, 5000, "income arrives");
+
+    // Moving money between two of the user's own accounts changes no net worth.
+    assert_eq!(by_id(&transfer).display_amount, 300);
+    assert_eq!(by_id(&transfer).flow_amount, 0, "transfer is neutral");
 }

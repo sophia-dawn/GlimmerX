@@ -138,6 +138,10 @@ pub struct TransactionListItem {
     pub postings_summary: Vec<(String, i64)>,
     /// User-visible amount (debit total, always positive)
     pub display_amount: i64,
+    /// Net movement on balance-sheet accounts: negative for a payment,
+    /// positive for a receipt, zero for a transfer between own accounts.
+    /// `display_amount` cannot distinguish these — it is always >= 0.
+    pub flow_amount: i64,
     pub created_at: String,
     pub updated_at: String,
 }

@@ -2,9 +2,9 @@
 
 use rusqlite::{params, Connection};
 
-use crate::constants::account_type;
-
-use super::common::{get_expense_sum, get_income_sum, get_prev_period_bounds, resolve_date_range};
+use super::common::{
+    get_expense_sum, get_income_sum, get_prev_period_bounds, net_worth_accounts, resolve_date_range,
+};
 use super::types::{AccountChange, NetWorthPoint, ReportFilter, StandardReportDto};
 
 pub fn get_standard_report(
@@ -85,7 +85,7 @@ fn get_net_worth_trend(
             FROM postings p2
             JOIN accounts a2 ON a2.id = p2.account_id
             JOIN transactions t2 ON t2.id = p2.transaction_id
-            WHERE a2.type IN ('{}', '{}')
+            WHERE {}
               AND t2.date <= t.date
           ) as net_worth
         FROM transactions t
@@ -93,8 +93,7 @@ fn get_net_worth_trend(
         GROUP BY t.date
         ORDER BY t.date
     ",
-        account_type::ASSET,
-        account_type::LIABILITY
+        net_worth_accounts("a2")
     );
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let points = stmt
@@ -139,13 +138,11 @@ fn get_account_changes(
               AND t3.date <= ?2
           ) as end_balance
         FROM accounts a
-        WHERE a.type IN ('{}', '{}')
-          AND a.is_active = 1
+        WHERE {}
           AND (?3 IS NULL OR a.id IN (SELECT value FROM json_each(?3)))
         ORDER BY a.type, a.name
     ",
-        account_type::ASSET,
-        account_type::LIABILITY
+        net_worth_accounts("a")
     );
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let changes = stmt

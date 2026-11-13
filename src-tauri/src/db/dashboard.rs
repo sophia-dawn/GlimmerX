@@ -79,6 +79,9 @@ pub struct TopExpensesData {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TopExpenseItem {
+    /// Row identity. A split transaction contributes one row per expense
+    /// posting, so `transaction_id` alone is not unique in this list.
+    pub posting_id: String,
     pub transaction_id: String,
     pub date: String,
     pub description: String,
@@ -170,10 +173,9 @@ pub fn get_dashboard_summary(
              FROM accounts a
              LEFT JOIN postings p ON p.account_id = a.id
              LEFT JOIN transactions t ON t.id = p.transaction_id
-             WHERE a.type IN ('{}', '{}') AND a.is_active = 1
+             WHERE {}
              GROUP BY a.id, a.type",
-        account_type::ASSET,
-        account_type::LIABILITY
+        crate::db::reports::net_worth_accounts("a")
     ))?;
 
     let account_balances: Vec<(String, String, i64)> = stmt
@@ -445,7 +447,8 @@ pub fn get_top_expenses(
 
     let mut stmt = conn.prepare(&format!(
         "SELECT t.id, t.date, t.description, p.amount,
-                    c.id as category_id, c.name as category_name, c.icon as category_icon
+                    c.id as category_id, c.name as category_name, c.icon as category_icon,
+                    p.id as posting_id
              FROM transactions t
              JOIN postings p ON p.transaction_id = t.id
              JOIN accounts a ON a.id = p.account_id
@@ -467,6 +470,7 @@ pub fn get_top_expenses(
                 category_id: row.get(4)?,
                 category_name: row.get(5)?,
                 category_icon: row.get(6)?,
+                posting_id: row.get(7)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

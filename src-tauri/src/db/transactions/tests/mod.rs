@@ -4,7 +4,9 @@ use rusqlite::Connection;
 use tempfile::TempDir;
 use uuid::Uuid;
 
-use crate::db::transactions::paginate::{format_date_display, parse_postings_summary};
+use crate::db::transactions::paginate::{
+    format_date_display, parse_category_names, parse_postings_summary,
+};
 use crate::db::transactions::validate::{
     format_amount_display, validate_accounts_active, validate_no_equity_accounts,
 };

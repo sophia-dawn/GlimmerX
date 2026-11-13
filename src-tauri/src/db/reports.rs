@@ -18,6 +18,9 @@ mod tests;
 pub use account::{get_account_balance_trend_report, get_account_transactions_report};
 pub use audit::get_audit_report;
 pub use comparison::get_month_comparison;
+// The dashboard computes net worth from the same accounts; sharing the predicate
+// is what keeps the two screens from disagreeing about the same day.
+pub(crate) use common::net_worth_accounts;
 pub use standard::get_standard_report;
 pub use trend::{
     get_balance_sheet_report, get_category_breakdown_report, get_trend_report,

@@ -7,7 +7,9 @@ use rusqlite::{params, Connection};
 use crate::constants::account_type;
 use crate::utils::time::year_bounds;
 
-use super::common::{get_expense_sum, get_income_sum, get_period_format, resolve_date_range};
+use super::common::{
+    get_expense_sum, get_income_sum, get_period_format, net_worth_accounts, resolve_date_range,
+};
 use super::types::{
     BalanceSheetItem, BalanceSheetReportDto, CategoryAmount, CategoryBreakdownItem,
     CategoryBreakdownReportDto, MonthlySummary, ReportFilter, TrendPoint, TrendReportDto,
@@ -180,12 +182,10 @@ pub fn get_balance_sheet_report(
                   AND t2.date <= ?1
             ) as balance
         FROM accounts a
-        WHERE a.type IN ('{}', '{}')
-          AND a.is_active = 1
+        WHERE {}
         ORDER BY a.type, a.name
     ",
-        account_type::ASSET,
-        account_type::LIABILITY
+        net_worth_accounts("a")
     );
 
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
@@ -246,7 +246,7 @@ pub fn get_year_summary_report(
         FROM postings p
         JOIN accounts a ON a.id = p.account_id
         JOIN transactions t ON t.id = p.transaction_id
-        WHERE strftime('%Y', t.date) = ?1
+        WHERE t.date >= ?1 AND t.date <= ?2
         GROUP BY strftime('%m', t.date)
         ORDER BY month
     ",
@@ -256,7 +256,10 @@ pub fn get_year_summary_report(
     let monthly_map: HashMap<u32, (i64, i64)> = conn
         .prepare(&monthly_sql)
         .map_err(|e| e.to_string())?
-        .query_map(params![year.to_string()], |row| {
+        // A range, not `strftime('%Y', t.date) = ?`: wrapping the column in a
+        // function makes `idx_transactions_date` unusable and the year report —
+        // the one with the most data — scans the whole ledger.
+        .query_map(params![&start_date, &end_date], |row| {
             Ok((
                 row.get::<_, u32>(0)?,
                 (row.get::<_, i64>(1)?, row.get::<_, i64>(2)?),

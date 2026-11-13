@@ -52,12 +52,43 @@ pub fn list_transactions_paginated(
     // Categories are derived from the postings: `categories.account_id` is the
     // ledger account a posting points at, so a split transaction yields several
     // names here and one cached `transactions.category_id` could never do that.
+    //
+    // The name list is a correlated subquery rather than a joined aggregate: as
+    // a joined `GROUP BY transaction_id` it was materialised for the whole
+    // ledger on every page (60k postings before the first row was emitted),
+    // while here it runs once per returned row against
+    // `idx_postings_transaction`. `DISTINCT` matters: two postings in the same
+    // category used to render as "餐饮、餐饮".
+    // `display_amount` is the debit total, so it is always >= 0 and can never
+    // tell a payment from a receipt. `flow_amount` sums only the balance-sheet
+    // side: an expense leaves it negative, income positive, a transfer between
+    // two of the user's own accounts zero.
+    let cash_flow_types = format!(
+        "a.type IN ('{}', '{}')",
+        crate::constants::account_type::ASSET,
+        crate::constants::account_type::LIABILITY
+    );
+
     let items_sql = format!(
         "SELECT
             t.id, t.date, t.description, t.created_at, t.updated_at,
-            COALESCE(cat.names, '') as category_names,
-            cat.icon as category_icon,
+            COALESCE((
+                SELECT GROUP_CONCAT(name, '|') FROM (
+                    SELECT DISTINCT c.name AS name
+                      FROM postings p2
+                      JOIN accounts a2 ON a2.id = p2.account_id
+                      JOIN categories c ON c.account_id = a2.id
+                     WHERE p2.transaction_id = t.id
+                     ORDER BY c.name
+                )
+            ), '') as category_names,
+            (SELECT MIN(c.icon)
+               FROM postings p2
+               JOIN accounts a2 ON a2.id = p2.account_id
+               JOIN categories c ON c.account_id = a2.id
+              WHERE p2.transaction_id = t.id) as category_icon,
             COALESCE(SUM(CASE WHEN p.amount > 0 THEN p.amount ELSE 0 END), 0) as display_amount,
+            COALESCE(SUM(CASE WHEN {cash_flow_types} THEN p.amount ELSE 0 END), 0) as flow_amount,
             GROUP_CONCAT(
                 a.name || ':' || CASE
                     WHEN p.amount > 0 THEN '+' || CAST(ABS(p.amount) AS TEXT)
@@ -68,15 +99,6 @@ pub fn list_transactions_paginated(
          FROM transactions t
          JOIN postings p ON p.transaction_id = t.id
          JOIN accounts a ON a.id = p.account_id
-         LEFT JOIN (
-             SELECT p2.transaction_id AS tid,
-                    GROUP_CONCAT(c.name, '|') AS names,
-                    MIN(c.icon) AS icon
-               FROM postings p2
-               JOIN accounts a2 ON a2.id = p2.account_id
-               JOIN categories c ON c.account_id = a2.id
-              GROUP BY p2.transaction_id
-         ) cat ON cat.tid = t.id
          WHERE {}
          GROUP BY t.id
          {}
@@ -106,7 +128,7 @@ pub fn list_transactions_paginated(
     let mut items: Vec<TransactionListItem> = conn
         .prepare(&items_sql)?
         .query_map(rusqlite::params_from_iter(param_refs), |row| {
-            let postings_data: Option<String> = row.get::<_, Option<String>>(8)?;
+            let postings_data: Option<String> = row.get::<_, Option<String>>(9)?;
 
             let postings_summary = postings_data
                 .and_then(|data| parse_postings_summary(&data))
@@ -122,6 +144,7 @@ pub fn list_transactions_paginated(
                 category_icon: row.get(6)?,
                 postings_summary,
                 display_amount: row.get(7)?,
+                flow_amount: row.get(8)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -249,10 +272,16 @@ pub(in crate::db::transactions) fn format_date_display(date_str: &str) -> String
 }
 
 /// Split the `category_names` aggregate back into individual names.
+///
+/// De-duplicated: the SQL already asks for `DISTINCT`, but a duplicate here
+/// would read as "餐饮、餐饮" and inflate the "and N more" count on the card, so
+/// the parser refuses to produce one.
 pub(in crate::db::transactions) fn parse_category_names(data: &str) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
     data.split('|')
         .map(str::trim)
         .filter(|name| !name.is_empty())
+        .filter(|name| seen.insert(name.to_string()))
         .map(str::to_string)
         .collect()
 }

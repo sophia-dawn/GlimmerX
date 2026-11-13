@@ -17,11 +17,41 @@ pub fn resolve_date_range(filter: &ReportFilter) -> (String, String) {
         DateRangePreset::Last3Months => last_n_months_bounds(3),
         DateRangePreset::Last6Months => last_n_months_bounds(6),
         DateRangePreset::Last12Months => last_n_months_bounds(12),
-        DateRangePreset::Custom => (
-            filter.start_date.clone().unwrap_or_else(today_date),
-            filter.end_date.clone().unwrap_or_else(today_date),
-        ),
+        DateRangePreset::Custom => {
+            // The UI sends "" for a date it has not filled in yet. Treating that
+            // as a real date made every comparison false, so a half-filled
+            // custom range silently reported zeros.
+            let start = resolve_custom_date(filter.start_date.as_deref());
+            let end = resolve_custom_date(filter.end_date.as_deref());
+            if start > end {
+                (end, start)
+            } else {
+                (start, end)
+            }
+        }
     }
+}
+
+fn resolve_custom_date(value: Option<&str>) -> String {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(today_date)
+}
+
+/// SQL predicate for the accounts that count toward net worth, for `alias`.
+///
+/// `accounts.include_net_worth` is a user-facing checkbox ("include in net
+/// worth") that no report ever read, so unchecking it changed nothing. Both it
+/// and `is_active` are applied through this one helper so the dashboard, the
+/// balance sheet and the trend line cannot disagree about the same day.
+pub(crate) fn net_worth_accounts(alias: &str) -> String {
+    format!(
+        "{alias}.type IN ('{}', '{}') AND {alias}.is_active = 1 AND {alias}.include_net_worth = 1",
+        account_type::ASSET,
+        account_type::LIABILITY
+    )
 }
 
 /// Returns the strftime format string for a given period granularity.

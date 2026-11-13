@@ -729,6 +729,70 @@ fn test_get_account_balance_trend_report_with_data() {
     assert!(get_account_balance_trend_report(&conn, "missing", &filter).is_err());
 }
 
+/// The closing balance of a period must come from the posting that is last *by
+/// date*, not the one inserted last. Back-dating is normal (recording a January
+/// expense while it is already February), and it puts insertion order and date
+/// order out of step — reading the balance at `MAX(rowid)` then reported a
+/// January close that ignored the very transaction the user had just entered.
+#[test]
+fn test_balance_trend_reads_the_close_by_date_not_by_insert_order() {
+    let conn = setup_test_db();
+    let cash = create_account_with_path(&conn, "Assets/Cash", Some(&net_worth_input())).unwrap();
+    let food_category = create_category(&conn, "Food", &CategoryType::Expense, None).unwrap();
+    let food_account = account_id_for_category(&conn, &food_category).unwrap();
+
+    // Insert the later transaction first, so rowid order contradicts date order.
+    create_transaction(
+        &conn,
+        "2024-01-25",
+        "Late entry",
+        &[
+            PostingInput {
+                account_id: cash.clone(),
+                amount: -1000,
+            },
+            PostingInput {
+                account_id: food_account.clone(),
+                amount: 1000,
+            },
+        ],
+    )
+    .unwrap();
+    create_transaction(
+        &conn,
+        "2024-01-10",
+        "Back-dated",
+        &[
+            PostingInput {
+                account_id: cash.clone(),
+                amount: -500,
+            },
+            PostingInput {
+                account_id: food_account.clone(),
+                amount: 500,
+            },
+        ],
+    )
+    .unwrap();
+
+    let filter = custom_filter("2024-01-01", "2024-01-31");
+    let dto = get_account_balance_trend_report(&conn, &cash, &filter).unwrap();
+    assert_eq!(dto.data_points.len(), 2);
+    assert_eq!(dto.data_points[0].period_start, "2024-01-10");
+    assert_eq!(dto.data_points[0].balance, -500);
+    assert_eq!(dto.data_points[1].period_start, "2024-01-25");
+    assert_eq!(dto.data_points[1].balance, -1500);
+
+    let mut monthly = custom_filter("2024-01-01", "2024-01-31");
+    monthly.period_granularity = PeriodGranularity::Monthly;
+    let dto = get_account_balance_trend_report(&conn, &cash, &monthly).unwrap();
+    assert_eq!(dto.data_points.len(), 1);
+    assert_eq!(
+        dto.data_points[0].balance, -1500,
+        "the month closes on the last date, not the last insert"
+    );
+}
+
 #[test]
 fn test_get_audit_report_with_data() {
     let conn = setup_test_db();

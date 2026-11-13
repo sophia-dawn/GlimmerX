@@ -117,6 +117,9 @@ pub struct TransactionListItemDto {
     pub category_icon: Option<String>,
     pub postings_summary: Vec<PostingSummaryDto>,
     pub display_amount: i64,
+    /// Balance-sheet movement: the sign the UI colours by. Negative = money
+    /// out, positive = money in, zero = internal transfer.
+    pub flow_amount: i64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -214,6 +217,7 @@ fn list_item_to_dto(item: TransactionListItem) -> TransactionListItemDto {
             })
             .collect(),
         display_amount: item.display_amount,
+        flow_amount: item.flow_amount,
         created_at: item.created_at,
         updated_at: item.updated_at,
     }
