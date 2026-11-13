@@ -58,7 +58,7 @@ pub fn create_transaction(
 
     conn.execute(
         &format!(
-            "INSERT INTO transactions ({}) VALUES (?1, ?2, ?3, ?4, 0, NULL, ?5, ?5)",
+            "INSERT INTO transactions ({}) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
             TRANSACTION_COLUMNS
         ),
         rusqlite::params![&tx_id, date, description, category_id, &now],

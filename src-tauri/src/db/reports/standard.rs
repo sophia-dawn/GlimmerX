@@ -87,11 +87,9 @@ fn get_net_worth_trend(
             JOIN transactions t2 ON t2.id = p2.transaction_id
             WHERE a2.type IN ('{}', '{}')
               AND t2.date <= t.date
-              AND t2.deleted_at IS NULL
           ) as net_worth
         FROM transactions t
         WHERE t.date >= ?1 AND t.date <= ?2
-          AND t.deleted_at IS NULL
         GROUP BY t.date
         ORDER BY t.date
     ",
@@ -132,7 +130,6 @@ fn get_account_changes(
             JOIN transactions t2 ON t2.id = p2.transaction_id
             WHERE p2.account_id = a.id
               AND t2.date < ?1
-              AND t2.deleted_at IS NULL
           ) as start_balance,
           (
             SELECT COALESCE(SUM(p3.amount), 0)
@@ -140,7 +137,6 @@ fn get_account_changes(
             JOIN transactions t3 ON t3.id = p3.transaction_id
             WHERE p3.account_id = a.id
               AND t3.date <= ?2
-              AND t3.deleted_at IS NULL
           ) as end_balance
         FROM accounts a
         WHERE a.type IN ('{}', '{}')

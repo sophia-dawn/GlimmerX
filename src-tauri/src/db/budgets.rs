@@ -164,7 +164,6 @@ pub fn calculate_budget_status(
           AND a.type = 'expense'
           AND t.date >= ?2
           AND t.date <= ?3
-          AND t.deleted_at IS NULL
         "#,
         rusqlite::params![&budget.category_id, &from_date, &to_date],
         |row| row.get(0),
@@ -220,7 +219,7 @@ pub fn list_budget_statuses(
         FROM budgets b
         JOIN categories c ON c.id = b.category_id
         LEFT JOIN transactions t ON t.category_id = b.category_id 
-            AND t.date >= ?1 AND t.date <= ?2 AND t.deleted_at IS NULL
+            AND t.date >= ?1 AND t.date <= ?2
         LEFT JOIN postings p ON p.transaction_id = t.id 
         LEFT JOIN accounts a ON a.id = p.account_id
         GROUP BY b.id
@@ -420,77 +419,11 @@ mod tests {
     use tempfile::TempDir;
 
     fn test_conn() -> (TempDir, Connection) {
+        // The real schema, not a hand-written copy.
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("test.db");
         let conn = Connection::open(&path).unwrap();
-        conn.execute_batch(
-            r#"
-            PRAGMA journal_mode = WAL;
-            PRAGMA foreign_keys = ON;
-
-            CREATE TABLE categories (
-                id         TEXT PRIMARY KEY,
-                name       TEXT NOT NULL,
-                type       TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-                icon       TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE budgets (
-                id          TEXT PRIMARY KEY,
-                category_id TEXT NOT NULL REFERENCES categories(id),
-                amount      INTEGER NOT NULL,
-                period      TEXT NOT NULL,
-                rollover    INTEGER NOT NULL DEFAULT 0,
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT NOT NULL
-            );
-
-            CREATE TABLE accounts (
-                id                  TEXT PRIMARY KEY,
-                name                TEXT NOT NULL,
-                type                TEXT NOT NULL CHECK (type IN ('asset', 'liability', 'income', 'expense', 'equity')),
-                currency            TEXT NOT NULL DEFAULT 'CNY',
-                description         TEXT NOT NULL DEFAULT '',
-                account_number      TEXT,
-                is_system           INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
-                iban                TEXT,
-                is_active           INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
-                include_net_worth   INTEGER NOT NULL DEFAULT 1 CHECK (include_net_worth IN (0, 1)),
-                created_at          TEXT NOT NULL,
-                updated_at          TEXT NOT NULL
-            );
-
-            CREATE TABLE transactions (
-                id          TEXT PRIMARY KEY,
-                date        TEXT NOT NULL,
-                description TEXT NOT NULL,
-                category_id TEXT REFERENCES categories(id),
-                is_reconciled INTEGER NOT NULL DEFAULT 0 CHECK (is_reconciled IN (0, 1)),
-                deleted_at  TEXT,
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT NOT NULL
-            );
-
-            CREATE TABLE postings (
-                id             TEXT PRIMARY KEY,
-                transaction_id TEXT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-                account_id     TEXT NOT NULL REFERENCES accounts(id),
-                amount         INTEGER NOT NULL,
-                sequence       INTEGER NOT NULL DEFAULT 0,
-                created_at     TEXT NOT NULL
-            );
-
-            CREATE UNIQUE INDEX idx_categories_type_name ON categories(type, name);
-            CREATE INDEX idx_categories_type ON categories(type);
-            CREATE UNIQUE INDEX idx_accounts_type_name ON accounts(type, name);
-            CREATE INDEX idx_postings_transaction ON postings(transaction_id);
-            CREATE INDEX idx_postings_account ON postings(account_id);
-            CREATE INDEX idx_transactions_date ON transactions(date);
-            "#,
-        )
-        .unwrap();
+        crate::db::init_schema(&conn).unwrap();
         (dir, conn)
     }
 
@@ -498,7 +431,17 @@ mod tests {
         create_category(conn, name, category_type, None).unwrap()
     }
 
+    /// Reuse an existing account when `(type, name)` is already taken: since
+    /// v2 every category owns exactly one P&L account of the same name, so
+    /// creating a second "餐饮" would (rightly) violate the unique index.
     fn make_account(conn: &Connection, name: &str, account_type: &str) -> String {
+        if let Ok(id) = conn.query_row(
+            "SELECT id FROM accounts WHERE type = ?1 AND name = ?2",
+            rusqlite::params![account_type, name],
+            |row| row.get::<_, String>(0),
+        ) {
+            return id;
+        }
         let id = Uuid::new_v4().to_string();
         let now = crate::utils::time::now_rfc3339();
         conn.execute(
@@ -520,8 +463,8 @@ mod tests {
         let tx_id = Uuid::new_v4().to_string();
         let now = crate::utils::time::now_rfc3339();
         conn.execute(
-            "INSERT INTO transactions (id, date, description, is_reconciled, deleted_at, created_at, updated_at)
-             VALUES (?1, ?2, ?3, 0, NULL, ?4, ?4)",
+            "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)",
             rusqlite::params![&tx_id, date, description, &now],
         )
         .unwrap();
@@ -549,8 +492,8 @@ mod tests {
         let tx_id = Uuid::new_v4().to_string();
         let now = crate::utils::time::now_rfc3339();
         conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, is_reconciled, deleted_at, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, 0, NULL, ?5, ?5)",
+            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
             rusqlite::params![&tx_id, date, description, category_id, &now],
         )
         .unwrap();
@@ -797,33 +740,35 @@ mod tests {
         assert_eq!(status.spent, 0);
     }
 
+    /// The ledger is hard-delete: once the row is gone, so is its budget impact.
+    /// (Before v2 this test relied on `deleted_at`, which no longer exists.)
     #[test]
-    fn test_budget_status_ignores_deleted_transactions() {
+    fn test_budget_status_after_hard_delete() {
         let (_dir, conn) = test_conn();
         let cat_id = make_category(&conn, "餐饮", &CategoryType::Expense);
         let expense_acct = make_account(&conn, "餐饮", "expense");
-        let _asset_acct = make_account(&conn, "Cash", "asset");
+        let asset_acct = make_account(&conn, "Cash", "asset");
 
         let budget_id =
             create_budget(&conn, &cat_id, 10000, &BudgetPeriod::Monthly, false).unwrap();
         let budget = find_budget(&conn, &budget_id).unwrap().unwrap();
 
-        let tx_id = Uuid::new_v4().to_string();
-        let now = crate::utils::time::now_rfc3339();
-        conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, is_reconciled, deleted_at, created_at, updated_at)
-             VALUES (?1, '2024-04-15', ?2, ?3, 0, ?4, ?4, ?4)",
-            rusqlite::params![&tx_id, "已删除", &cat_id, &now],
-        )
-        .unwrap();
+        let tx_id = make_transaction_with_category(
+            &conn,
+            "2024-04-15",
+            "午饭",
+            &cat_id,
+            &[(expense_acct.clone(), 5000), (asset_acct.clone(), -5000)],
+        );
+        assert_eq!(
+            calculate_budget_status(&conn, &budget, 2024, 4)
+                .unwrap()
+                .spent,
+            5000
+        );
 
-        let posting_id = Uuid::new_v4().to_string();
-        conn.execute(
-            "INSERT INTO postings (id, transaction_id, account_id, amount, sequence, created_at)
-             VALUES (?1, ?2, ?3, ?4, 0, ?5)",
-            rusqlite::params![&posting_id, &tx_id, &expense_acct, 5000, &now],
-        )
-        .unwrap();
+        conn.execute("DELETE FROM transactions WHERE id = ?1", [&tx_id])
+            .unwrap();
 
         let status = calculate_budget_status(&conn, &budget, 2024, 4).unwrap();
         assert_eq!(status.spent, 0);

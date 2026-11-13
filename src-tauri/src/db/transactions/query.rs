@@ -61,8 +61,9 @@ pub fn list_transactions(
     from_date: Option<&str>,
     to_date: Option<&str>,
 ) -> Result<Vec<TransactionWithPostings>, AppError> {
+    // `WHERE 1 = 1` keeps the optional filters below appendable as plain "AND".
     let mut sql_parts: Vec<String> = vec![format!(
-        "SELECT {} FROM transactions WHERE deleted_at IS NULL",
+        "SELECT {} FROM transactions WHERE 1 = 1",
         TRANSACTION_COLUMNS
     )];
     let mut param_values: Vec<String> = Vec::new();
@@ -124,7 +125,7 @@ pub fn get_transaction_with_postings(
     let tx = conn
         .query_row(
             &format!(
-                "SELECT {} FROM transactions WHERE id = ?1 AND deleted_at IS NULL",
+                "SELECT {} FROM transactions WHERE id = ?1",
                 TRANSACTION_COLUMNS
             ),
             [id],
@@ -171,7 +172,7 @@ pub fn get_transaction_detail(
     let tx_data = conn
         .query_row(
             "SELECT date, description, category_id, created_at, updated_at 
-             FROM transactions WHERE id = ?1 AND deleted_at IS NULL",
+             FROM transactions WHERE id = ?1",
             [tx_id],
             |row| {
                 Ok((

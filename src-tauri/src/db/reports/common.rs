@@ -49,7 +49,6 @@ pub(in crate::db::reports) fn get_income_sum(
         JOIN accounts a ON a.id = p.account_id AND a.type = '{}'
         JOIN transactions t ON t.id = p.transaction_id
         WHERE t.date >= ?1 AND t.date <= ?2
-          AND t.deleted_at IS NULL
           AND p.amount < 0
           AND (?3 IS NULL OR a.id IN (SELECT value FROM json_each(?3)))
     ",
@@ -73,7 +72,6 @@ pub(in crate::db::reports) fn get_expense_sum(
         JOIN accounts a ON a.id = p.account_id AND a.type = '{}'
         JOIN transactions t ON t.id = p.transaction_id
         WHERE t.date >= ?1 AND t.date <= ?2
-          AND t.deleted_at IS NULL
           AND p.amount > 0
           AND (?3 IS NULL OR a.id IN (SELECT value FROM json_each(?3)))
     ",

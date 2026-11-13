@@ -111,7 +111,6 @@ pub fn get_dashboard_summary(
              JOIN accounts a ON a.id = p.account_id
              JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type = '{}' AND p.amount < 0
-             AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2",
             account_type::INCOME
         ),
@@ -128,7 +127,6 @@ pub fn get_dashboard_summary(
              JOIN accounts a ON a.id = p.account_id
              JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type = '{}' AND p.amount > 0
-             AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2",
             account_type::EXPENSE
         ),
@@ -144,7 +142,6 @@ pub fn get_dashboard_summary(
              JOIN accounts a ON a.id = p.account_id
              JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type = '{}' AND p.amount < 0
-             AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2",
             account_type::INCOME
         ),
@@ -160,7 +157,6 @@ pub fn get_dashboard_summary(
              JOIN accounts a ON a.id = p.account_id
              JOIN transactions t ON t.id = p.transaction_id
              WHERE a.type = '{}' AND p.amount > 0
-             AND t.deleted_at IS NULL
              AND t.date >= ?1 AND t.date <= ?2",
             account_type::EXPENSE
         ),
@@ -170,7 +166,7 @@ pub fn get_dashboard_summary(
 
     let mut stmt = conn.prepare(&format!(
         "SELECT a.id, a.type,
-                COALESCE(SUM(CASE WHEN t.deleted_at IS NULL THEN p.amount ELSE 0 END), 0) as balance
+                COALESCE(SUM(p.amount), 0) as balance
              FROM accounts a
              LEFT JOIN postings p ON p.account_id = a.id
              LEFT JOIN transactions t ON t.id = p.transaction_id
@@ -261,7 +257,7 @@ pub fn get_monthly_chart(
             FROM transactions t
             JOIN postings p ON p.transaction_id = t.id
             JOIN accounts a ON a.id = p.account_id
-            WHERE t.deleted_at IS NULL AND t.date >= ?1 AND t.date <= ?2
+            WHERE t.date >= ?1 AND t.date <= ?2
             GROUP BY t.date
             ORDER BY t.date",
             account_type::INCOME,
@@ -366,7 +362,6 @@ pub fn get_category_breakdown(
          LEFT JOIN postings p ON p.transaction_id = t.id
          LEFT JOIN accounts a ON a.id = p.account_id
          WHERE c.type = ?1
-         AND (t.id IS NULL OR t.deleted_at IS NULL)
          AND (t.date IS NULL OR (t.date >= ?2 AND t.date <= ?3))
          AND (p.amount IS NULL OR {})
          AND (a.type IS NULL OR a.type = ?1)
@@ -457,7 +452,7 @@ pub fn get_top_expenses(
              JOIN postings p ON p.transaction_id = t.id
              JOIN accounts a ON a.id = p.account_id
              LEFT JOIN categories c ON c.id = t.category_id
-             WHERE a.type = '{}' AND p.amount > 0 AND t.deleted_at IS NULL
+             WHERE a.type = '{}' AND p.amount > 0
              AND t.date >= ?1 AND t.date <= ?2
              ORDER BY p.amount DESC
              LIMIT ?3",
@@ -497,62 +492,11 @@ mod tests {
     use tempfile::TempDir;
 
     fn test_conn() -> (TempDir, Connection) {
+        // The real schema, not a hand-written copy.
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("test.db");
         let conn = Connection::open(&path).unwrap();
-        conn.execute_batch(
-            r#"
-            PRAGMA journal_mode = WAL;
-            PRAGMA foreign_keys = ON;
-
-            CREATE TABLE accounts (
-                id                  TEXT PRIMARY KEY,
-                name                TEXT NOT NULL,
-                type                TEXT NOT NULL CHECK (type IN ('asset', 'liability', 'income', 'expense', 'equity')),
-                currency            TEXT NOT NULL DEFAULT 'CNY',
-                description         TEXT NOT NULL DEFAULT '',
-                account_number      TEXT,
-                is_system           INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
-                iban                TEXT,
-                is_active           INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
-                include_net_worth   INTEGER NOT NULL DEFAULT 1 CHECK (include_net_worth IN (0, 1)),
-                created_at          TEXT NOT NULL,
-                updated_at          TEXT NOT NULL
-            );
-
-            CREATE TABLE categories (
-                id         TEXT PRIMARY KEY,
-                name       TEXT NOT NULL,
-                type       TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-                icon       TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE transactions (
-                id          TEXT PRIMARY KEY,
-                date        TEXT NOT NULL,
-                description TEXT NOT NULL,
-                category_id TEXT REFERENCES categories(id),
-                is_reconciled INTEGER NOT NULL DEFAULT 0,
-                deleted_at  TEXT,
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT NOT NULL
-            );
-
-            CREATE TABLE postings (
-                id             TEXT PRIMARY KEY,
-                transaction_id TEXT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-                account_id     TEXT NOT NULL REFERENCES accounts(id),
-                amount         INTEGER NOT NULL,
-                created_at     TEXT NOT NULL
-            );
-
-            CREATE UNIQUE INDEX idx_accounts_type_name ON accounts(type, name);
-            CREATE UNIQUE INDEX idx_categories_type_name ON categories(type, name);
-        "#,
-        )
-        .unwrap();
+        crate::db::init_schema(&conn).unwrap();
         (dir, conn)
     }
 
@@ -572,15 +516,34 @@ mod tests {
         }
     }
 
+    /// Insert the account unless `(type, name)` is already taken, and return
+    /// its id. Categories create their mirror account, so tests that set up
+    /// both must not insert the same name twice.
+    fn ensure_account(
+        conn: &Connection,
+        name: &str,
+        account_type: &str,
+        include_net_worth: bool,
+    ) -> String {
+        if let Ok(id) = conn.query_row(
+            "SELECT id FROM accounts WHERE type = ?1 AND name = ?2",
+            rusqlite::params![account_type, name],
+            |row| row.get::<_, String>(0),
+        ) {
+            return id;
+        }
+        insert_account(conn, &make_account(name, account_type, include_net_worth)).unwrap()
+    }
+
     #[test]
     fn test_dashboard_summary_empty() {
         let (_dir, conn) = test_conn();
 
         // Create some accounts but no transactions
-        insert_account(&conn, &make_account("银行", "asset", true)).unwrap();
-        insert_account(&conn, &make_account("信用卡", "liability", true)).unwrap();
-        insert_account(&conn, &make_account("工资", "income", false)).unwrap();
-        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        ensure_account(&conn, "银行", "asset", true);
+        ensure_account(&conn, "信用卡", "liability", true);
+        ensure_account(&conn, "工资", "income", false);
+        ensure_account(&conn, "餐饮", "expense", false);
 
         let summary = get_dashboard_summary(
             &conn,
@@ -604,8 +567,8 @@ mod tests {
     fn test_monthly_chart_empty() {
         let (_dir, conn) = test_conn();
 
-        insert_account(&conn, &make_account("工资", "income", false)).unwrap();
-        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        ensure_account(&conn, "工资", "income", false);
+        ensure_account(&conn, "餐饮", "expense", false);
 
         let chart = get_monthly_chart(&conn, 2024, 1).unwrap();
 
@@ -629,7 +592,7 @@ mod tests {
         create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
         create_category(&conn, "交通", &CategoryType::Expense, None).unwrap();
 
-        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        ensure_account(&conn, "餐饮", "expense", false);
 
         let breakdown = get_category_breakdown(&conn, 2024, 1, CategoryType::Expense).unwrap();
 
@@ -645,7 +608,7 @@ mod tests {
         let (_dir, conn) = test_conn();
 
         create_category(&conn, "工资", &CategoryType::Income, None).unwrap();
-        insert_account(&conn, &make_account("工资", "income", false)).unwrap();
+        ensure_account(&conn, "工资", "income", false);
 
         let breakdown = get_category_breakdown(&conn, 2024, 1, CategoryType::Income).unwrap();
 
@@ -656,7 +619,7 @@ mod tests {
     fn test_top_expenses_empty() {
         let (_dir, conn) = test_conn();
 
-        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        ensure_account(&conn, "餐饮", "expense", false);
 
         let expenses = get_top_expenses(&conn, 2024, 1, 10).unwrap();
 
@@ -686,8 +649,8 @@ mod tests {
     fn test_monthly_chart_single_query() {
         let (_dir, conn) = test_conn();
 
-        insert_account(&conn, &make_account("工资", "income", false)).unwrap();
-        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        ensure_account(&conn, "工资", "income", false);
+        ensure_account(&conn, "餐饮", "expense", false);
 
         let chart = get_monthly_chart(&conn, 2024, 1).unwrap();
 
@@ -700,8 +663,8 @@ mod tests {
     fn test_dashboard_summary_batch_balance() {
         let (_dir, conn) = test_conn();
 
-        insert_account(&conn, &make_account("银行", "asset", true)).unwrap();
-        insert_account(&conn, &make_account("信用卡", "liability", true)).unwrap();
+        ensure_account(&conn, "银行", "asset", true);
+        ensure_account(&conn, "信用卡", "liability", true);
 
         let summary = get_dashboard_summary(
             &conn,
@@ -752,9 +715,9 @@ mod tests {
     fn test_dashboard_summary_with_transactions() {
         let (_dir, conn) = test_conn();
 
-        let asset_id = insert_account(&conn, &make_account("银行", "asset", true)).unwrap();
-        let income_id = insert_account(&conn, &make_account("工资", "income", false)).unwrap();
-        let expense_id = insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        let asset_id = ensure_account(&conn, "银行", "asset", true);
+        let income_id = ensure_account(&conn, "工资", "income", false);
+        let expense_id = ensure_account(&conn, "餐饮", "expense", false);
 
         insert_transaction_with_postings(
             &conn,
@@ -793,8 +756,8 @@ mod tests {
     fn test_month_boundary_last_day() {
         let (_dir, conn) = test_conn();
 
-        let asset_id = insert_account(&conn, &make_account("银行", "asset", true)).unwrap();
-        let expense_id = insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        let asset_id = ensure_account(&conn, "银行", "asset", true);
+        let expense_id = ensure_account(&conn, "餐饮", "expense", false);
 
         insert_transaction_with_postings(
             &conn,
@@ -820,11 +783,10 @@ mod tests {
     fn test_net_worth_calculation() {
         let (_dir, conn) = test_conn();
 
-        let asset_id = insert_account(&conn, &make_account("银行", "asset", true)).unwrap();
-        let liability_id =
-            insert_account(&conn, &make_account("信用卡", "liability", true)).unwrap();
-        let income_id = insert_account(&conn, &make_account("工资", "income", false)).unwrap();
-        let expense_id = insert_account(&conn, &make_account("消费", "expense", false)).unwrap();
+        let asset_id = ensure_account(&conn, "银行", "asset", true);
+        let liability_id = ensure_account(&conn, "信用卡", "liability", true);
+        let income_id = ensure_account(&conn, "工资", "income", false);
+        let expense_id = ensure_account(&conn, "消费", "expense", false);
 
         insert_transaction_with_postings(
             &conn,
@@ -860,8 +822,8 @@ mod tests {
     #[test]
     fn test_monthly_chart_december() {
         let (_dir, conn) = test_conn();
-        insert_account(&conn, &make_account("工资", "income", false)).unwrap();
-        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        ensure_account(&conn, "工资", "income", false);
+        ensure_account(&conn, "餐饮", "expense", false);
 
         let chart = get_monthly_chart(&conn, 2024, 12).unwrap();
         assert_eq!(chart.days.len(), 31); // December has 31 days
@@ -878,7 +840,7 @@ mod tests {
     fn test_category_breakdown_december() {
         let (_dir, conn) = test_conn();
         create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        ensure_account(&conn, "餐饮", "expense", false);
 
         let breakdown = get_category_breakdown(&conn, 2024, 12, CategoryType::Expense).unwrap();
         assert_eq!(breakdown.month, 12);
@@ -888,7 +850,7 @@ mod tests {
     #[test]
     fn test_top_expenses_december() {
         let (_dir, conn) = test_conn();
-        insert_account(&conn, &make_account("餐饮", "expense", false)).unwrap();
+        ensure_account(&conn, "餐饮", "expense", false);
 
         let top = get_top_expenses(&conn, 2024, 12, 10).unwrap();
         assert_eq!(top.month, 12);

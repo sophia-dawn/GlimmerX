@@ -5,6 +5,8 @@ pub mod categories;
 pub mod dashboard;
 pub mod data;
 pub mod db;
+pub mod reconcile;
 pub mod reports;
+pub mod savings;
 pub mod settings;
 pub mod transactions;

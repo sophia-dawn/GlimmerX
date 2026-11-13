@@ -14,6 +14,13 @@ pub struct CategoryDto {
     #[serde(rename = "type")]
     pub category_type: CategoryType,
     pub icon: Option<String>,
+    /// The P&L account this category posts to; `null` only for legacy rows the
+    /// v2 backfill could not bind.
+    #[serde(rename = "accountId")]
+    pub account_id: Option<String>,
+    /// Balance of that account in cents. Income accounts are negative in
+    /// bookkeeping terms, so the UI shows the magnitude.
+    pub balance: i64,
     #[serde(rename = "createdAt")]
     pub created_at: String,
     #[serde(rename = "updatedAt")]
@@ -53,15 +60,39 @@ pub struct UpdateCategoryInput {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn record_to_dto(record: CategoryRecord) -> CategoryDto {
+fn record_to_dto(record: CategoryRecord, balance: i64) -> CategoryDto {
     CategoryDto {
         id: record.id,
         name: record.name,
         category_type: record.category_type,
         icon: record.icon,
+        account_id: record.account_id,
+        balance,
         created_at: record.created_at,
         updated_at: record.updated_at,
     }
+}
+
+/// Balance per category id, in one aggregate query.
+fn category_balances(
+    conn: &rusqlite::Connection,
+) -> Result<std::collections::HashMap<String, i64>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT c.id, COALESCE(SUM(p.amount), 0)
+               FROM categories c
+               LEFT JOIN postings p ON p.account_id = c.account_id
+              GROUP BY c.id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<std::collections::HashMap<_, _>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +123,14 @@ pub async fn category_list(
     }
     .map_err(|e| e.to_string())?;
 
-    Ok(categories.into_iter().map(record_to_dto).collect())
+    let balances = category_balances(&conn)?;
+    Ok(categories
+        .into_iter()
+        .map(|record| {
+            let balance = balances.get(&record.id).copied().unwrap_or(0);
+            record_to_dto(record, balance)
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -120,7 +158,7 @@ pub async fn category_create(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| crate::errors::message("errors.categoryNotFound"))?;
 
-    Ok(record_to_dto(category))
+    Ok(record_to_dto(category, 0))
 }
 
 #[tauri::command]
@@ -155,7 +193,8 @@ pub async fn category_update(
     let category = crate::db::categories::find_category(&conn, &id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| crate::errors::message("errors.categoryNotFound"))?;
-    Ok(record_to_dto(category))
+    let balance = category_balances(&conn)?.get(&id).copied().unwrap_or(0);
+    Ok(record_to_dto(category, balance))
 }
 
 #[tauri::command]
@@ -212,11 +251,12 @@ mod tests {
             name: "Test Category".to_string(),
             category_type: crate::db::categories::CategoryType::Expense,
             icon: Some("🍔".to_string()),
+            account_id: Some("acc-1".to_string()),
             created_at: "2024-01-01T00:00:00Z".to_string(),
             updated_at: "2024-01-01T00:00:00Z".to_string(),
         };
 
-        let dto = record_to_dto(record);
+        let dto = record_to_dto(record, -1234);
 
         assert_eq!(dto.id, "test-id");
         assert_eq!(dto.name, "Test Category");
@@ -225,6 +265,8 @@ mod tests {
             crate::db::categories::CategoryType::Expense
         );
         assert_eq!(dto.icon, Some("🍔".to_string()));
+        assert_eq!(dto.account_id, Some("acc-1".to_string()));
+        assert_eq!(dto.balance, -1234);
         assert_eq!(dto.created_at, "2024-01-01T00:00:00Z");
         assert_eq!(dto.updated_at, "2024-01-01T00:00:00Z");
     }

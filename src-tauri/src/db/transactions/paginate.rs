@@ -66,7 +66,7 @@ pub fn list_transactions_paginated(
          LEFT JOIN categories c ON c.id = t.category_id
          JOIN postings p ON p.transaction_id = t.id
          JOIN accounts a ON a.id = p.account_id
-         WHERE {} AND t.deleted_at IS NULL
+         WHERE {}
          GROUP BY t.id
          {}
          ORDER BY {} {}{}

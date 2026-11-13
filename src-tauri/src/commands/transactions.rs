@@ -18,7 +18,6 @@ pub struct TransactionDto {
     pub date: String,
     pub description: String,
     pub category_id: Option<String>,
-    pub is_reconciled: bool,
     pub created_at: String,
     pub updated_at: String,
     pub postings: Vec<PostingDto>,
@@ -166,7 +165,6 @@ pub fn to_dto(tx_with_postings: TransactionWithPostings) -> TransactionDto {
         date: tx_with_postings.transaction.date,
         description: tx_with_postings.transaction.description,
         category_id: tx_with_postings.transaction.category_id,
-        is_reconciled: tx_with_postings.transaction.is_reconciled,
         created_at: tx_with_postings.transaction.created_at,
         updated_at: tx_with_postings.transaction.updated_at,
         postings: tx_with_postings
@@ -465,8 +463,6 @@ mod tests {
             date: "2024-01-15".to_string(),
             description: "Test transaction".to_string(),
             category_id: Some("cat-123".to_string()),
-            is_reconciled: false,
-            deleted_at: None,
             created_at: "2024-01-15T10:00:00Z".to_string(),
             updated_at: "2024-01-15T10:00:00Z".to_string(),
         }
@@ -502,7 +498,6 @@ mod tests {
         assert_eq!(dto.date, "2024-01-15");
         assert_eq!(dto.description, "Test transaction");
         assert_eq!(dto.category_id, Some("cat-123".to_string()));
-        assert!(!dto.is_reconciled);
         assert_eq!(dto.created_at, "2024-01-15T10:00:00Z");
         assert_eq!(dto.updated_at, "2024-01-15T10:00:00Z");
         assert_eq!(dto.postings.len(), 2);
@@ -568,8 +563,6 @@ mod tests {
             date: "2024-01-15".to_string(),
             description: "No category".to_string(),
             category_id: None,
-            is_reconciled: false,
-            deleted_at: None,
             created_at: "2024-01-15T10:00:00Z".to_string(),
             updated_at: "2024-01-15T10:00:00Z".to_string(),
         };
@@ -592,7 +585,6 @@ mod tests {
             date: "2024-01-15".to_string(),
             description: "Test".to_string(),
             category_id: None,
-            is_reconciled: true,
             created_at: "2024-01-15T10:00:00Z".to_string(),
             updated_at: "2024-01-15T10:00:00Z".to_string(),
             postings: vec![],
@@ -605,7 +597,6 @@ mod tests {
         assert!(json.contains("\"date\""));
         assert!(json.contains("\"description\""));
         assert!(json.contains("\"categoryId\"")); // camelCase
-        assert!(json.contains("\"isReconciled\"")); // camelCase
         assert!(json.contains("\"createdAt\"")); // camelCase
         assert!(json.contains("\"updatedAt\"")); // camelCase
         assert!(json.contains("\"postings\""));

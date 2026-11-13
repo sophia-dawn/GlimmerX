@@ -28,7 +28,7 @@ fn get_balance_check_result(conn: &Connection) -> Result<BalanceCheckResult, Str
 
     let total_transactions: u32 = conn
         .query_row(
-            "SELECT COUNT(*) FROM transactions WHERE deleted_at IS NULL AND description != 'Opening Balance'",
+            "SELECT COUNT(*) FROM transactions WHERE description != 'Opening Balance'",
             [],
             |row| row.get(0),
         )
@@ -40,8 +40,7 @@ fn get_balance_check_result(conn: &Connection) -> Result<BalanceCheckResult, Str
                 SELECT t.id
                 FROM transactions t
                 JOIN postings p ON p.transaction_id = t.id
-                WHERE t.deleted_at IS NULL
-                  AND t.description != 'Opening Balance'
+                WHERE t.description != 'Opening Balance'
                 GROUP BY t.id
                 HAVING SUM(p.amount) != 0
             )",
@@ -57,8 +56,7 @@ fn get_balance_check_result(conn: &Connection) -> Result<BalanceCheckResult, Str
             "SELECT t.id, t.date, t.description, SUM(p.amount) as sum
              FROM transactions t
              JOIN postings p ON p.transaction_id = t.id
-             WHERE t.deleted_at IS NULL
-               AND t.description != 'Opening Balance'
+             WHERE t.description != 'Opening Balance'
              GROUP BY t.id
              HAVING SUM(p.amount) != 0
              ORDER BY t.date DESC
@@ -93,7 +91,7 @@ fn get_category_check_result(conn: &Connection) -> Result<CategoryCheckResult, S
 
     let uncategorized_transactions: u32 = conn
         .query_row(
-            "SELECT COUNT(*) FROM transactions WHERE category_id IS NULL AND deleted_at IS NULL AND description != 'Opening Balance'",
+            "SELECT COUNT(*) FROM transactions WHERE category_id IS NULL AND description != 'Opening Balance'",
             [],
             |row| row.get(0),
         )
@@ -105,7 +103,7 @@ fn get_category_check_result(conn: &Connection) -> Result<CategoryCheckResult, S
         .prepare(
             "SELECT t.id, t.date, t.description
              FROM transactions t
-             WHERE t.category_id IS NULL AND t.deleted_at IS NULL AND t.description != 'Opening Balance'
+             WHERE t.category_id IS NULL AND t.description != 'Opening Balance'
              ORDER BY t.date DESC
              LIMIT 100",
         )
@@ -137,7 +135,7 @@ fn get_account_usage_stats(conn: &Connection) -> Result<Vec<AccountUsageStat>, S
                     MAX(t.date) as last_transaction_date
              FROM accounts a
              JOIN postings p ON p.account_id = a.id
-             JOIN transactions t ON t.id = p.transaction_id AND t.deleted_at IS NULL AND t.description != 'Opening Balance'
+             JOIN transactions t ON t.id = p.transaction_id AND t.description != 'Opening Balance'
              GROUP BY a.id
              ORDER BY posting_count DESC",
     )

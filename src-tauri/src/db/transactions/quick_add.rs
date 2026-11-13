@@ -1,7 +1,6 @@
 //! Quick-add flow: category/account resolution and posting derivation.
 
-use rusqlite::{Connection, OptionalExtension};
-use uuid::Uuid;
+use rusqlite::Connection;
 
 use crate::db::AppError;
 
@@ -64,36 +63,9 @@ pub fn quick_add_with_category(
 }
 
 fn ensure_category_account(conn: &Connection, category_id: &str) -> Result<String, AppError> {
-    let (cat_type, cat_name): (String, String) = conn
-        .query_row(
-            "SELECT type, name FROM categories WHERE id = ?1",
-            [category_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()?
-        .ok_or_else(|| AppError::NotFound("errors.categoryNotFound".to_string()))?;
-
-    let existing: Option<String> = conn
-        .query_row(
-            "SELECT id FROM accounts WHERE name = ?1 AND type = ?2",
-            rusqlite::params![&cat_name, &cat_type],
-            |row| row.get(0),
-        )
-        .optional()?;
-
-    if let Some(id) = existing {
-        return Ok(id);
-    }
-
-    let account_id = Uuid::new_v4().to_string();
-    let now = crate::utils::time::now_rfc3339();
-    conn.execute(
-        "INSERT INTO accounts (id, name, type, currency, description, is_active, include_net_worth, created_at, updated_at)
-         VALUES (?1, ?2, ?3, 'CNY', '', 1, 0, ?4, ?4)",
-        rusqlite::params![&account_id, &cat_name, &cat_type, &now],
-    )?;
-
-    Ok(account_id)
+    // The category's mirror account is recorded on the row itself. Looking it
+    // up by name is what used to create a second account after every rename.
+    crate::db::categories::account_id_for_category(conn, category_id)
 }
 
 #[allow(dead_code)]

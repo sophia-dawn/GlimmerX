@@ -8,8 +8,6 @@ pub struct TransactionRecord {
     pub date: String,
     pub description: String,
     pub category_id: Option<String>,
-    pub is_reconciled: bool,
-    pub deleted_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -205,7 +203,7 @@ pub struct TransactionFilter {
 
 #[allow(dead_code)]
 pub(in crate::db::transactions) const TRANSACTION_COLUMNS: &str =
-    "id, date, description, category_id, is_reconciled, deleted_at, created_at, updated_at";
+    "id, date, description, category_id, created_at, updated_at";
 
 #[allow(dead_code)]
 pub(in crate::db::transactions) const POSTING_COLUMNS: &str =
@@ -220,10 +218,8 @@ pub(in crate::db::transactions) fn row_to_transaction(
         date: row.get(1)?,
         description: row.get(2)?,
         category_id: row.get(3)?,
-        is_reconciled: row.get::<_, i32>(4)? != 0,
-        deleted_at: row.get(5)?,
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
     })
 }
 

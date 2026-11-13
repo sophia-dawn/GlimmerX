@@ -16,7 +16,7 @@ pub fn update_transaction(
     input: &UpdateTransactionInput,
 ) -> Result<TransactionDetail, AppError> {
     let exists: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM transactions WHERE id = ?1 AND deleted_at IS NULL)",
+        "SELECT EXISTS(SELECT 1 FROM transactions WHERE id = ?1)",
         rusqlite::params![tx_id],
         |row| row.get(0),
     )?;
@@ -26,6 +26,10 @@ pub fn update_transaction(
             "errors.transaction.notFound".to_string(),
         ));
     }
+
+    // A reconciled transaction is frozen: changing it would silently break the
+    // statement it was matched against.
+    crate::db::reconcile::assert_not_reconciled(conn, tx_id)?;
 
     if input.date.is_none()
         && input.description.is_none()

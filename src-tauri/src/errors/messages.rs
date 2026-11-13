@@ -12,9 +12,7 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::Zh, "account.inactive") => Some("该账户已停用，无法使用"),
         (Lang::En, "account.inactive") => Some("This account is inactive and cannot be used"),
         (Lang::Zh, "accountHasTransactions") => Some("该账户有交易记录，请先删除相关交易"),
-        (Lang::En, "accountHasTransactions") => {
-            Some("This account has transaction records, please delete related transactions first")
-        }
+        (Lang::En, "accountHasTransactions") => Some("This account has transaction records, please delete related transactions first"),
         (Lang::Zh, "accountIsSystem") => Some("系统账户不允许删除"),
         (Lang::En, "accountIsSystem") => Some("System accounts cannot be deleted"),
         (Lang::Zh, "accountNameAlreadyExists") => Some("账户名称已存在"),
@@ -22,17 +20,11 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::Zh, "accountNotFound") => Some("账户不存在"),
         (Lang::En, "accountNotFound") => Some("Account not found"),
         (Lang::Zh, "accountSystemManaged") => Some("股权类账户由系统管理，无法手动创建"),
-        (Lang::En, "accountSystemManaged") => {
-            Some("Equity accounts are system-managed and cannot be created manually")
-        }
+        (Lang::En, "accountSystemManaged") => Some("Equity accounts are system-managed and cannot be created manually"),
         (Lang::Zh, "ai.apiCallFailed") => Some("AI 服务调用失败"),
         (Lang::En, "ai.apiCallFailed") => Some("AI API call failed"),
-        (Lang::Zh, "ai.insecureBaseUrl") => {
-            Some("仅支持 https:// 的 API 地址（本地 127.0.0.1 可用 http）")
-        }
-        (Lang::En, "ai.insecureBaseUrl") => {
-            Some("Only https:// API endpoints are supported (http is allowed for 127.0.0.1)")
-        }
+        (Lang::Zh, "ai.insecureBaseUrl") => Some("仅支持 https:// 的 API 地址（本地 127.0.0.1 可用 http）"),
+        (Lang::En, "ai.insecureBaseUrl") => Some("Only https:// API endpoints are supported (http is allowed for 127.0.0.1)"),
         (Lang::Zh, "ai.invalidAmount") => Some("AI 返回的金额无效"),
         (Lang::En, "ai.invalidAmount") => Some("Invalid amount from AI"),
         (Lang::Zh, "ai.invalidDate") => Some("AI 返回的日期无效"),
@@ -56,13 +48,9 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::Zh, "ai.timeout") => Some("AI 服务响应超时"),
         (Lang::En, "ai.timeout") => Some("AI service timeout"),
         (Lang::Zh, "backupFailed") => Some("备份失败，请检查目标路径是否可写"),
-        (Lang::En, "backupFailed") => {
-            Some("Backup failed. Please check that the destination is writable")
-        }
+        (Lang::En, "backupFailed") => Some("Backup failed. Please check that the destination is writable"),
         (Lang::Zh, "backupSamePath") => Some("不能把备份保存到数据库文件本身，请选择其他位置"),
-        (Lang::En, "backupSamePath") => {
-            Some("Choose another location: the backup path is the live database file")
-        }
+        (Lang::En, "backupSamePath") => Some("Choose another location: the backup path is the live database file"),
         (Lang::Zh, "budgetAlreadyExists") => Some("该分类已存在预算"),
         (Lang::En, "budgetAlreadyExists") => Some("A budget already exists for this category"),
         (Lang::Zh, "budgetAmountPositive") => Some("预算金额必须大于零"),
@@ -70,19 +58,19 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::Zh, "budgetNotFound") => Some("预算不存在"),
         (Lang::En, "budgetNotFound") => Some("Budget not found"),
         (Lang::Zh, "budgetOnlyForExpense") => Some("只能为支出分类设置预算"),
-        (Lang::En, "budgetOnlyForExpense") => {
-            Some("Budgets can only be set for expense categories")
-        }
+        (Lang::En, "budgetOnlyForExpense") => Some("Budgets can only be set for expense categories"),
+        (Lang::Zh, "categoryAccountInUse") => Some("该分类已产生交易，无法删除。如需停止使用，请改名归档"),
+        (Lang::En, "categoryAccountInUse") => Some("This category already has transactions and cannot be deleted. Rename it instead to retire it"),
         (Lang::Zh, "categoryHasBudgets") => Some("该分类有关联的预算"),
         (Lang::En, "categoryHasBudgets") => Some("Category has associated budgets"),
         (Lang::Zh, "categoryHasTransactions") => Some("该分类有关联的交易记录"),
         (Lang::En, "categoryHasTransactions") => Some("Category has associated transactions"),
         (Lang::Zh, "categoryNameDuplicate") => Some("该类型下已存在同名分类"),
-        (Lang::En, "categoryNameDuplicate") => {
-            Some("A category with this name already exists for this type")
-        }
+        (Lang::En, "categoryNameDuplicate") => Some("A category with this name already exists for this type"),
         (Lang::Zh, "categoryNameRequired") => Some("分类名称不能为空"),
         (Lang::En, "categoryNameRequired") => Some("Category name is required"),
+        (Lang::Zh, "categoryNotBound") => Some("该分类尚未绑定账户，请重新打开数据库以完成升级"),
+        (Lang::En, "categoryNotBound") => Some("This category is not linked to an account yet — reopen the database to finish the upgrade"),
         (Lang::Zh, "categoryNotFound") => Some("分类不存在"),
         (Lang::En, "categoryNotFound") => Some("Category not found"),
         (Lang::Zh, "categoryTypeRequired") => Some("根分类必须指定类型"),
@@ -90,9 +78,7 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::Zh, "databaseCreateFailed") => Some("无法创建数据库文件"),
         (Lang::En, "databaseCreateFailed") => Some("Could not create the database file"),
         (Lang::Zh, "databaseError") => Some("数据库操作失败，请重试或检查数据库文件"),
-        (Lang::En, "databaseError") => {
-            Some("Database operation failed. Please retry or check the database file")
-        }
+        (Lang::En, "databaseError") => Some("Database operation failed. Please retry or check the database file"),
         (Lang::Zh, "databaseFileNotFound") => Some("找不到数据库文件"),
         (Lang::En, "databaseFileNotFound") => Some("Database file not found"),
         (Lang::Zh, "databaseLocked") => Some("数据库未解锁，请先解锁"),
@@ -107,44 +93,48 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::En, "invalidPassword") => Some("Invalid password or database is corrupted"),
         (Lang::Zh, "invalidYearMonth") => Some("月份无效"),
         (Lang::En, "invalidYearMonth") => Some("Invalid month"),
+        (Lang::Zh, "reconcile.accountNotReconcilable") => Some("只有资产与负债账户可以核对"),
+        (Lang::En, "reconcile.accountNotReconcilable") => Some("Only asset and liability accounts can be reconciled"),
+        (Lang::Zh, "reconcile.differenceNotZero") => Some("差额不为零，请勾选与账单一致的分录"),
+        (Lang::En, "reconcile.differenceNotZero") => Some("The difference is not zero — tick the entries that match the statement"),
+        (Lang::Zh, "reconcile.duplicateDate") => Some("该账户在此日期已有一份对账单"),
+        (Lang::En, "reconcile.duplicateDate") => Some("This account already has a statement for that date"),
+        (Lang::Zh, "reconcile.emptySelection") => Some("请至少勾选一条分录"),
+        (Lang::En, "reconcile.emptySelection") => Some("Select at least one entry"),
+        (Lang::Zh, "reconcile.notFound") => Some("对账单不存在"),
+        (Lang::En, "reconcile.notFound") => Some("Reconciliation not found"),
+        (Lang::Zh, "reconcile.postingNotAvailable") => Some("有分录已被核对或不属于该账户，请刷新后重试"),
+        (Lang::En, "reconcile.postingNotAvailable") => Some("Some entries are already reconciled or belong to another account. Refresh and try again"),
+        (Lang::Zh, "reconcile.transactionLocked") => Some("该交易已核对，请先撤销对账再修改"),
+        (Lang::En, "reconcile.transactionLocked") => Some("This transaction is reconciled. Undo the reconciliation before editing it"),
+        (Lang::Zh, "savings.accountNotEmpty") => Some("该目标账户仍有余额，请先将余额转出"),
+        (Lang::En, "savings.accountNotEmpty") => Some("This goal account still holds a balance — transfer it out first"),
+        (Lang::Zh, "savings.duplicateName") => Some("已存在同名的储蓄目标"),
+        (Lang::En, "savings.duplicateName") => Some("A savings goal with that name already exists"),
+        (Lang::Zh, "savings.goalHasHistory") => Some("该目标已有存取记录，无法删除，请改为归档"),
+        (Lang::En, "savings.goalHasHistory") => Some("This goal already has deposits or withdrawals — archive it instead of deleting"),
+        (Lang::Zh, "savings.goalNotFound") => Some("储蓄目标不存在"),
+        (Lang::En, "savings.goalNotFound") => Some("Savings goal not found"),
+        (Lang::Zh, "savings.invalidTarget") => Some("目标金额必须大于零"),
+        (Lang::En, "savings.invalidTarget") => Some("The target amount must be greater than zero"),
         (Lang::Zh, "transaction.amountMustBePositive") => Some("金额必须为正数。"),
         (Lang::En, "transaction.amountMustBePositive") => Some("Amount must be positive."),
         (Lang::Zh, "transaction.amountTooSmall") => Some("金额太小。最小金额为 0.01。"),
-        (Lang::En, "transaction.amountTooSmall") => {
-            Some("Amount is too small. Minimum amount is 0.01.")
-        }
+        (Lang::En, "transaction.amountTooSmall") => Some("Amount is too small. Minimum amount is 0.01."),
         (Lang::Zh, "transaction.duplicateAccount") => Some("同一账户不能在同一交易中出现多次"),
-        (Lang::En, "transaction.duplicateAccount") => {
-            Some("The same account cannot appear twice in one transaction")
-        }
+        (Lang::En, "transaction.duplicateAccount") => Some("The same account cannot appear twice in one transaction"),
         (Lang::Zh, "transaction.equityAccountRestricted") => Some("权益账户仅用于系统交易。"),
-        (Lang::En, "transaction.equityAccountRestricted") => {
-            Some("Equity accounts are only for system transactions.")
-        }
-        (Lang::Zh, "transaction.expenseRequiresDestination") => {
-            Some("支出需要一个目标账户或分类。")
-        }
-        (Lang::En, "transaction.expenseRequiresDestination") => {
-            Some("Expense requires a destination account or category.")
-        }
-        (Lang::Zh, "transaction.expenseRequiresDestinationOrCategory") => {
-            Some("支出交易需要指定目标账户或分类")
-        }
-        (Lang::En, "transaction.expenseRequiresDestinationOrCategory") => {
-            Some("An expense requires a destination account or a category")
-        }
+        (Lang::En, "transaction.equityAccountRestricted") => Some("Equity accounts are only for system transactions."),
+        (Lang::Zh, "transaction.expenseRequiresDestination") => Some("支出需要一个目标账户或分类。"),
+        (Lang::En, "transaction.expenseRequiresDestination") => Some("Expense requires a destination account or category."),
+        (Lang::Zh, "transaction.expenseRequiresDestinationOrCategory") => Some("支出交易需要指定目标账户或分类"),
+        (Lang::En, "transaction.expenseRequiresDestinationOrCategory") => Some("An expense requires a destination account or a category"),
         (Lang::Zh, "transaction.expenseRequiresSource") => Some("支出需要一个来源账户。"),
-        (Lang::En, "transaction.expenseRequiresSource") => {
-            Some("Expense requires a source account.")
-        }
+        (Lang::En, "transaction.expenseRequiresSource") => Some("Expense requires a source account."),
         (Lang::Zh, "transaction.incomeRequiresAccount") => Some("收入交易需要指定来源账户或分类"),
-        (Lang::En, "transaction.incomeRequiresAccount") => {
-            Some("An income entry requires a source account or a category")
-        }
+        (Lang::En, "transaction.incomeRequiresAccount") => Some("An income entry requires a source account or a category"),
         (Lang::Zh, "transaction.incomeRequiresDestination") => Some("收入需要一个目标账户。"),
-        (Lang::En, "transaction.incomeRequiresDestination") => {
-            Some("Income requires a destination account.")
-        }
+        (Lang::En, "transaction.incomeRequiresDestination") => Some("Income requires a destination account."),
         (Lang::Zh, "transaction.invalidAmount") => Some("金额格式无效"),
         (Lang::En, "transaction.invalidAmount") => Some("Invalid amount format"),
         (Lang::Zh, "transaction.invalidMode") => Some("交易类型无效"),
@@ -154,15 +144,11 @@ pub fn lookup(lang: Lang, key: &str) -> Option<&'static str> {
         (Lang::Zh, "transaction.notFound") => Some("交易不存在"),
         (Lang::En, "transaction.notFound") => Some("Transaction not found"),
         (Lang::Zh, "transaction.transferRequiresBothAccounts") => Some("转账需要来源和目标账户。"),
-        (Lang::En, "transaction.transferRequiresBothAccounts") => {
-            Some("Transfer requires both source and destination accounts.")
-        }
+        (Lang::En, "transaction.transferRequiresBothAccounts") => Some("Transfer requires both source and destination accounts."),
         (Lang::Zh, "transaction.transferToSelf") => Some("不能转账到同一账户。"),
         (Lang::En, "transaction.transferToSelf") => Some("Cannot transfer to the same account."),
         (Lang::Zh, "transactionDuplicateAccount") => Some("同一账户不能在同一交易中出现多次"),
-        (Lang::En, "transactionDuplicateAccount") => {
-            Some("Same account cannot appear multiple times in a transaction")
-        }
+        (Lang::En, "transactionDuplicateAccount") => Some("Same account cannot appear multiple times in a transaction"),
         (Lang::Zh, "transactionMinPostings") => Some("交易至少需要两个分录"),
         (Lang::En, "transactionMinPostings") => Some("Transaction requires at least two entries"),
         (Lang::Zh, "transactionUnbalanced") => Some("交易分录必须总和为零"),

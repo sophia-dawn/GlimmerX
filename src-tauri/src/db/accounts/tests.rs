@@ -8,63 +8,11 @@ use super::*;
 use tempfile::TempDir;
 
 fn test_conn() -> (TempDir, Connection) {
+    // The real schema, not a hand-written copy.
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("test.db");
     let conn = Connection::open(&path).unwrap();
-    conn.execute_batch(
-            r#"
-            PRAGMA journal_mode = WAL;
-            PRAGMA foreign_keys = ON;
-
-            CREATE TABLE accounts (
-                id                  TEXT PRIMARY KEY,
-                name                TEXT NOT NULL,
-                type                TEXT NOT NULL CHECK (type IN ('asset', 'liability', 'income', 'expense', 'equity')),
-                currency            TEXT NOT NULL DEFAULT 'CNY',
-                description         TEXT NOT NULL DEFAULT '',
-                account_number      TEXT,
-                is_system           INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
-                iban                TEXT,
-                is_active           INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
-                include_net_worth   INTEGER NOT NULL DEFAULT 1 CHECK (include_net_worth IN (0, 1)),
-                created_at          TEXT NOT NULL,
-                updated_at          TEXT NOT NULL
-            );
-
-            CREATE TABLE account_meta (
-                id          TEXT PRIMARY KEY,
-                account_id  TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-                key         TEXT NOT NULL,
-                value       TEXT NOT NULL,
-                created_at  TEXT NOT NULL
-            );
-
-            CREATE UNIQUE INDEX idx_accounts_type_name
-                ON accounts(type, name);
-
-            CREATE UNIQUE INDEX idx_account_meta_account_key
-                ON account_meta(account_id, key);
-
-            CREATE TABLE transactions (
-                id          TEXT PRIMARY KEY,
-                date        TEXT NOT NULL,
-                description TEXT NOT NULL,
-                category_id TEXT,
-                deleted_at  TEXT,
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT NOT NULL
-            );
-
-            CREATE TABLE postings (
-                id             TEXT PRIMARY KEY,
-                transaction_id TEXT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-                account_id     TEXT NOT NULL REFERENCES accounts(id),
-                amount         INTEGER NOT NULL,
-                created_at     TEXT NOT NULL
-            );
-        "#,
-        )
-        .unwrap();
+    crate::db::init_schema(&conn).unwrap();
     (dir, conn)
 }
 

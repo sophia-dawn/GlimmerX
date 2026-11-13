@@ -313,14 +313,18 @@ pub async fn account_create(
 }
 
 #[tauri::command]
-pub async fn account_list(state: State<'_, AppState>) -> Result<Vec<AccountDto>, String> {
+pub async fn account_list(
+    types: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<Vec<AccountDto>, String> {
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
         .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
-    let accounts_list = accounts::list_accounts(&conn).map_err(|e| e.to_string())?;
+    let accounts_list =
+        accounts::list_accounts_filtered(&conn, types.as_deref()).map_err(|e| e.to_string())?;
     accounts_list
         .into_iter()
         .map(|record| to_dto_with_opening_balance(record, &conn).map_err(|e| e.to_string()))

@@ -21,7 +21,7 @@ pub use create::{batch_create_accounts, create_account_with_path};
 pub use crud::{
     delete_account, find_account, find_account_by_type_and_name, get_account_balance,
     get_account_balances_batch, get_opening_balance_for_account, insert_account, list_accounts,
-    update_account,
+    list_accounts_filtered, update_account,
 };
 pub use ledger::get_account_transactions;
 #[allow(unused_imports)]

@@ -34,7 +34,6 @@ pub fn get_account_transactions_report(
         JOIN postings p ON p.transaction_id = t.id
         WHERE p.account_id = ?1
           AND t.date >= ?2 AND t.date <= ?3
-          AND t.deleted_at IS NULL
     ";
     let total_count: u32 = conn
         .query_row(
@@ -64,7 +63,7 @@ pub fn get_account_transactions_report(
                 LIMIT 1
             ) as counter_account_name
         FROM postings p
-        JOIN transactions t ON t.id = p.transaction_id AND t.deleted_at IS NULL
+        JOIN transactions t ON t.id = p.transaction_id
         LEFT JOIN categories c ON c.id = t.category_id
         WHERE p.account_id = ?1
           AND t.date >= ?2 AND t.date <= ?3
@@ -105,7 +104,7 @@ pub fn get_account_transactions_report(
             COALESCE(SUM(CASE WHEN p.amount > 0 THEN p.amount ELSE 0 END), 0) as inflow,
             COALESCE(SUM(CASE WHEN p.amount < 0 THEN ABS(p.amount) ELSE 0 END), 0) as outflow
         FROM postings p
-        JOIN transactions t ON t.id = p.transaction_id AND t.deleted_at IS NULL
+        JOIN transactions t ON t.id = p.transaction_id
         WHERE p.account_id = ?1
           AND t.date >= ?2 AND t.date <= ?3
     ";
@@ -162,7 +161,7 @@ pub fn get_account_balance_trend_report(
         "WITH initial AS (
             SELECT COALESCE(SUM(p.amount), 0) as initial_balance
             FROM postings p
-            JOIN transactions t ON t.id = p.transaction_id AND t.deleted_at IS NULL
+            JOIN transactions t ON t.id = p.transaction_id
             WHERE p.account_id = ?1 AND t.date < ?2
         ),
         running AS (
@@ -173,7 +172,7 @@ pub fn get_account_balance_trend_report(
                 (SELECT initial_balance FROM initial) + 
                     SUM(p.amount) OVER (ORDER BY t.date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as balance
             FROM postings p
-            JOIN transactions t ON t.id = p.transaction_id AND t.deleted_at IS NULL
+            JOIN transactions t ON t.id = p.transaction_id
             WHERE p.account_id = ?1 AND t.date >= ?2 AND t.date <= ?3
             ORDER BY t.date
         ),

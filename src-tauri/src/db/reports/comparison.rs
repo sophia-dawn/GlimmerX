@@ -69,7 +69,7 @@ fn get_category_comparison(
           COALESCE(SUM(CASE WHEN t.date >= ?1 AND t.date <= ?2 THEN p.amount ELSE 0 END), 0) as month1,
           COALESCE(SUM(CASE WHEN t.date >= ?3 AND t.date <= ?4 THEN p.amount ELSE 0 END), 0) as month2
         FROM categories c
-        INNER JOIN transactions t ON t.category_id = c.id AND t.deleted_at IS NULL
+        INNER JOIN transactions t ON t.category_id = c.id
         INNER JOIN postings p ON p.transaction_id = t.id AND p.amount > 0
         INNER JOIN accounts a ON a.id = p.account_id AND a.type = '{}'
         GROUP BY c.id

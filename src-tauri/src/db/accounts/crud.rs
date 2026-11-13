@@ -92,13 +92,47 @@ pub fn find_account_by_type_and_name(
 
 /// List all accounts (excluding system accounts like Equity and Opening Balances).
 pub fn list_accounts(conn: &Connection) -> Result<Vec<AccountRecord>, AppError> {
-    let mut stmt = conn.prepare(&format!(
-        "SELECT {} FROM accounts WHERE is_system = 0 ORDER BY name",
-        ACCOUNT_COLUMNS
-    ))?;
+    list_accounts_filtered(conn, None)
+}
 
+/// List user accounts, optionally restricted to a set of account types.
+///
+/// The accounts page asks for `asset` / `liability` only: P&L accounts are the
+/// mirror of a category and are managed from the categories page, so showing
+/// them here would duplicate every category as a look-alike row. Other callers
+/// (transfer pickers, reports) still need the full list, hence the optional
+/// filter rather than a hard-coded one.
+pub fn list_accounts_filtered(
+    conn: &Connection,
+    types: Option<&[String]>,
+) -> Result<Vec<AccountRecord>, AppError> {
+    let (sql, params): (String, Vec<&dyn rusqlite::types::ToSql>) = match types {
+        Some(list) if !list.is_empty() => {
+            let placeholders = vec!["?"; list.len()].join(", ");
+            let params: Vec<&dyn rusqlite::types::ToSql> = list
+                .iter()
+                .map(|t| t as &dyn rusqlite::types::ToSql)
+                .collect();
+            (
+                format!(
+                    "SELECT {} FROM accounts WHERE is_system = 0 AND type IN ({}) ORDER BY name",
+                    ACCOUNT_COLUMNS, placeholders
+                ),
+                params,
+            )
+        }
+        _ => (
+            format!(
+                "SELECT {} FROM accounts WHERE is_system = 0 ORDER BY name",
+                ACCOUNT_COLUMNS
+            ),
+            Vec::new(),
+        ),
+    };
+
+    let mut stmt = conn.prepare(&sql)?;
     let accounts = stmt
-        .query_map([], row_to_account)?
+        .query_map(rusqlite::params_from_iter(params), row_to_account)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(accounts)
@@ -272,7 +306,7 @@ pub fn get_account_balance(conn: &Connection, id: &str) -> Result<i64, AppError>
         "SELECT COALESCE(SUM(p.amount), 0)
          FROM postings p
          JOIN transactions t ON t.id = p.transaction_id
-         WHERE p.account_id = ?1 AND t.deleted_at IS NULL",
+         WHERE p.account_id = ?1",
         [id],
         |row| row.get(0),
     )?;
@@ -294,7 +328,7 @@ pub fn get_account_balances_batch(
         "SELECT p.account_id, COALESCE(SUM(p.amount), 0) as balance
          FROM postings p
          JOIN transactions t ON t.id = p.transaction_id
-         WHERE p.account_id IN ({}) AND t.deleted_at IS NULL
+         WHERE p.account_id IN ({})
          GROUP BY p.account_id",
         placeholders.join(", ")
     );

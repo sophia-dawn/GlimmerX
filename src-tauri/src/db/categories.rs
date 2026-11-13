@@ -1,3 +1,11 @@
+//! Categories and their one-to-one P&L accounts.
+//!
+//! A category is the UI name for exactly one `income` / `expense` account; the
+//! ledger truth lives on that account's postings. Before v2 the link was
+//! implicit (`type + name`), so renaming a category silently orphaned its
+//! account and the next quick-add created another one. `categories.account_id`
+//! makes the link explicit and the unique index keeps it a pair.
+
 use rusqlite::{Connection, OptionalExtension};
 use uuid::Uuid;
 
@@ -14,6 +22,23 @@ pub enum CategoryType {
     Income,
     #[default]
     Expense,
+}
+
+impl CategoryType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CategoryType::Income => "income",
+            CategoryType::Expense => "expense",
+        }
+    }
+
+    fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "income" => Some(CategoryType::Income),
+            "expense" => Some(CategoryType::Expense),
+            _ => None,
+        }
+    }
 }
 
 /// Action for updating icon field in category.
@@ -35,6 +60,9 @@ pub struct CategoryRecord {
     pub name: String,
     pub category_type: CategoryType,
     pub icon: Option<String>,
+    /// The P&L account backing this category. `None` only for rows written
+    /// before v2 whose backfill could not run — every normal path sets it.
+    pub account_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -52,24 +80,59 @@ pub struct DeletePreview {
 // ---------------------------------------------------------------------------
 
 /// Common columns for SELECT queries.
-const CATEGORY_COLUMNS: &str = "id, name, type, icon, created_at, updated_at";
+const CATEGORY_COLUMNS: &str = "id, name, type, icon, account_id, created_at, updated_at";
 
 /// Read a CategoryRecord from a row.
 fn row_to_category(row: &rusqlite::Row<'_>) -> rusqlite::Result<CategoryRecord> {
-    let category_type_str: String = row.get(2)?;
-    let category_type = match category_type_str.as_str() {
-        "income" => CategoryType::Income,
-        "expense" => CategoryType::Expense,
-        _ => return Err(rusqlite::Error::InvalidQuery),
-    };
+    let category_type =
+        CategoryType::parse(&row.get::<_, String>(2)?).ok_or(rusqlite::Error::InvalidQuery)?;
     Ok(CategoryRecord {
         id: row.get(0)?,
         name: row.get(1)?,
         category_type,
         icon: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
+        account_id: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
     })
+}
+
+/// Find or create the P&L account that mirrors `(type, name)`.
+///
+/// An existing account is adopted only when no category claims it yet; that is
+/// the legacy-orphan case, and adopting it keeps its history instead of
+/// creating a same-named twin that would violate `idx_accounts_type_name`.
+fn bind_account(
+    conn: &Connection,
+    name: &str,
+    category_type: &CategoryType,
+) -> Result<String, AppError> {
+    let type_str = category_type.as_str();
+
+    let existing: Option<String> = conn
+        .query_row(
+            "SELECT a.id
+               FROM accounts a
+              WHERE a.type = ?1 AND a.name = ?2
+                AND NOT EXISTS (SELECT 1 FROM categories c WHERE c.account_id = a.id)",
+            rusqlite::params![type_str, name],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(id) = existing {
+        return Ok(id);
+    }
+
+    let id = Uuid::new_v4().to_string();
+    let now = crate::utils::time::now_rfc3339();
+    conn.execute(
+        "INSERT INTO accounts
+             (id, name, type, currency, description, is_system, is_active,
+              include_net_worth, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'CNY', '', 0, 1, 0, ?4, ?4)",
+        rusqlite::params![&id, name, type_str, &now],
+    )?;
+    Ok(id)
 }
 
 // ---------------------------------------------------------------------------
@@ -93,16 +156,12 @@ pub fn list_by_type(
     conn: &Connection,
     category_type: &CategoryType,
 ) -> Result<Vec<CategoryRecord>, AppError> {
-    let type_str = match category_type {
-        CategoryType::Income => "income",
-        CategoryType::Expense => "expense",
-    };
     let mut stmt = conn.prepare(&format!(
         "SELECT {} FROM categories WHERE type = ?1 ORDER BY name",
         CATEGORY_COLUMNS
     ))?;
     let categories = stmt
-        .query_map([type_str], row_to_category)?
+        .query_map([category_type.as_str()], row_to_category)?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(categories)
 }
@@ -125,21 +184,33 @@ pub fn find_by_type_and_name(
     category_type: &CategoryType,
     name: &str,
 ) -> Result<Option<CategoryRecord>, AppError> {
-    let type_str = match category_type {
-        CategoryType::Income => "income",
-        CategoryType::Expense => "expense",
-    };
     let row = conn
         .query_row(
             &format!(
                 "SELECT {} FROM categories WHERE type = ?1 AND name = ?2",
                 CATEGORY_COLUMNS
             ),
-            rusqlite::params![type_str, name],
+            rusqlite::params![category_type.as_str(), name],
             row_to_category,
         )
         .optional()?;
     Ok(row)
+}
+
+/// The P&L account a category posts to.
+///
+/// This replaces the old "look the account up by name" helper: the lookup is
+/// now an explicit column read, so a renamed category can never spawn a second
+/// account.
+pub fn account_id_for_category(conn: &Connection, category_id: &str) -> Result<String, AppError> {
+    conn.query_row(
+        "SELECT account_id FROM categories WHERE id = ?1",
+        [category_id],
+        |row| row.get::<_, Option<String>>(0),
+    )
+    .optional()?
+    .flatten()
+    .ok_or_else(|| AppError::NotFound("errors.categoryNotBound".to_string()))
 }
 
 /// Match or create a category by name and type.
@@ -177,7 +248,11 @@ pub fn resolve_or_create(
 // Create operation
 // ---------------------------------------------------------------------------
 
-/// Create a new category. Returns the new category ID.
+/// Create a category together with its mirror P&L account.
+///
+/// Both rows are written here rather than by the caller so there is no window
+/// in which a category exists without an account. The caller is expected to
+/// own the transaction (`commands::categories::category_create` does).
 pub fn create_category(
     conn: &Connection,
     name: &str,
@@ -191,13 +266,7 @@ pub fn create_category(
         ));
     }
 
-    // Enum 已保证类型合法，无需手动校验
-    let type_str = match category_type {
-        CategoryType::Income => "income",
-        CategoryType::Expense => "expense",
-    };
-
-    if let Some(_existing) = find_by_type_and_name(conn, category_type, name)? {
+    if find_by_type_and_name(conn, category_type, name)?.is_some() {
         return Err(AppError::ValidationError(
             "errors.categoryNameDuplicate".to_string(),
         ));
@@ -205,13 +274,14 @@ pub fn create_category(
 
     let id = Uuid::new_v4().to_string();
     let now = crate::utils::time::now_rfc3339();
+    let account_id = bind_account(conn, name, category_type)?;
 
     conn.execute(
         &format!(
-            "INSERT INTO categories ({}) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO categories ({}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
             CATEGORY_COLUMNS
         ),
-        rusqlite::params![&id, name, type_str, icon, &now, &now],
+        rusqlite::params![&id, name, category_type.as_str(), icon, &account_id, &now],
     )?;
 
     Ok(id)
@@ -228,51 +298,60 @@ pub struct UpdateCategoryParams<'a> {
     pub icon: IconUpdateAction,
 }
 
-/// Update category fields.
+/// Update category fields, keeping the mirror account in sync.
+///
+/// The rename is applied to both rows: leaving the account behind is exactly
+/// the drift this table's `account_id` column exists to prevent.
 pub fn update_category(
     conn: &Connection,
     params: &UpdateCategoryParams<'_>,
 ) -> Result<(), AppError> {
-    if let Some(new_name) = params.name {
-        let new_name = new_name.trim();
+    let current = find_category(conn, params.id)?
+        .ok_or_else(|| AppError::ValidationError("errors.categoryNotFound".to_string()))?;
+
+    let now = crate::utils::time::now_rfc3339();
+    let mut sets: Vec<String> = Vec::new();
+    let mut sql_params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if let Some(raw_name) = params.name {
+        let new_name = raw_name.trim();
         if new_name.is_empty() {
             return Err(AppError::ValidationError(
                 "errors.categoryNameRequired".to_string(),
             ));
         }
 
-        let current_type: String = conn.query_row(
-            "SELECT type FROM categories WHERE id = ?1",
-            [&params.id],
-            |row| row.get(0),
-        )?;
-
-        let current_category_type = match current_type.as_str() {
-            "income" => CategoryType::Income,
-            "expense" => CategoryType::Expense,
-            _ => {
-                return Err(AppError::ValidationError(
-                    "Invalid category type".to_string(),
-                ))
-            }
-        };
-
-        if let Some(existing) = find_by_type_and_name(conn, &current_category_type, new_name)? {
+        if let Some(existing) = find_by_type_and_name(conn, &current.category_type, new_name)? {
             if existing.id != params.id {
                 return Err(AppError::ValidationError(
                     "errors.categoryNameDuplicate".to_string(),
                 ));
             }
         }
-    }
 
-    let now = crate::utils::time::now_rfc3339();
-    let mut sets: Vec<String> = Vec::new();
-    let mut sql_params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        // Rename the account first: `idx_accounts_type_name` is UNIQUE, so a
+        // collision must abort before the category row is touched.
+        if let Some(account_id) = current.account_id.as_deref() {
+            let taken: Option<String> = conn
+                .query_row(
+                    "SELECT id FROM accounts WHERE type = ?1 AND name = ?2 AND id <> ?3",
+                    rusqlite::params![current.category_type.as_str(), new_name, account_id],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if taken.is_some() {
+                return Err(AppError::ValidationError(
+                    "errors.accountNameAlreadyExists".to_string(),
+                ));
+            }
+            conn.execute(
+                "UPDATE accounts SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                rusqlite::params![new_name, &now, account_id],
+            )?;
+        }
 
-    if let Some(val) = params.name {
         sets.push("name = ?".to_string());
-        sql_params.push(Box::new(val.to_string()));
+        sql_params.push(Box::new(new_name.to_string()));
     }
 
     match &params.icon {
@@ -310,7 +389,7 @@ pub fn update_category(
 
 /// Preview deletion impact for a category.
 pub fn preview_delete(conn: &Connection, id: &str) -> Result<DeletePreview, AppError> {
-    let _category = find_category(conn, id)?
+    let category = find_category(conn, id)?
         .ok_or_else(|| AppError::ValidationError("errors.categoryNotFound".to_string()))?;
 
     let budget_count: i64 = conn.query_row(
@@ -319,50 +398,74 @@ pub fn preview_delete(conn: &Connection, id: &str) -> Result<DeletePreview, AppE
         |row| row.get(0),
     )?;
 
+    // Transactions reach a category either through the cached `category_id` or
+    // through a posting on the mirror account (a split has only the latter).
     let transaction_count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM transactions WHERE category_id = ?1 AND deleted_at IS NULL",
-        [id],
+        "SELECT COUNT(*) FROM (
+             SELECT id FROM transactions WHERE category_id = ?1
+             UNION
+             SELECT p.transaction_id FROM postings p WHERE p.account_id = ?2
+         )",
+        rusqlite::params![id, category.account_id.as_deref()],
         |row| row.get(0),
     )?;
 
     Ok(DeletePreview {
         budget_count,
         transaction_count,
-        can_delete: true,
+        // The mirror account carries ledger history: once it has postings the
+        // category cannot be removed without destroying entries.
+        can_delete: transaction_count == 0,
     })
 }
 
-/// Delete a category. If cascade is true, deletes budgets and unlinks transactions.
+/// Delete a category, its mirror account, and (when `cascade`) its budgets.
+///
+/// Refused while the account still has postings: the ledger, not the category
+/// row, is the source of truth, so removal would silently drop history.
 pub fn delete_category(conn: &Connection, id: &str, cascade: bool) -> Result<(), AppError> {
-    let _category = find_category(conn, id)?
+    let category = find_category(conn, id)?
         .ok_or_else(|| AppError::ValidationError("errors.categoryNotFound".to_string()))?;
 
-    // 检查预算关联
+    if let Some(account_id) = category.account_id.as_deref() {
+        let postings: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM postings WHERE account_id = ?1",
+            [account_id],
+            |row| row.get(0),
+        )?;
+        if postings > 0 {
+            return Err(AppError::ValidationError(
+                "errors.categoryAccountInUse".to_string(),
+            ));
+        }
+    }
+
     let budget_count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM budgets WHERE category_id = ?1",
         [id],
         |row| row.get(0),
     )?;
-
-    // 存在预算且 cascade=false，阻止删除
     if budget_count > 0 && !cascade {
         return Err(AppError::ValidationError(
             "errors.categoryHasBudgets".to_string(),
         ));
     }
-
-    // cascade=true 时删除预算
     if cascade {
         conn.execute("DELETE FROM budgets WHERE category_id = ?1", [id])?;
     }
 
-    // 解除交易关联（category_id 允许 NULL）
+    // Defensive: the account has no postings (checked above), so any lingering
+    // `category_id` reference is stale cache from a pre-v2 bug.
     conn.execute(
         "UPDATE transactions SET category_id = NULL WHERE category_id = ?1",
         [id],
     )?;
 
     conn.execute("DELETE FROM categories WHERE id = ?1", [id])?;
+
+    if let Some(account_id) = category.account_id.as_deref() {
+        conn.execute("DELETE FROM accounts WHERE id = ?1", [account_id])?;
+    }
 
     Ok(())
 }
@@ -380,57 +483,79 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("test.db");
         let conn = Connection::open(&path).unwrap();
-        conn.execute_batch(
-            r#"
-            PRAGMA journal_mode = WAL;
-            PRAGMA foreign_keys = ON;
-
-            CREATE TABLE categories (
-                id         TEXT PRIMARY KEY,
-                name       TEXT NOT NULL,
-                type       TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-                icon       TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-            CREATE UNIQUE INDEX idx_categories_type_name ON categories(type, name);
-            CREATE INDEX idx_categories_type ON categories(type);
-
-            CREATE TABLE budgets (
-                id          TEXT PRIMARY KEY,
-                category_id TEXT NOT NULL REFERENCES categories(id),
-                amount      INTEGER NOT NULL,
-                period      TEXT NOT NULL,
-                rollover    INTEGER NOT NULL DEFAULT 0,
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT NOT NULL
-            );
-
-            CREATE TABLE transactions (
-                id          TEXT PRIMARY KEY,
-                date        TEXT NOT NULL,
-                description TEXT NOT NULL,
-                category_id TEXT REFERENCES categories(id),
-                deleted_at  TEXT,
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT NOT NULL
-            );
-            "#,
-        )
-        .unwrap();
+        crate::db::init_schema(&conn).unwrap();
         (dir, conn)
     }
 
+    fn account_count(conn: &Connection) -> i64 {
+        conn.query_row("SELECT COUNT(*) FROM accounts", [], |row| row.get(0))
+            .unwrap()
+    }
+
+    fn add_posting(conn: &Connection, account_id: &str) -> String {
+        let now = crate::utils::time::now_rfc3339();
+        let tx_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO transactions (id, date, description, created_at, updated_at)
+             VALUES (?1, '2024-01-01', 'test', ?2, ?2)",
+            rusqlite::params![&tx_id, &now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO postings (id, transaction_id, account_id, amount, sequence, created_at)
+             VALUES (?1, ?2, ?3, 100, 0, ?4)",
+            rusqlite::params![Uuid::new_v4().to_string(), &tx_id, account_id, &now],
+        )
+        .unwrap();
+        tx_id
+    }
+
     #[test]
-    fn test_create_category() {
+    fn test_create_category_creates_mirror_account() {
         let (_dir, conn) = test_conn();
         let id = create_category(&conn, "餐饮", &CategoryType::Expense, Some("🍔")).unwrap();
-        assert!(!id.is_empty());
 
         let cat = find_category(&conn, &id).unwrap().unwrap();
         assert_eq!(cat.name, "餐饮");
         assert_eq!(cat.category_type, CategoryType::Expense);
         assert_eq!(cat.icon, Some("🍔".to_string()));
+
+        let account_id = cat
+            .account_id
+            .expect("category must be bound to an account");
+        assert_eq!(
+            account_of(&conn, &account_id),
+            ("餐饮".into(), "expense".into(), 0)
+        );
+    }
+
+    fn account_of(conn: &Connection, id: &str) -> (String, String, i32) {
+        conn.query_row(
+            "SELECT name, type, include_net_worth FROM accounts WHERE id = ?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_create_adopts_orphan_account_instead_of_duplicating() {
+        let (_dir, conn) = test_conn();
+        let now = crate::utils::time::now_rfc3339();
+        conn.execute(
+            "INSERT INTO accounts (id, name, type, currency, description, is_system,
+                                   is_active, include_net_worth, created_at, updated_at)
+             VALUES ('orphan', '餐饮', 'expense', 'CNY', '', 0, 1, 0, ?1, ?1)",
+            [&now],
+        )
+        .unwrap();
+
+        let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
+        assert_eq!(
+            find_category(&conn, &id).unwrap().unwrap().account_id,
+            Some("orphan".to_string())
+        );
+        assert_eq!(account_count(&conn), 1, "the orphan must be reused");
     }
 
     #[test]
@@ -439,14 +564,14 @@ mod tests {
         create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
         let result = create_category(&conn, "餐饮", &CategoryType::Expense, None);
         assert!(result.is_err());
+        assert_eq!(account_count(&conn), 1);
     }
 
     #[test]
     fn test_create_same_name_different_type_allowed() {
         let (_dir, conn) = test_conn();
         create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-        let result = create_category(&conn, "餐饮", &CategoryType::Income, None);
-        assert!(result.is_ok());
+        assert!(create_category(&conn, "餐饮", &CategoryType::Income, None).is_ok());
     }
 
     #[test]
@@ -455,19 +580,24 @@ mod tests {
         create_category(&conn, "工资", &CategoryType::Income, None).unwrap();
         create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
 
-        let income_cats = list_by_type(&conn, &CategoryType::Income).unwrap();
-        assert_eq!(income_cats.len(), 1);
-        assert_eq!(income_cats[0].name, "工资");
+        let income = list_by_type(&conn, &CategoryType::Income).unwrap();
+        assert_eq!(income.len(), 1);
+        assert_eq!(income[0].name, "工资");
 
-        let expense_cats = list_by_type(&conn, &CategoryType::Expense).unwrap();
-        assert_eq!(expense_cats.len(), 1);
-        assert_eq!(expense_cats[0].name, "餐饮");
+        let expense = list_by_type(&conn, &CategoryType::Expense).unwrap();
+        assert_eq!(expense.len(), 1);
+        assert_eq!(expense[0].name, "餐饮");
     }
 
     #[test]
-    fn test_update_category() {
+    fn test_update_renames_mirror_account() {
         let (_dir, conn) = test_conn();
         let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
+        let account_id = find_category(&conn, &id)
+            .unwrap()
+            .unwrap()
+            .account_id
+            .unwrap();
 
         update_category(
             &conn,
@@ -481,22 +611,55 @@ mod tests {
 
         let cat = find_category(&conn, &id).unwrap().unwrap();
         assert_eq!(cat.name, "外卖");
-        assert_eq!(cat.icon, Some("🍔".to_string()));
+        assert_eq!(account_of(&conn, &account_id).0, "外卖");
+        assert_eq!(
+            account_count(&conn),
+            1,
+            "rename must not create a second account"
+        );
     }
 
     #[test]
-    fn test_delete_category() {
+    fn test_update_to_name_taken_by_unrelated_account_is_blocked() {
+        let (_dir, conn) = test_conn();
+        let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
+        let now = crate::utils::time::now_rfc3339();
+        conn.execute(
+            "INSERT INTO accounts (id, name, type, currency, description, is_system,
+                                   is_active, include_net_worth, created_at, updated_at)
+             VALUES ('other', '交通', 'expense', 'CNY', '', 0, 1, 0, ?1, ?1)",
+            [&now],
+        )
+        .unwrap();
+
+        let err = update_category(
+            &conn,
+            &UpdateCategoryParams {
+                id: &id,
+                name: Some("交通"),
+                icon: IconUpdateAction::NoChange,
+            },
+        )
+        .unwrap_err();
+        assert!(format!("{err}").contains("账户名称已存在"));
+        // Nothing changed.
+        assert_eq!(find_category(&conn, &id).unwrap().unwrap().name, "餐饮");
+    }
+
+    #[test]
+    fn test_delete_category_removes_mirror_account() {
         let (_dir, conn) = test_conn();
         let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
         delete_category(&conn, &id, false).unwrap();
+
         assert!(find_category(&conn, &id).unwrap().is_none());
+        assert_eq!(account_count(&conn), 0);
     }
 
     #[test]
     fn test_delete_preview() {
         let (_dir, conn) = test_conn();
         let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-
         let preview = preview_delete(&conn, &id).unwrap();
         assert_eq!(preview.budget_count, 0);
         assert_eq!(preview.transaction_count, 0);
@@ -511,10 +674,7 @@ mod tests {
             "INSERT INTO categories (id, name, type, created_at, updated_at) VALUES ('1', 'Test', 'invalid', ?1, ?1)",
             [&now],
         );
-        assert!(
-            result.is_err(),
-            "Invalid type should violate CHECK constraint"
-        );
+        assert!(result.is_err(), "invalid type must violate CHECK");
     }
 
     #[test]
@@ -529,32 +689,29 @@ mod tests {
         )
         .unwrap();
 
-        conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at) VALUES (?1, '2024-01-01', 'Test', ?2, ?3, ?3)",
-            rusqlite::params![Uuid::new_v4().to_string(), &cat_id, &now],
-        )
-        .unwrap();
+        // A transaction that no longer references the category but still posts
+        // to its account (this is what a split looks like).
+        let account_id = find_category(&conn, &cat_id)
+            .unwrap()
+            .unwrap()
+            .account_id
+            .unwrap();
+        add_posting(&conn, &account_id);
 
         let preview = preview_delete(&conn, &cat_id).unwrap();
         assert_eq!(preview.budget_count, 1);
         assert_eq!(preview.transaction_count, 1);
+        assert!(!preview.can_delete);
 
-        delete_category(&conn, &cat_id, true).unwrap();
-        assert!(find_category(&conn, &cat_id).unwrap().is_none());
-
-        let budget_count: i64 = conn
+        // Refused before anything is deleted: the check runs first, so the
+        // budget survives along with the category.
+        let err = delete_category(&conn, &cat_id, true).unwrap_err();
+        assert!(format!("{err}").contains("无法删除"));
+        assert!(find_category(&conn, &cat_id).unwrap().is_some());
+        let budgets: i64 = conn
             .query_row("SELECT COUNT(*) FROM budgets", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(budget_count, 0);
-
-        let tx_null_count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM transactions WHERE category_id IS NULL",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(tx_null_count, 1);
+        assert_eq!(budgets, 1);
     }
 
     #[test]
@@ -567,32 +724,26 @@ mod tests {
 
         let cats = list_categories(&conn).unwrap();
         assert_eq!(cats.len(), 4);
-
         assert_eq!(cats[0].category_type, CategoryType::Expense);
         assert_eq!(cats[0].name, "Food");
-        assert_eq!(cats[1].category_type, CategoryType::Expense);
         assert_eq!(cats[1].name, "Transport");
         assert_eq!(cats[2].category_type, CategoryType::Income);
         assert_eq!(cats[2].name, "Bonus");
-        assert_eq!(cats[3].category_type, CategoryType::Income);
         assert_eq!(cats[3].name, "Salary");
     }
 
     #[test]
     fn test_create_empty_name_blocked() {
         let (_dir, conn) = test_conn();
-        let result = create_category(&conn, "", &CategoryType::Expense, None);
-        assert!(result.is_err());
-
-        let result = create_category(&conn, "   ", &CategoryType::Expense, None);
-        assert!(result.is_err());
+        assert!(create_category(&conn, "", &CategoryType::Expense, None).is_err());
+        assert!(create_category(&conn, "   ", &CategoryType::Expense, None).is_err());
+        assert_eq!(account_count(&conn), 0);
     }
 
     #[test]
     fn test_update_empty_name_blocked() {
         let (_dir, conn) = test_conn();
         let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-
         let result = update_category(
             &conn,
             &UpdateCategoryParams {
@@ -607,7 +758,7 @@ mod tests {
     #[test]
     fn test_update_duplicate_name_blocked() {
         let (_dir, conn) = test_conn();
-        let _id1 = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
+        create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
         let id2 = create_category(&conn, "交通", &CategoryType::Expense, None).unwrap();
 
         let result = update_category(
@@ -626,15 +777,15 @@ mod tests {
         let (_dir, conn) = test_conn();
         let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
 
-        let result = update_category(
+        update_category(
             &conn,
             &UpdateCategoryParams {
                 id: &id,
                 name: Some("餐饮"),
                 icon: IconUpdateAction::Set("🍔".to_string()),
             },
-        );
-        assert!(result.is_ok());
+        )
+        .unwrap();
 
         let cat = find_category(&conn, &id).unwrap().unwrap();
         assert_eq!(cat.icon, Some("🍔".to_string()));
@@ -644,7 +795,6 @@ mod tests {
     fn test_update_clear_icon() {
         let (_dir, conn) = test_conn();
         let id = create_category(&conn, "餐饮", &CategoryType::Expense, Some("🍔")).unwrap();
-
         update_category(
             &conn,
             &UpdateCategoryParams {
@@ -654,42 +804,26 @@ mod tests {
             },
         )
         .unwrap();
-
-        let cat = find_category(&conn, &id).unwrap().unwrap();
-        assert!(cat.icon.is_none());
+        assert!(find_category(&conn, &id).unwrap().unwrap().icon.is_none());
     }
 
     #[test]
     fn test_delete_nonexistent() {
         let (_dir, conn) = test_conn();
-        let result = delete_category(&conn, "nonexistent-id", false);
-        assert!(result.is_err());
+        assert!(delete_category(&conn, "nonexistent-id", false).is_err());
     }
 
     #[test]
     fn test_preview_delete_nonexistent() {
         let (_dir, conn) = test_conn();
-        let result = preview_delete(&conn, "nonexistent-id");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_updated_at_on_create() {
-        let (_dir, conn) = test_conn();
-        let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-
-        let cat = find_category(&conn, &id).unwrap().unwrap();
-        assert!(!cat.updated_at.is_empty());
-        assert!(!cat.created_at.is_empty());
+        assert!(preview_delete(&conn, "nonexistent-id").is_err());
     }
 
     #[test]
     fn test_updated_at_updated_on_modify() {
         let (_dir, conn) = test_conn();
         let id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-
-        let cat_before = find_category(&conn, &id).unwrap().unwrap();
-        let updated_at_before = cat_before.updated_at.clone();
+        let before = find_category(&conn, &id).unwrap().unwrap().updated_at;
 
         std::thread::sleep(std::time::Duration::from_millis(10));
 
@@ -703,15 +837,16 @@ mod tests {
         )
         .unwrap();
 
-        let cat_after = find_category(&conn, &id).unwrap().unwrap();
-        assert_ne!(cat_after.updated_at, updated_at_before);
+        assert_ne!(
+            find_category(&conn, &id).unwrap().unwrap().updated_at,
+            before
+        );
     }
 
     #[test]
     fn test_delete_with_budgets_blocked_without_cascade() {
         let (_dir, conn) = test_conn();
         let cat_id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-
         let now = crate::utils::time::now_rfc3339();
         conn.execute(
             "INSERT INTO budgets (id, category_id, amount, period, rollover, created_at, updated_at) VALUES (?1, ?2, 10000, 'monthly', 0, ?3, ?3)",
@@ -719,66 +854,37 @@ mod tests {
         )
         .unwrap();
 
-        // cascade=false + 存在预算 → 应返回错误
-        let result = delete_category(&conn, &cat_id, false);
-        assert!(result.is_err());
-
-        // 错误消息应为 errors.categoryHasBudgets
-        if let Err(AppError::ValidationError(msg)) = result {
-            assert_eq!(msg, "errors.categoryHasBudgets");
-        } else {
-            panic!("Expected ValidationError with categoryHasBudgets");
+        match delete_category(&conn, &cat_id, false) {
+            Err(AppError::ValidationError(msg)) => assert_eq!(msg, "errors.categoryHasBudgets"),
+            other => panic!("expected categoryHasBudgets, got {other:?}"),
         }
-
-        // 分类应仍然存在
         assert!(find_category(&conn, &cat_id).unwrap().is_some());
     }
 
     #[test]
-    fn test_delete_with_budgets_cascade_deletes_budgets() {
+    fn test_account_id_for_unbound_category() {
         let (_dir, conn) = test_conn();
-        let cat_id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-
         let now = crate::utils::time::now_rfc3339();
         conn.execute(
-            "INSERT INTO budgets (id, category_id, amount, period, rollover, created_at, updated_at) VALUES (?1, ?2, 10000, 'monthly', 0, ?3, ?3)",
-            rusqlite::params![Uuid::new_v4().to_string(), &cat_id, &now],
+            "INSERT INTO categories (id, name, type, created_at, updated_at)
+             VALUES ('legacy', '老分类', 'expense', ?1, ?1)",
+            [&now],
         )
         .unwrap();
 
-        // cascade=true + 存在预算 → 应删除预算和分类
-        delete_category(&conn, &cat_id, true).unwrap();
-        assert!(find_category(&conn, &cat_id).unwrap().is_none());
+        let err = account_id_for_category(&conn, "legacy").unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)));
 
-        let budget_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM budgets", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(budget_count, 0);
+        let missing = account_id_for_category(&conn, "nope").unwrap_err();
+        assert!(matches!(missing, AppError::NotFound(_)));
     }
 
     #[test]
-    fn test_delete_with_transactions_nulls_category_id() {
+    fn test_resolve_or_create_is_idempotent() {
         let (_dir, conn) = test_conn();
-        let cat_id = create_category(&conn, "餐饮", &CategoryType::Expense, None).unwrap();
-
-        let now = crate::utils::time::now_rfc3339();
-        conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at) VALUES (?1, '2024-01-01', 'Test', ?2, ?3, ?3)",
-            rusqlite::params![Uuid::new_v4().to_string(), &cat_id, &now],
-        )
-        .unwrap();
-
-        // cascade=false + 仅存在交易 → 应成功，交易 category_id 设为 NULL
-        delete_category(&conn, &cat_id, false).unwrap();
-        assert!(find_category(&conn, &cat_id).unwrap().is_none());
-
-        let tx_null_count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM transactions WHERE category_id IS NULL",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(tx_null_count, 1);
+        let first = resolve_or_create(&conn, "餐饮", &CategoryType::Expense).unwrap();
+        let second = resolve_or_create(&conn, "餐饮", &CategoryType::Expense).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(account_count(&conn), 1);
     }
 }

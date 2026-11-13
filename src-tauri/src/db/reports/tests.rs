@@ -255,8 +255,8 @@ fn seed_data(conn: &Connection) -> SeededIds {
     .unwrap();
     // Unbalanced transaction (single posting on cash) for audit coverage
     conn.execute(
-            "INSERT INTO transactions (id, date, description, category_id, is_reconciled, deleted_at, created_at, updated_at)
-             VALUES ('tx-unbalanced', '2024-01-30', 'Broken', NULL, 0, NULL, '2024-01-30T00:00:00+08:00', '2024-01-30T00:00:00+08:00')",
+            "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
+             VALUES ('tx-unbalanced', '2024-01-30', 'Broken', NULL, '2024-01-30T00:00:00+08:00', '2024-01-30T00:00:00+08:00')",
             [],
         )
         .unwrap();
@@ -773,8 +773,8 @@ fn test_get_audit_report_more_than_limit() {
 
     let mut tx_stmt = conn
             .prepare(
-                "INSERT INTO transactions (id, date, description, category_id, is_reconciled, deleted_at, created_at, updated_at)
-                 VALUES (?1, '2024-03-01', 'Broken', NULL, 0, NULL, '2024-03-01T00:00:00+08:00', '2024-03-01T00:00:00+08:00')",
+                "INSERT INTO transactions (id, date, description, category_id, created_at, updated_at)
+                 VALUES (?1, '2024-03-01', 'Broken', NULL, '2024-03-01T00:00:00+08:00', '2024-03-01T00:00:00+08:00')",
             )
             .unwrap();
     let mut posting_stmt = conn

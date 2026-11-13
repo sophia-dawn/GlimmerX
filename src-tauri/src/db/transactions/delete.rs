@@ -1,4 +1,4 @@
-//! Soft-deleting a transaction and previewing the impact.
+//! Hard-deleting a transaction and previewing the impact.
 
 use rusqlite::{Connection, OptionalExtension};
 
@@ -11,7 +11,7 @@ use super::types::DeletePreview;
 pub fn get_delete_preview(conn: &Connection, tx_id: &str) -> Result<DeletePreview, AppError> {
     let (description, date): (String, String) = conn
         .query_row(
-            "SELECT description, date FROM transactions WHERE id = ?1 AND deleted_at IS NULL",
+            "SELECT description, date FROM transactions WHERE id = ?1",
             [tx_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -38,7 +38,7 @@ pub fn get_delete_preview(conn: &Connection, tx_id: &str) -> Result<DeletePrevie
 #[allow(dead_code)]
 pub fn delete_transaction(conn: &mut Connection, tx_id: &str) -> Result<(), AppError> {
     let exists: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM transactions WHERE id = ?1 AND deleted_at IS NULL)",
+        "SELECT EXISTS(SELECT 1 FROM transactions WHERE id = ?1)",
         [tx_id],
         |row| row.get(0),
     )?;
@@ -48,6 +48,10 @@ pub fn delete_transaction(conn: &mut Connection, tx_id: &str) -> Result<(), AppE
             "errors.transaction.notFound".to_string(),
         ));
     }
+
+    // Same rule as editing: the reconciliation it belongs to is a statement,
+    // and deleting entries behind its back would leave it internally wrong.
+    crate::db::reconcile::assert_not_reconciled(conn, tx_id)?;
 
     // Use atomic transaction so all deletions succeed or fail together
     let tx = conn.transaction()?;
