@@ -14,7 +14,7 @@
 
 ## Phase 1.5: 账户字段参考 Firefly III ✅ 已完成
 
-- [x] accounts 表扩展（23 列：description, account_number, subtype, iban, bic, credit_card_type 等）
+- [x] accounts 表字段（12 列：description、account_number、iban、is_active、include_net_worth 等）
 - [x] 创建账户 Bug 修复（字段不再被静默丢弃）
 - [x] 资产子类型枚举：defaultAsset / sharedAsset / savingAsset / ccAsset / cashWalletAsset
 - [x] 负债子类型枚举：loan / debt / mortgage

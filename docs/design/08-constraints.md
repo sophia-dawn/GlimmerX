@@ -6,7 +6,7 @@
 
 - 数据库中金额以**分**（整数）为单位存储
 - 所有金额计算在 Rust 后端完成
-- 前端使用 `react-number-format` 展示格式化的货币
+- 前端使用 `src/utils/format.ts` 仅做展示格式化，不做任何金额计算
 
 ## 复式记账约束
 
@@ -23,11 +23,10 @@
 
 ## accounts 表设计
 
-- 当前 23 列，直接修改 schema 而非迁移（Phase 1.5 重构完成）
-- `subtype` 列为**多态字段**：
-  - asset 类型下解释为 `defaultAsset`/`sharedAsset`/`savingAsset`/`ccAsset`/`cashWalletAsset`
-  - liability 类型下解释为 `loan`/`debt`/`mortgage`
-- 唯一索引: `(name, COALESCE(parent_id, ''))`
+- 当前 12 列：`id, name, type, currency, description, account_number, is_system, iban, is_active, include_net_worth, created_at, updated_at`
+- 层级用**路径式名称**表达（如 `Assets/招商银行`）：首段决定 `type`，其余段以 `/` 连接为 `name`；**没有** `parent_id` 列
+- 唯一索引：`(type, name)`（`idx_accounts_type_name`）
+- **没有** `subtype` 列；资产/负债细分目前不落库
 - Equity 账户由系统管理，`account_create` 拦截 `equity`/`equities` 路径
 - `is_system` 标记系统内置账户（不可编辑/删除）
 

@@ -156,14 +156,7 @@ Rust 后端构造英文 prompt（注入当前日期/分类清单/账户清单）
 
 ## 设计文档
 
-详细设计文档位于 `design/` 目录，索引见 [DESIGN.md](DESIGN.md)。
-
-关键文档:
-
-- [01-overview.md](design/01-overview.md) — 项目概述、技术栈、项目边界
-- [03-concepts.md](design/03-concepts.md) — 复式记账模型、账户体系
-- [05-data-model.md](design/05-data-model.md) — SQL 表结构、TypeScript 类型
-- [14-transaction-module.md](design/14-transaction-module.md) — 交易模块架构
+详细设计文档位于 `design/` 目录，索引见 [DESIGN.md](docs/DESIGN.md)。
 
 ## 推荐 IDE
 
@@ -179,5 +172,3 @@ Rust 后端构造英文 prompt（注入当前日期/分类清单/账户清单）
 - 修改后的版本分发时必须以 GPL v3 发布（开源）
 - 此机制防止商业闭源二次售卖
 - 详见 [LICENSE](LICENSE) 文件
-
-# GlimmerX
