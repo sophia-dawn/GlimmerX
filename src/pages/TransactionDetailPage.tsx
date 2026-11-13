@@ -72,7 +72,6 @@ export function TransactionDetailPage() {
       transactionUpdate(id ?? "", {
         date: input.date,
         description: input.description,
-        categoryId: input.categoryId,
         postings: input.postings,
       }),
     onSuccess: () => {
@@ -127,9 +126,15 @@ export function TransactionDetailPage() {
             {getAccountTypeIcon(posting.accountType)}
           </span>
           <div>
-            <div className="font-medium">{posting.accountName}</div>
+            {/* A P&L posting is the categorised side; naming the category reads
+                better than naming the ledger account that backs it. */}
+            <div className="font-medium">
+              {posting.categoryName ?? posting.accountName}
+            </div>
             <div className="text-xs text-muted-foreground">
-              {t(`accounts.types.${posting.accountType}`)}
+              {posting.categoryName
+                ? t("transactions.groupCategories")
+                : t(`accounts.types.${posting.accountType}`)}
             </div>
           </div>
         </div>
@@ -367,14 +372,14 @@ export function TransactionDetailPage() {
             id: transaction.id,
             date: transaction.date,
             description: transaction.description,
-            categoryId: transaction.categoryId,
-            isReconciled: false,
             createdAt: transaction.createdAt,
             updatedAt: transaction.updatedAt,
             postings: transaction.postings.map((p) => ({
               id: p.id,
               transactionId: p.transactionId,
               accountId: p.accountId,
+              categoryId: p.categoryId ?? null,
+              categoryName: p.categoryName ?? null,
               amount: p.amount,
               sequence: p.sequence ?? 0,
               createdAt: p.createdAt,

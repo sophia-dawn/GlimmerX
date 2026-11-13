@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   TransactionDto,
@@ -23,7 +23,9 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -36,11 +38,6 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-
-// Special value for "no category" - Radix UI Select.Item cannot have empty string as value
-const NO_CATEGORY_VALUE = "__none__";
-// Backend marker to explicitly clear category_id on update (partial update semantics)
-const CLEAR_CATEGORY_MARKER = "__clear__";
 
 interface PostingFormValue {
   accountId: string;
@@ -95,7 +92,6 @@ export function TransactionForm({
 
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
-  const [categoryId, setCategoryId] = useState<string>(NO_CATEGORY_VALUE);
   const [postings, setPostings] = useState<PostingFormValue[]>([]);
   const [precisionWarnings, setPrecisionWarnings] = useState<Set<number>>(
     new Set(),
@@ -115,7 +111,6 @@ export function TransactionForm({
     if (isEditing && transaction) {
       setDate(transaction.date);
       setDescription(transaction.description || "");
-      setCategoryId(transaction.categoryId ?? NO_CATEGORY_VALUE);
       // Convert amount from cents to decimal string for display
       setPostings(
         transaction.postings.map((p) => ({
@@ -126,13 +121,38 @@ export function TransactionForm({
     } else {
       setDate(todayLocalDate());
       setDescription("");
-      setCategoryId(NO_CATEGORY_VALUE);
       setPostings([
         { accountId: "", amount: "" },
         { accountId: "", amount: "" },
       ]);
     }
   }, [open, isEditing, transaction]);
+
+  // Categories *are* profit-and-loss accounts, but users think in categories.
+  // One picker per posting, grouped by what the number means: money moving
+  // between accounts, or money being spent/earned in a category.
+  const categoryByAccount = useMemo(() => {
+    const map = new Map<string, Category>();
+    for (const category of categories) {
+      if (category.accountId) map.set(category.accountId, category);
+    }
+    return map;
+  }, [categories]);
+
+  const balanceAccounts = useMemo(
+    () =>
+      accounts.filter(
+        (a) => a.account_type === "asset" || a.account_type === "liability",
+      ),
+    [accounts],
+  );
+  const pnlAccounts = useMemo(
+    () =>
+      accounts.filter(
+        (a) => a.account_type === "income" || a.account_type === "expense",
+      ),
+    [accounts],
+  );
 
   const totalCents = postings.reduce((sum, p) => {
     const cents = decimalToCents(p.amount);
@@ -222,12 +242,6 @@ export function TransactionForm({
     const data: CreateTransactionInput = {
       date: date.trim(),
       description: description.trim(),
-      categoryId:
-        categoryId === NO_CATEGORY_VALUE
-          ? isEditing
-            ? CLEAR_CATEGORY_MARKER
-            : null
-          : categoryId,
       postings: postings.map((p) => ({
         accountId: p.accountId,
         amount: p.amount,
@@ -274,31 +288,6 @@ export function TransactionForm({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={t("transactions.descriptionPlaceholder")}
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="transaction-category">
-                {t("transactions.category")}
-                <span className="text-muted-foreground text-xs ml-1">
-                  ({t("transactions.categoryOptional")})
-                </span>
-              </Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger id="transaction-category">
-                  <SelectValue placeholder={t("transactions.selectCategory")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_CATEGORY_VALUE}>
-                    {t("transactions.noCategory")}
-                  </SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.icon ? `${category.icon} ` : ""}
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="space-y-2">
@@ -354,15 +343,38 @@ export function TransactionForm({
                   >
                     <SelectTrigger className="flex-1">
                       <SelectValue
-                        placeholder={t("transactions.selectAccount")}
+                        placeholder={t("transactions.selectAccountOrCategory")}
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {accounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.name}
-                        </SelectItem>
-                      ))}
+                      {balanceAccounts.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>
+                            {t("transactions.groupAccounts")}
+                          </SelectLabel>
+                          {balanceAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                      {pnlAccounts.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>
+                            {t("transactions.groupCategories")}
+                          </SelectLabel>
+                          {pnlAccounts.map((account) => {
+                            const category = categoryByAccount.get(account.id);
+                            return (
+                              <SelectItem key={account.id} value={account.id}>
+                                {category?.icon ? `${category.icon} ` : ""}
+                                {category?.name ?? account.name}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
 

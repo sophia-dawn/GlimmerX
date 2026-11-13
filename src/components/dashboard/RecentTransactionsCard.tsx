@@ -90,8 +90,10 @@ export function RecentTransactionsCard() {
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground text-xs mt-1">
                       <span>{formatDateLong(tx.date)}</span>
-                      {tx.categoryName && (
-                        <span className="truncate">{tx.categoryName}</span>
+                      {tx.categoryNames.length > 0 && (
+                        <span className="truncate">
+                          {tx.categoryNames.join("、")}
+                        </span>
                       )}
                     </div>
                   </div>

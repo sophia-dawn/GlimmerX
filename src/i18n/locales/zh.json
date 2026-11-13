@@ -333,6 +333,10 @@
   "transactions": {
     "title": "交易",
     "subtitle": "查看和管理您的财务交易",
+    "groupAccounts": "账户",
+    "groupCategories": "分类",
+    "selectAccountOrCategory": "选择账户或分类",
+    "splitMore": "等 {{count}} 项",
     "create": "新建交易",
     "created": "交易创建成功",
     "updated": "交易更新成功",

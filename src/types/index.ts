@@ -192,6 +192,9 @@ export interface PostingDto {
   id: string;
   transactionId: string;
   accountId: string;
+  /** Set when the account is a category's ledger account. */
+  categoryId: string | null;
+  categoryName: string | null;
   amount: number; // cents
   sequence: number;
   createdAt: string;
@@ -201,8 +204,6 @@ export interface TransactionDto {
   id: string;
   date: string; // ISO 8601
   description: string;
-  categoryId: string | null;
-  isReconciled: boolean;
   createdAt: string;
   updatedAt: string;
   postings: PostingDto[];
@@ -220,7 +221,6 @@ export interface CreatePostingInput {
 export interface CreateTransactionInput {
   date: string; // ISO 8601
   description: string;
-  categoryId?: string | null;
   postings: CreatePostingInput[];
 }
 
@@ -253,8 +253,8 @@ export interface TransactionListItem {
   id: string;
   date: string;
   description: string;
-  categoryId: string | null;
-  categoryName: string | null;
+  /** Every category the transaction touches; more than one means it is split. */
+  categoryNames: string[];
   categoryIcon: string | null;
   postingsSummary: PostingSummary[];
   displayAmount: number; // cents, always positive (debit total)
@@ -338,6 +338,9 @@ export interface PostingDetail {
   accountId: string;
   accountName: string;
   accountType: string;
+  /** Set when this posting is the categorised side of the transaction. */
+  categoryId: string | null;
+  categoryName: string | null;
   amount: number;
   amountDisplay: string;
   isDebit: boolean;

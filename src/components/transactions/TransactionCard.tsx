@@ -24,9 +24,21 @@ export const TransactionCard = memo(function TransactionCard({
   const navigate = useNavigate();
   const [showActions, setShowActions] = useState(false);
 
-  const categoryDisplay = transaction.categoryIcon
-    ? `${transaction.categoryIcon} ${transaction.categoryName}`
-    : transaction.categoryName;
+  // A split transaction touches several categories; naming two of them plus a
+  // count reads better than a badge that grows with every split line.
+  const categoryLabel = (() => {
+    const names = transaction.categoryNames;
+    if (names.length === 0) return null;
+    if (names.length <= 2) return names.join("、");
+    return `${names.slice(0, 2).join("、")} ${t("transactions.splitMore", {
+      count: names.length - 2,
+    })}`;
+  })();
+
+  const categoryDisplay =
+    categoryLabel && transaction.categoryIcon
+      ? `${transaction.categoryIcon} ${categoryLabel}`
+      : categoryLabel;
 
   return (
     <div
