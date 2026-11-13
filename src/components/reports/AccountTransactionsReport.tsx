@@ -170,7 +170,7 @@ export function AccountTransactionsReport() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-income">
+                <div className="text-xl font-mono font-medium text-income">
                   {formatAmount(reportData.totalInflow)}
                 </div>
               </CardContent>
@@ -182,7 +182,7 @@ export function AccountTransactionsReport() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-expense">
+                <div className="text-xl font-mono font-medium text-expense">
                   {formatAmount(reportData.totalOutflow)}
                 </div>
               </CardContent>
@@ -195,7 +195,7 @@ export function AccountTransactionsReport() {
               </CardHeader>
               <CardContent>
                 <div
-                  className={`text-2xl font-bold ${reportData.netChange >= 0 ? "text-income" : "text-expense"}`}
+                  className={`text-xl font-mono font-medium ${reportData.netChange >= 0 ? "text-income" : "text-expense"}`}
                 >
                   {formatAmount(reportData.netChange)}
                 </div>
@@ -220,19 +220,19 @@ export function AccountTransactionsReport() {
                   <table className="w-full text-sm">
                     <thead className="bg-muted">
                       <tr>
-                        <th className="px-4 py-2 text-left">
+                        <th className="px-3 py-2 text-left">
                           {t("reports.tableHeaders.date")}
                         </th>
-                        <th className="px-4 py-2 text-left">
+                        <th className="px-3 py-2 text-left">
                           {t("reports.tableHeaders.description")}
                         </th>
-                        <th className="px-4 py-2 text-left">
+                        <th className="px-3 py-2 text-left">
                           {t("reports.tableHeaders.category")}
                         </th>
-                        <th className="px-4 py-2 text-left">
+                        <th className="px-3 py-2 text-left">
                           {t("reports.accountTransactions.counterAccount")}
                         </th>
-                        <th className="px-4 py-2 text-right">
+                        <th className="px-3 py-2 text-right">
                           {t("reports.tableHeaders.amount")}
                         </th>
                       </tr>
@@ -240,16 +240,16 @@ export function AccountTransactionsReport() {
                     <tbody>
                       {reportData.transactions.map((tx) => (
                         <tr key={tx.transactionId} className="border-b">
-                          <td className="px-4 py-2">{tx.date}</td>
-                          <td className="px-4 py-2">{tx.description}</td>
-                          <td className="px-4 py-2">
+                          <td className="px-3 py-2">{tx.date}</td>
+                          <td className="px-3 py-2">{tx.description}</td>
+                          <td className="px-3 py-2">
                             {tx.categoryName ?? "-"}
                           </td>
-                          <td className="px-4 py-2">
+                          <td className="px-3 py-2">
                             {tx.counterAccountName ?? "-"}
                           </td>
                           <td
-                            className={`px-4 py-2 text-right ${tx.isInflow ? "text-income" : "text-expense"}`}
+                            className={`font-mono px-3 py-2 text-right ${tx.isInflow ? "text-income" : "text-expense"}`}
                           >
                             {tx.isInflow ? "+" : "-"}
                             {formatAmount(tx.amount)}

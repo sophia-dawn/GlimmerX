@@ -80,7 +80,7 @@ export function YearSummaryReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-income">
+            <div className="text-xl font-mono font-medium text-income">
               {formatAmount(data.totalIncome)}
             </div>
           </CardContent>
@@ -92,7 +92,7 @@ export function YearSummaryReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-expense">
+            <div className="text-xl font-mono font-medium text-expense">
               {formatAmount(data.totalExpense)}
             </div>
           </CardContent>
@@ -105,7 +105,7 @@ export function YearSummaryReport() {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${data.net >= 0 ? "text-income" : "text-expense"}`}
+              className={`text-xl font-mono font-medium ${data.net >= 0 ? "text-income" : "text-expense"}`}
             >
               {formatAmount(data.net)}
             </div>
@@ -170,7 +170,7 @@ export function YearSummaryReport() {
                   {data.topIncomeCategories.map((cat) => (
                     <tr key={cat.categoryId} className="border-b">
                       <td className="py-2">{cat.categoryName}</td>
-                      <td className="py-2 text-right">
+                      <td className="font-mono py-2 text-right">
                         {formatAmount(cat.amount)}
                       </td>
                       <td className="py-2 text-right text-muted-foreground">
@@ -200,7 +200,7 @@ export function YearSummaryReport() {
                   {data.topExpenseCategories.map((cat) => (
                     <tr key={cat.categoryId} className="border-b">
                       <td className="py-2">{cat.categoryName}</td>
-                      <td className="py-2 text-right">
+                      <td className="font-mono py-2 text-right">
                         {formatAmount(cat.amount)}
                       </td>
                       <td className="py-2 text-right text-muted-foreground">

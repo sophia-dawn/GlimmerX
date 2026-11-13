@@ -9,11 +9,24 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { CATEGORY_COLORS } from "@/constants";
+import { useChartColors } from "@/utils/chartColors";
 import { formatAmount } from "@/utils/format";
 
+/**
+ * Spending by category, as a ring.
+ *
+ * A solid pie with labels on the slices was the wrong chart here: with six or
+ * more categories the labels collide, and the legend already names every one of
+ * them — so the labels repeated the legend while obscuring the pie. The ring
+ * keeps a hole for the eye to rest in and leaves the labelling to the legend.
+ *
+ * Colours come from the theme's eight-hue series rather than a hardcoded
+ * "dashboard palette", so the chart belongs to the same system as everything
+ * around it and adapts when the theme does.
+ */
 export function CategoryBreakdownChart() {
   const { t } = useTranslation();
+  const colors = useChartColors();
   const { data, isLoading, error } = useCategoryBreakdown();
 
   if (error) {
@@ -48,51 +61,64 @@ export function CategoryBreakdownChart() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="h-[300px] flex items-center justify-center">
+          <div className="flex h-[300px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.loading")}</p>
           </div>
         ) : !hasData ? (
-          <div className="h-[300px] flex items-center justify-center">
+          <div className="flex h-[300px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.noRecords")}</p>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) =>
-                  `${name}: ${((percent ?? 0) * 100).toFixed(1)}%`
-                }
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {chartData.map((_, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
-                  />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--color-card)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius)",
-                }}
-                formatter={(value) => formatAmount((value as number) * 100)}
-              />
-              <Legend
-                layout="horizontal"
-                verticalAlign="bottom"
-                align="center"
-                wrapperStyle={{ paddingTop: "12px", fontSize: "12px" }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <div className="relative">
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={62}
+                  outerRadius={98}
+                  paddingAngle={1}
+                  stroke="none"
+                  dataKey="value"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${entry.name}`}
+                      fill={colors.series[index % colors.series.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "var(--color-popover)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius)",
+                    fontSize: "12px",
+                  }}
+                  formatter={(value) => formatAmount((value as number) * 100)}
+                />
+                <Legend
+                  layout="horizontal"
+                  verticalAlign="bottom"
+                  align="center"
+                  iconSize={8}
+                  wrapperStyle={{ paddingTop: "8px", fontSize: "11px" }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+
+            {/* The hole is where the total belongs: it is the one number every
+                slice divides into, and the legend below already names them. */}
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-11">
+              <span className="text-xs text-muted-foreground">
+                {t("dashboard.categoryTotal")}
+              </span>
+              <span className="font-mono text-base font-medium">
+                {formatAmount(data?.total_amount ?? 0)}
+              </span>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

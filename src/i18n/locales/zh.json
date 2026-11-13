@@ -87,14 +87,11 @@
     "skipForNow": "跳过，稍后再设置"
   },
   "dashboard": {
-    "welcome": "欢迎使用 GlimmerX",
-    "subtitle": "个人复式记账桌面应用 — 开发中",
     "monthIncome": "本月收入",
     "monthExpense": "本月支出",
-    "yearIncome": "年度收入",
-    "yearExpense": "年度支出",
-    "totalAssets": "资产总额",
-    "totalDebt": "债务总额",
+    "monthBalance": "本月结余",
+    "assetsShort": "资产",
+    "liabilitiesShort": "负债",
     "netWorth": "净资产",
     "recentTransactions": "最近交易",
     "noTransactions": "暂无交易记录",
@@ -106,11 +103,13 @@
     "monthlyChartIncome": "收入",
     "monthlyChartExpense": "支出",
     "categoryBreakdown": "支出按分类",
+    "categoryTotal": "合计",
     "topExpenses": "大额支出 Top 10",
     "topExpensesEmpty": "本月暂无支出",
     "budgetOverview": "预算概览",
     "viewAllBudgets": "查看全部预算",
-    "noBudgetsSet": "尚未设置预算"
+    "noBudgetsSet": "尚未设置预算",
+    "moreBudgets": "还有 {{n}} 个预算"
   },
   "accounts": {
     "title": "账户",

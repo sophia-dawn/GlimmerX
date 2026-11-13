@@ -104,7 +104,7 @@ export function SavingsPage() {
   };
 
   return (
-    <div className="h-full overflow-auto p-6">
+    <div className="h-full overflow-auto">
       {isLoading && (
         <div className="py-12 text-center text-muted-foreground">
           {t("common.loading")}
@@ -239,13 +239,13 @@ function GoalCard({
       </div>
 
       <div className="mb-1 flex justify-between text-sm">
-        <span className="tabular-nums">{formatAmount(goal.savedAmount)}</span>
-        <span className="text-muted-foreground tabular-nums">
+        <span className="font-mono">{formatAmount(goal.savedAmount)}</span>
+        <span className="text-muted-foreground font-mono">
           {formatAmount(goal.targetAmount)}
         </span>
       </div>
 
-      <div className="space-y-0.5 text-xs text-muted-foreground">
+      <div className="font-mono space-y-0.5 text-xs text-muted-foreground">
         <div>
           {t("savings.remaining")} · {formatAmount(goal.remaining)}
         </div>

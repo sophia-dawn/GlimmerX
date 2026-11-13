@@ -136,10 +136,10 @@ const DateHeader = memo(function DateHeader({
 
   return (
     <div className="flex items-center justify-between mb-2 px-2 pt-2">
-      <span className="text-lg font-bold text-primary">
+      <span className="text-sm font-medium text-muted-foreground">
         {formatDateLong(date)}
       </span>
-      <span className="text-sm text-muted-foreground tabular-nums">
+      <span className="text-sm text-muted-foreground font-mono">
         {t("transactions.dayTotal")}: {formatAmount(dayTotal)}
       </span>
     </div>

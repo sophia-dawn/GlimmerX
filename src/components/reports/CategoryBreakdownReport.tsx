@@ -20,15 +20,16 @@ import {
 import { AlertCircle, Loader2, RotateCcw } from "lucide-react";
 import { useCategoryBreakdownReport } from "@/hooks/useCategoryBreakdownReport";
 import { formatAmount } from "@/utils/format";
-import { REPORT_CATEGORY_COLORS } from "@/constants/report";
 import { DATE_RANGE_PRESETS } from "@/constants";
 import { getDefaultRangePresetDates } from "@/utils/date";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ReportFilter, DateRangePreset } from "@/types/report";
+import { useChartColors } from "@/utils/chartColors";
 
 export function CategoryBreakdownReport() {
   const { t } = useTranslation();
+  const colors = useChartColors();
   const [incomeOrExpense, setIncomeOrExpense] = useState<"income" | "expense">(
     "expense",
   );
@@ -65,7 +66,7 @@ export function CategoryBreakdownReport() {
       name: cat.categoryName,
       value: cat.amount,
       percentage: cat.percentage,
-      fill: REPORT_CATEGORY_COLORS[idx % REPORT_CATEGORY_COLORS.length],
+      fill: colors.series[idx % colors.series.length],
     })) ?? [];
 
   return (
@@ -170,7 +171,7 @@ export function CategoryBreakdownReport() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-xl font-mono font-medium">
                 {formatAmount(data.totalAmount)}
               </div>
             </CardContent>
@@ -227,16 +228,16 @@ export function CategoryBreakdownReport() {
               <table className="w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="px-4 py-2 text-left">
+                    <th className="px-3 py-2 text-left">
                       {t("reports.tableHeaders.category")}
                     </th>
-                    <th className="px-4 py-2 text-right">
+                    <th className="px-3 py-2 text-right">
                       {t("reports.tableHeaders.amount")}
                     </th>
-                    <th className="px-4 py-2 text-right">
+                    <th className="px-3 py-2 text-right">
                       {t("reports.tableHeaders.percentage")}
                     </th>
-                    <th className="px-4 py-2 text-right">
+                    <th className="px-3 py-2 text-right">
                       {t("reports.tableHeaders.transactions")}
                     </th>
                   </tr>
@@ -244,14 +245,14 @@ export function CategoryBreakdownReport() {
                 <tbody>
                   {data.categories.map((cat) => (
                     <tr key={cat.categoryId} className="border-b">
-                      <td className="px-4 py-2">{cat.categoryName}</td>
-                      <td className="px-4 py-2 text-right">
+                      <td className="px-3 py-2">{cat.categoryName}</td>
+                      <td className="font-mono px-3 py-2 text-right">
                         {formatAmount(cat.amount)}
                       </td>
-                      <td className="px-4 py-2 text-right">
+                      <td className="px-3 py-2 text-right">
                         {cat.percentage.toFixed(1)}%
                       </td>
-                      <td className="px-4 py-2 text-right">
+                      <td className="px-3 py-2 text-right">
                         {cat.transactionCount}
                       </td>
                     </tr>

@@ -10,6 +10,50 @@
 - **导入导出暂时下线**：CSV / Beancount / CSV 导入已删除，不要再加回来。
   数据库备份（`db_backup`）保留，属于安全兜底。
 
+## 视觉系统（2026-11-13 起，terminal 语言）
+
+- **风格定位**：深色交易终端（Bloomberg 血统）+ 工业仪器的纪律。命名 `terminal`，
+  浅色配套叫 `paper`。**不做**霓虹渐变、发光、玻璃拟态——那些是任何产品都能穿的外套。
+- **令牌只在 `src/styles/globals.css` 的 `@theme`**。表面阶梯是参数化的：
+  `--s-base/--s-card/--s-hover/--s-float/--s-sunken` + `--hue/--chroma`，
+  所以氛围主题只覆盖色相（每个一行），不要写第二份完整调色板。
+- **圆角 2px（控件）/ 4px（卡片），阴影全部为 none**（`--shadow-*: none`）。
+  层级靠表面亮度与 1px 发丝线，不靠 blur。
+- **强调色只有一支** `--color-signal`（琥珀 `#FFA02F` / 浅色 `#8A5410`），
+  只用在：关键数字、当前项、超支与待办。`--color-primary` 是墨色（近白/近黑），
+  不是强调色——满屏琥珀按钮会让强调失效。
+- **语义色不走强调色系**：`--color-income` / `--color-expense` / `--color-info`
+  独立定义，换强调色不能让红绿变紫。
+- **禁止 Tailwind 调色板类**（`text-red-600` / `bg-emerald-500` 等）。
+  一律用语义令牌：`text-income` / `text-expense` / `text-signal` / `text-info`。
+  已全量替换 22 个文件、73 处；新增代码照此办理。
+- **数字用 `font-mono`（JetBrains Mono，本地 woff2，含 OFL.txt）**，
+  `html` 上已挂 `font-feature-settings: "tnum" 1`，不要再逐个加 `tabular-nums`。
+  中文**不要**走 mono：汉字等宽会撑爆列宽，`--font-mono` 里刻意不列 CJK 字体。
+- **字阶 11 / 13 / 15 / 20**（`--text-xs` … 覆盖了 Tailwind 默认的 12/14/16）。
+- 动效 120ms `cubic-bezier(.2,0,0,1)`，无回弹；`prefers-reduced-motion` 全局降级。
+- 对比度按实测记账：深色底 `#7E8B9C` = 5.46:1 可做小字；**`#5B6675` 只有 3.24:1，
+  只许用于非文字元素**（网格线、禁用态）。
+- 主题选择器仍是 18 强调色 × 7 氛围（只映射到 `--signal` 与 `--hue`），
+  收敛成 4 套预设是下一步，别名要保留以兼容 `localStorage` 里的老值。
+- **数字按位置分三级**：页面级汇总 `text-xl font-mono font-medium`（20px）、
+  卡片关键数字 `text-base font-mono`（15px）、表格与列表 `text-sm font-mono`（13px）。
+  全站已无 `text-2xl`/`text-3xl`/`font-bold`；中文最强只到 `font-medium`（600 会合成糊块）。
+- **图表颜色从主题读，不要写死 hex**：`src/utils/chartColors.ts::useChartColors()`。
+  Recharts 的 `fill`/`stroke` 是 SVG presentation attribute，**不解析 `var()`**，
+  所以必须取 computed style 后在 JS 里给值，并依赖主题三元组重算。
+  分类色板是 `--chart-1..8`（chroma 压在 0.09–0.16），网格线单独一支 `--chart-grid`
+  （比 `--color-border` 更淡，否则抢数据）。已删掉 `CHART_COLORS` / `CATEGORY_COLORS` /
+  `REPORT_CHART_COLORS` / `REPORT_CATEGORY_COLORS` 四份硬编码常量。
+- **金额负数写作 `-¥50.00`**（符号在货币符号前），不是 `¥-50.00`。`format.test.ts` 锁住。
+- **首页是状态条 + 三栏**，不是卡片流：`DashboardStatusBar`（净资产/收入/支出/结余，
+  无外框、发丝线分隔）+ 左栏图表 / 中栏交易表 / 右栏预算·账户·Top 支出。
+  `DashboardSummaryCards` 与 `FinancialHealthCards` 已删（7 张卡读 7 个数字，
+  且每个数字各在自己的基线上，没法横向比较）。
+- 列表金额用 `flow_amount` 着色（只汇总资产/负债侧）：支出负、收入正、自有账户互转 0。
+  `display_amount` 是借方合计、恒为正，拿它判断方向是死分支。
+- 浅色态 `--line` 是 0.15（不是 0.13）：没有阴影时这条线是卡片与页面的唯一分界。
+
 ## 架构约定
 
 - **当前 schema 版本 = 3**（`db/migrations.rs` 的 `SCHEMA_VERSION`，迁移后校验

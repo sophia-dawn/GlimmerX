@@ -12,13 +12,14 @@ import { ReportFilterBar } from "./ReportFilterBar";
 import { useStandardReport } from "@/hooks/useStandardReport";
 import { formatAmount } from "@/utils/format";
 import { getDefaultRangePresetDates } from "@/utils/date";
-import { REPORT_CHART_COLORS } from "@/constants/report";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import type { DateRangePreset, ReportFilter } from "@/types/report";
+import { useChartColors } from "@/utils/chartColors";
 
 export function StandardReport() {
   const { t } = useTranslation();
+  const colors = useChartColors();
 
   // 篩选状态
   const [dateRangePreset, setDateRangePreset] =
@@ -77,7 +78,7 @@ export function StandardReport() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">--</div>
+              <div className="text-xl font-mono font-medium">--</div>
               <div className="text-sm mt-1 text-muted-foreground">
                 {t("reports.common.loading")}
               </div>
@@ -90,7 +91,7 @@ export function StandardReport() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">--</div>
+              <div className="text-xl font-mono font-medium">--</div>
               <div className="text-sm mt-1 text-muted-foreground">
                 {t("reports.common.loading")}
               </div>
@@ -139,7 +140,7 @@ export function StandardReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-income">
+            <div className="text-xl font-mono font-medium text-income">
               {formatAmount(data.periodIncome)}
             </div>
             <div className={`text-sm mt-1 ${incomeChangeColor}`}>
@@ -156,7 +157,7 @@ export function StandardReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-expense">
+            <div className="text-xl font-mono font-medium text-expense">
               {formatAmount(data.periodExpense)}
             </div>
             <div className={`text-sm mt-1 ${expenseChangeColor}`}>
@@ -188,8 +189,8 @@ export function StandardReport() {
               <Area
                 type="monotone"
                 dataKey="netWorth"
-                stroke={REPORT_CHART_COLORS.net}
-                fill={REPORT_CHART_COLORS.net}
+                stroke={colors.info}
+                fill={colors.info}
                 fillOpacity={0.3}
               />
             </AreaChart>
@@ -205,16 +206,16 @@ export function StandardReport() {
           <table className="w-full text-sm">
             <thead className="bg-muted">
               <tr>
-                <th className="px-4 py-2 text-left">
+                <th className="px-3 py-2 text-left">
                   {t("reports.tableHeaders.account")}
                 </th>
-                <th className="px-4 py-2 text-right">
+                <th className="px-3 py-2 text-right">
                   {t("reports.tableHeaders.startBalance")}
                 </th>
-                <th className="px-4 py-2 text-right">
+                <th className="px-3 py-2 text-right">
                   {t("reports.tableHeaders.endBalance")}
                 </th>
-                <th className="px-4 py-2 text-right">
+                <th className="px-3 py-2 text-right">
                   {t("reports.tableHeaders.change")}
                 </th>
               </tr>
@@ -222,15 +223,15 @@ export function StandardReport() {
             <tbody>
               {data.accountChanges.map((change) => (
                 <tr key={change.accountId}>
-                  <td className="px-4 py-2">{change.accountName}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-3 py-2">{change.accountName}</td>
+                  <td className="font-mono px-3 py-2 text-right">
                     {formatAmount(change.startBalance)}
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="font-mono px-3 py-2 text-right">
                     {formatAmount(change.endBalance)}
                   </td>
                   <td
-                    className={`px-4 py-2 text-right ${
+                    className={`font-mono px-3 py-2 text-right ${
                       change.change >= 0 ? "text-income" : "text-expense"
                     }`}
                   >

@@ -35,7 +35,7 @@ export function ReportsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex-1 overflow-auto">
         {selectedReport === "standard" && <StandardReport />}
         {selectedReport === "category" && <CategoryBreakdownReport />}
         {selectedReport === "balanceSheet" && <BalanceSheetReport />}

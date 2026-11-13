@@ -1,17 +1,32 @@
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { transactionListPaginated } from "@/utils/api";
-import { formatAmount } from "@/utils/format";
-import { formatDateLong } from "@/utils/date";
+import { formatAmount, formatAmountWithSign } from "@/utils/format";
 import { ArrowRight } from "lucide-react";
 import type { TransactionListItem } from "@/types";
 import { DASHBOARD_LIMITS } from "@/constants";
+import { cn } from "@/lib/utils";
 
+/**
+ * Recent transactions as a table.
+ *
+ * Each row used to be a card of its own — three lines of padding, a rounded
+ * panel and a background tint per transaction — so eight entries filled the
+ * column and no two rows aligned with each other. A table shows three times as
+ * many in the same space and, more to the point, puts the amounts in a column:
+ * the eye compares magnitudes instead of re-finding the number on every card.
+ *
+ * The amount is signed by cash flow rather than by `displayAmount`, which is a
+ * debit total and always positive — printing it would render every expense as if
+ * it were a receipt. Moving money between the user's own accounts nets to zero
+ * and is shown unsigned and neutral, because none of it left the household.
+ */
 export function RecentTransactionsCard() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({
     queryKey: ["recent-transactions"],
     queryFn: () =>
@@ -39,29 +54,34 @@ export function RecentTransactionsCard() {
 
   const transactions = data?.items ?? [];
 
-  // Expense accounts have negative amounts in postingsSummary (double-entry bookkeeping)
-  const getTransactionDisplayInfo = (tx: TransactionListItem) => {
-    const isExpense = tx.postingsSummary.some((p) => p.amount < 0);
-    const amountClass = isExpense ? "text-expense" : "text-income";
-    return { amountClass };
-  };
+  const amountOf = (tx: TransactionListItem) =>
+    tx.flowAmount === 0
+      ? formatAmount(tx.displayAmount)
+      : formatAmountWithSign(tx.flowAmount);
+
+  const colorOf = (tx: TransactionListItem) =>
+    tx.flowAmount > 0
+      ? "text-income"
+      : tx.flowAmount < 0
+        ? "text-expense"
+        : "text-muted-foreground";
 
   return (
-    <Card>
+    <Card className="flex min-h-0 flex-1 flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{t("dashboard.recentTransactions")}</CardTitle>
         <Button variant="ghost" size="sm" asChild>
           <Link to="/transactions">
             {t("dashboard.viewAll")}
-            <ArrowRight className="ml-1 h-4 w-4" />
+            <ArrowRight className="ml-1 size-3.5" />
           </Link>
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1">
         {isLoading ? (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+          <div className="space-y-1.5">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="h-7 animate-pulse rounded-sm bg-muted" />
             ))}
           </div>
         ) : transactions.length === 0 ? (
@@ -69,44 +89,64 @@ export function RecentTransactionsCard() {
             {t("dashboard.noTransactions")}
           </p>
         ) : (
-          <div className="space-y-3">
-            {transactions.map((tx) => {
-              const { amountClass } = getTransactionDisplayInfo(tx);
-
-              return (
-                <Link
-                  key={tx.id}
-                  to={`/transactions/${tx.id}`}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {tx.categoryIcon && (
-                        <span className="text-sm">{tx.categoryIcon}</span>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs text-muted-foreground">
+                <th className="w-px py-1.5 pr-2 text-left font-normal">
+                  {t("transactions.date")}
+                </th>
+                <th className="w-full py-1.5 pr-2 text-left font-normal">
+                  {t("transactions.description")}
+                </th>
+                <th className="w-px py-1.5 pr-2 text-left font-normal">
+                  {t("transactions.category")}
+                </th>
+                <th className="w-px py-1.5 text-right font-normal">
+                  {t("transactions.amount")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((tx) => {
+                const go = () => navigate(`/transactions/${tx.id}`);
+                return (
+                  <tr
+                    key={tx.id}
+                    role="link"
+                    tabIndex={0}
+                    onClick={go}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        go();
+                      }
+                    }}
+                    className="cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
+                  >
+                    <td className="w-px whitespace-nowrap py-2 pr-2 font-mono text-xs text-muted-foreground">
+                      {tx.date.slice(5)}
+                    </td>
+                    <td className="w-full max-w-0 truncate py-2 pr-2">
+                      {tx.description || t("transactions.noDescription")}
+                    </td>
+                    <td className="w-px max-w-[5.5rem] truncate whitespace-nowrap py-2 pr-2 text-xs text-muted-foreground">
+                      {tx.categoryNames.length > 0
+                        ? tx.categoryNames.join(t("common.listSeparator"))
+                        : "—"}
+                    </td>
+                    <td
+                      className={cn(
+                        "w-px whitespace-nowrap py-2 text-right font-mono",
+                        colorOf(tx),
                       )}
-                      <span className="font-medium truncate">
-                        {tx.description || t("transactions.noDescription")}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground text-xs mt-1">
-                      <span>{formatDateLong(tx.date)}</span>
-                      {tx.categoryNames.length > 0 && (
-                        <span className="truncate">
-                          {tx.categoryNames.join(t("common.listSeparator"))}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`font-medium ${amountClass}`}>
-                      {formatAmount(tx.displayAmount)}
-                    </span>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+                    >
+                      {amountOf(tx)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </CardContent>
     </Card>

@@ -13,7 +13,7 @@ export function BudgetList({ budgets, onEdit, onDelete }: BudgetListProps) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">{t("budgets.expenseBudgets")}</h2>
+      <h2 className="text-base font-medium">{t("budgets.expenseBudgets")}</h2>
 
       {budgets.length === 0 ? (
         <div className="py-12 text-center text-muted-foreground">

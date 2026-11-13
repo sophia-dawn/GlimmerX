@@ -150,17 +150,19 @@
 :root {
   color-scheme: light;
 
-  --s-base: 0.972;
+  --s-base: 0.958;
   --s-card: 1;
-  --s-hover: 0.945;
+  --s-hover: 0.938;
   --s-float: 1;
-  --s-sunken: 0.952;
+  --s-sunken: 0.944;
   --s-ink: 0.23;
   --s-muted: 0.47;
   --hue: 250;
   --chroma: 0.006;
-  --line: 0.13;
-  --line-input: 0.2;
+  /* With every shadow set to none, the hairline is the only thing separating a
+     card from the page — at 0.13 alpha it disappeared on a bright display. */
+  --line: 0.15;
+  --line-input: 0.22;
 
   --signal-l: 0.55;
   --signal-c: 0.13;
@@ -170,6 +172,20 @@
   --income: oklch(0.5 0.12 155);
   --expense: oklch(0.53 0.19 25);
   --info: oklch(0.47 0.1 235);
+
+  /* Categorical series. Ordered by how often a dashboard reads them, not by
+     spectrum: the first four carry most charts, the greys end the tail so a
+     tenth slice does not demand a tenth hue. Read from JS by `useChartColors`
+     because SVG paint does not resolve `var()` in presentation attributes. */
+  --chart-grid: oklch(0 0 0 / 0.08);
+  --chart-1: oklch(0.68 0.13 65);
+  --chart-2: oklch(0.64 0.09 200);
+  --chart-3: oklch(0.66 0.11 155);
+  --chart-4: oklch(0.62 0.16 25);
+  --chart-5: oklch(0.64 0.11 290);
+  --chart-6: oklch(0.64 0.11 250);
+  --chart-7: oklch(0.7 0.11 95);
+  --chart-8: oklch(0.66 0.02 250);
 }
 
 /* ── Dark: terminal ───────────────────────────────────────────────────────── */
@@ -196,6 +212,17 @@
   --income: oklch(0.72 0.16 155);
   --expense: oklch(0.64 0.2 25);
   --info: oklch(0.78 0.11 220);
+
+  /* Lifted against a 0.212 card, same hue order as the light set. */
+  --chart-grid: oklch(1 0 0 / 0.1);
+  --chart-1: oklch(0.78 0.11 65);
+  --chart-2: oklch(0.78 0.08 195);
+  --chart-3: oklch(0.75 0.11 155);
+  --chart-4: oklch(0.68 0.15 25);
+  --chart-5: oklch(0.72 0.09 290);
+  --chart-6: oklch(0.74 0.09 250);
+  --chart-7: oklch(0.8 0.09 95);
+  --chart-8: oklch(0.66 0.02 250);
 }
 
 /* ── Atmosphere: hue and chroma only ────────────────────────────────────────

@@ -111,7 +111,7 @@ export function AccountBalanceList() {
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-12 bg-muted rounded animate-pulse" />
+              <div key={i} className="h-8 animate-pulse rounded-sm bg-muted" />
             ))}
           </div>
         ) : !hasAccounts ? (
@@ -121,7 +121,7 @@ export function AccountBalanceList() {
             })}
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {Object.entries(groupedAccounts).map(([type, accountsOfType]) => {
               const isExpanded = expandedTypes.has(type);
               const Icon = ACCOUNT_TYPE_ICONS[type] ?? Wallet;
@@ -130,27 +130,27 @@ export function AccountBalanceList() {
                 <div key={type}>
                   <Button
                     variant="ghost"
-                    className="w-full flex items-center justify-between p-2"
+                    className="h-auto w-full justify-between px-1 py-1 text-xs font-medium text-foreground hover:bg-transparent"
                     onClick={() => toggleType(type)}
                   >
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4" />
+                    <div className="flex items-center gap-1.5">
+                      <Icon className="size-3.5" strokeWidth={1.75} />
                       <span className="font-medium">
                         {t(ACCOUNT_TYPE_LABELS[type] ?? type)}
                       </span>
-                      <span className="text-muted-foreground text-sm">
+                      <span className="text-muted-foreground">
                         ({accountsOfType.length})
                       </span>
                     </div>
                     {isExpanded ? (
-                      <ChevronUp className="h-4 w-4" />
+                      <ChevronUp className="size-3.5" />
                     ) : (
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className="size-3.5" />
                     )}
                   </Button>
 
                   {isExpanded && (
-                    <div className="mt-2 space-y-2 pl-4">
+                    <div className="pl-1">
                       {accountsOfType.map((account) => {
                         const balance = balancesMap[account.id] ?? 0;
                         const displayBalance = getLiabilityDisplayBalance(
@@ -172,13 +172,13 @@ export function AccountBalanceList() {
                         return (
                           <div
                             key={account.id}
-                            className="flex items-center justify-between p-2 rounded-lg bg-muted/50 transition-colors"
+                            className="flex items-center justify-between gap-2 border-b border-border/60 py-1.5 last:border-0"
                           >
-                            <span className="font-medium truncate">
-                              {account.name}
-                            </span>
+                            <span className="truncate">{account.name}</span>
                             <div className="flex items-center gap-2">
-                              <span className={`font-medium ${balanceClass}`}>
+                              <span
+                                className={`font-mono font-medium ${balanceClass}`}
+                              >
                                 {formatAmount(displayBalance)}
                               </span>
                               {statusKey && (

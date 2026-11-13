@@ -95,7 +95,7 @@ export const TransactionCard = memo(function TransactionCard({
                     <Badge
                       key={idx}
                       variant="outline"
-                      className="text-xs font-normal tabular-nums text-expense"
+                      className="text-xs font-normal font-mono text-expense"
                       title={p.accountName}
                     >
                       {p.accountName} {formatAmount(p.amount)}
@@ -110,7 +110,7 @@ export const TransactionCard = memo(function TransactionCard({
                     <Badge
                       key={idx}
                       variant="outline"
-                      className="text-xs font-normal tabular-nums text-income"
+                      className="text-xs font-normal font-mono text-income"
                       title={p.accountName}
                     >
                       {p.accountName} {formatAmount(p.amount)}
@@ -125,7 +125,7 @@ export const TransactionCard = memo(function TransactionCard({
       <div className="flex items-center gap-3">
         <span
           className={cn(
-            "text-sm font-medium tabular-nums",
+            "text-sm font-mono font-medium",
             // Colour by cash flow, not by `displayAmount` — that is the debit
             // total and never negative, so every row used to render green.
             transaction.flowAmount > 0

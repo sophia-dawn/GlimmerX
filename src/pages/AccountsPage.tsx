@@ -162,7 +162,7 @@ export function AccountsPage() {
   const hasAccounts = allAccounts.length > 0;
 
   return (
-    <div className="h-full overflow-auto p-6">
+    <div className="h-full overflow-auto">
       {isLoading && (
         <div className="py-12 text-center text-muted-foreground">
           {t("common.loading")}
@@ -371,7 +371,7 @@ function AccountRow({
         account.account_type === "liability") && (
         <div className="flex items-center gap-1">
           <span
-            className={`text-sm font-medium tabular-nums ${
+            className={`text-sm font-mono font-medium ${
               account.account_type === "asset"
                 ? balance !== undefined && balance >= 0
                   ? "text-income"

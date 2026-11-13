@@ -125,7 +125,7 @@ export function BudgetsPage() {
   };
 
   return (
-    <div className="h-full overflow-auto p-6">
+    <div className="h-full overflow-auto">
       {/* Loading state */}
       {isLoading && (
         <div className="py-12 text-center text-muted-foreground">

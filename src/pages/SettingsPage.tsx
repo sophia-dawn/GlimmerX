@@ -134,7 +134,7 @@ export function SettingsPage() {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   return (
-    <div className="h-full overflow-auto p-6">
+    <div className="h-full overflow-auto">
       <div className="max-w-md space-y-8">
         {/* Theme */}
         <div className="space-y-3">

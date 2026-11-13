@@ -112,7 +112,7 @@ export function CategoriesPage() {
   };
 
   return (
-    <div className="h-full overflow-auto p-6">
+    <div className="h-full overflow-auto">
       {isLoading && (
         <div className="py-12 text-center text-muted-foreground">
           {t("common.loading")}
@@ -120,7 +120,7 @@ export function CategoriesPage() {
       )}
 
       {!isLoading && (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <CategoryList
             categories={incomeCategories}
             type="income"

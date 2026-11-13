@@ -21,7 +21,7 @@ export function OnboardingPage() {
     <div className="flex h-screen w-full items-center justify-center bg-background">
       <div className="w-full max-w-md text-center">
         <div className="mb-8">
-          <h1 className="mb-2 text-3xl font-bold">
+          <h1 className="mb-2 text-xl font-medium">
             {t("onboarding.welcomeTitle")}
           </h1>
           <p className="text-muted-foreground">{t("onboarding.welcomeDesc")}</p>

@@ -43,8 +43,9 @@ describe("formatAmount", () => {
     expect(formatAmount(123456)).toBe("¥1,234.56");
   });
 
-  it("formats negative amount with negative sign", () => {
-    expect(formatAmount(-5000)).toBe("¥-50.00");
+  it("puts the sign before the symbol, not between symbol and digits", () => {
+    expect(formatAmount(-5000)).toBe("-¥50.00");
+    expect(formatAmount(-1)).toBe("-¥0.01");
   });
 
   it("always uses the CNY symbol — the ledger has one currency", () => {
@@ -63,6 +64,6 @@ describe("formatAmountWithSign", () => {
   });
 
   it("shows negative sign without extra prefix", () => {
-    expect(formatAmountWithSign(-5000)).toBe("¥-50.00");
+    expect(formatAmountWithSign(-5000)).toBe("-¥50.00");
   });
 });

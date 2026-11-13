@@ -159,7 +159,7 @@ export function TransactionDetailPage() {
               ? t("transactions.detail.debit")
               : t("transactions.detail.credit")}
           </Badge>
-          <span className={`font-semibold tabular-nums ${amountColor}`}>
+          <span className={`font-mono font-medium ${amountColor}`}>
             {posting.amountDisplay}
           </span>
         </div>
@@ -226,7 +226,7 @@ export function TransactionDetailPage() {
             {t("common.back")}
           </Button>
           <div>
-            <h1 className="text-xl font-semibold">
+            <h1 className="text-xl font-medium">
               {transaction.description || t("transactions.noDescription")}
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -313,7 +313,7 @@ export function TransactionDetailPage() {
               <span className="text-muted-foreground">
                 {t("transactions.detail.debitTotal")}
               </span>
-              <span className="font-semibold tabular-nums text-income dark:text-income/80">
+              <span className="font-mono font-medium text-income dark:text-income/80">
                 {formatAmount(transaction.debitTotal)}
               </span>
             </div>
@@ -321,7 +321,7 @@ export function TransactionDetailPage() {
               <span className="text-muted-foreground">
                 {t("transactions.detail.creditTotal")}
               </span>
-              <span className="font-semibold tabular-nums text-expense dark:text-expense/80">
+              <span className="font-mono font-medium text-expense dark:text-expense/80">
                 {formatAmount(transaction.creditTotal)}
               </span>
             </div>

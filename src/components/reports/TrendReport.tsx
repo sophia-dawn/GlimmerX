@@ -15,7 +15,8 @@ import { ReportFilterBar } from "./ReportFilterBar";
 import { useTrendReport } from "@/hooks/useTrendReport";
 import { formatAmount, MONEY_SYMBOL } from "@/utils/format";
 import { getDefaultRangePresetDates } from "@/utils/date";
-import { GRANULARITY_OPTIONS, REPORT_CHART_COLORS } from "@/constants/report";
+import { GRANULARITY_OPTIONS } from "@/constants/report";
+import { useChartColors } from "@/utils/chartColors";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import type {
@@ -26,6 +27,7 @@ import type {
 
 export function TrendReport() {
   const { t } = useTranslation();
+  const colors = useChartColors();
   const symbol = MONEY_SYMBOL;
 
   // 篩选状态
@@ -141,23 +143,23 @@ export function TrendReport() {
                   type="monotone"
                   dataKey="income"
                   name={t("reports.trend.totalIncome")}
-                  stroke={REPORT_CHART_COLORS.income}
-                  fill={REPORT_CHART_COLORS.income}
+                  stroke={colors.income}
+                  fill={colors.income}
                   fillOpacity={0.3}
                 />
                 <Area
                   type="monotone"
                   dataKey="expense"
                   name={t("reports.trend.totalExpense")}
-                  stroke={REPORT_CHART_COLORS.expense}
-                  fill={REPORT_CHART_COLORS.expense}
+                  stroke={colors.expense}
+                  fill={colors.expense}
                   fillOpacity={0.3}
                 />
                 <Line
                   type="monotone"
                   dataKey="net"
                   name={t("reports.trend.totalNet")}
-                  stroke={REPORT_CHART_COLORS.net}
+                  stroke={colors.info}
                   strokeWidth={2}
                 />
               </ComposedChart>
@@ -174,7 +176,7 @@ export function TrendReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-income">
+            <div className="text-xl font-mono font-medium text-income">
               {formatAmount(totalIncome)}
             </div>
           </CardContent>
@@ -187,7 +189,7 @@ export function TrendReport() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-expense">
+            <div className="text-xl font-mono font-medium text-expense">
               {formatAmount(totalExpense)}
             </div>
           </CardContent>
@@ -201,7 +203,7 @@ export function TrendReport() {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${totalNet >= 0 ? "text-income" : "text-expense"}`}
+              className={`text-xl font-mono font-medium ${totalNet >= 0 ? "text-income" : "text-expense"}`}
             >
               {formatAmount(totalNet)}
             </div>

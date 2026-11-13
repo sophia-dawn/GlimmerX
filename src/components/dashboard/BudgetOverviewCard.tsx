@@ -47,7 +47,7 @@ export function BudgetOverviewCard() {
         <Button variant="ghost" size="sm" asChild>
           <Link to="/budgets">
             {t("dashboard.viewAllBudgets")}
-            <ArrowRight className="ml-1 h-4 w-4" />
+            <ArrowRight className="ml-1 size-3.5" />
           </Link>
         </Button>
       </CardHeader>
@@ -55,7 +55,7 @@ export function BudgetOverviewCard() {
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-12 bg-muted rounded animate-pulse" />
+              <div key={i} className="h-10 animate-pulse rounded-sm bg-muted" />
             ))}
           </div>
         ) : budgetList.length === 0 ? (
@@ -63,7 +63,7 @@ export function BudgetOverviewCard() {
             {t("dashboard.noBudgetsSet")}
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2.5">
             {visibleBudgets.map((budget) => {
               const percentage = getProgressPercentage(
                 budget.spent,
@@ -72,11 +72,11 @@ export function BudgetOverviewCard() {
               const isOverBudget = budget.overBudget;
 
               return (
-                <div key={budget.id} className="space-y-2">
+                <div key={budget.id} className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {budget.categoryIcon && (
-                        <span className="text-base">{budget.categoryIcon}</span>
+                        <span className="text-sm">{budget.categoryIcon}</span>
                       )}
                       <span
                         className={cn(
@@ -87,29 +87,29 @@ export function BudgetOverviewCard() {
                         {budget.categoryName}
                       </span>
                       {isOverBudget && (
-                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                        <AlertTriangle className="size-3.5 text-destructive" />
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <span
                         className={cn(
-                          "font-medium",
+                          "font-mono font-medium",
                           isOverBudget ? "text-destructive" : "text-expense",
                         )}
                       >
                         {formatAmount(budget.spent)}
                       </span>
                       <span className="text-muted-foreground">/</span>
-                      <span className="font-medium">
+                      <span className="font-mono font-medium">
                         {formatAmount(budget.amount)}
                       </span>
                     </div>
                   </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-1 overflow-hidden bg-muted">
                     <div
                       className={cn(
-                        "h-full rounded-full transition-all",
-                        isOverBudget ? "bg-destructive" : "bg-primary",
+                        "h-full transition-all",
+                        isOverBudget ? "bg-destructive" : "bg-signal",
                       )}
                       style={{ width: `${percentage}%` }}
                     />
@@ -119,7 +119,7 @@ export function BudgetOverviewCard() {
                       <span className="text-muted-foreground">
                         {t("budgets.overBudget")}
                       </span>
-                      <span className="text-destructive font-medium">
+                      <span className="font-mono text-destructive font-medium">
                         {formatAmount(budget.remaining)}
                       </span>
                     </div>
@@ -128,8 +128,10 @@ export function BudgetOverviewCard() {
               );
             })}
             {hasMore && (
-              <div className="pt-2 text-muted-foreground text-xs text-center">
-                +{budgetList.length - MAX_VISIBLE_BUDGETS} more
+              <div className="pt-1 text-center text-xs text-muted-foreground">
+                {t("dashboard.moreBudgets", {
+                  n: budgetList.length - MAX_VISIBLE_BUDGETS,
+                })}
               </div>
             )}
           </div>

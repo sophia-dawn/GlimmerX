@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MonthPicker } from "@/components/ui/month-picker";
 import { useMonthComparisonReport } from "@/hooks/useMonthComparisonReport";
 import { centsToYuan, formatAmount, MONEY_SYMBOL } from "@/utils/format";
-import { REPORT_CHART_COLORS } from "@/constants/report";
 import {
   ResponsiveContainer,
   BarChart,
@@ -17,9 +16,11 @@ import {
 } from "recharts";
 import { useTranslation } from "react-i18next";
 import { todayLocalDate } from "@/utils/date";
+import { useChartColors } from "@/utils/chartColors";
 
 export function MonthComparisonReport() {
   const { t } = useTranslation();
+  const colors = useChartColors();
   const symbol = MONEY_SYMBOL;
 
   const getMonthLabel = (value: string): string => {
@@ -68,7 +69,7 @@ export function MonthComparisonReport() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">--</div>
+              <div className="text-xl font-mono font-medium">--</div>
               <div className="text-sm mt-1 text-muted-foreground">
                 {t("reports.common.loading")}
               </div>
@@ -81,7 +82,7 @@ export function MonthComparisonReport() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">--</div>
+              <div className="text-xl font-mono font-medium">--</div>
               <div className="text-sm mt-1 text-muted-foreground">
                 {t("reports.common.loading")}
               </div>
@@ -157,18 +158,18 @@ export function MonthComparisonReport() {
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span>{getMonthLabel(data.month1)}</span>
-                <span className="text-income font-medium">
+                <span className="font-mono text-income font-medium">
                   {formatAmount(data.month1Income)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>{getMonthLabel(data.month2)}</span>
-                <span className="text-income font-medium">
+                <span className="font-mono text-income font-medium">
                   {formatAmount(data.month2Income)}
                 </span>
               </div>
               <div className="flex justify-between text-sm border-t pt-1 mt-1">
-                <span className="text-muted-foreground">
+                <span className="font-mono text-muted-foreground">
                   {t("reports.tableHeaders.change")}
                 </span>
                 <span className={incomeChangeColor}>
@@ -190,18 +191,18 @@ export function MonthComparisonReport() {
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span>{getMonthLabel(data.month1)}</span>
-                <span className="text-expense font-medium">
+                <span className="font-mono text-expense font-medium">
                   {formatAmount(data.month1Expense)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>{getMonthLabel(data.month2)}</span>
-                <span className="text-expense font-medium">
+                <span className="font-mono text-expense font-medium">
                   {formatAmount(data.month2Expense)}
                 </span>
               </div>
               <div className="flex justify-between text-sm border-t pt-1 mt-1">
-                <span className="text-muted-foreground">
+                <span className="font-mono text-muted-foreground">
                   {t("reports.tableHeaders.change")}
                 </span>
                 <span className={expenseChangeColor}>
@@ -234,12 +235,12 @@ export function MonthComparisonReport() {
               <Legend />
               <Bar
                 dataKey="income"
-                fill={REPORT_CHART_COLORS.income}
+                fill={colors.income}
                 name={t("reports.common.income")}
               />
               <Bar
                 dataKey="expense"
-                fill={REPORT_CHART_COLORS.expense}
+                fill={colors.expense}
                 name={t("reports.common.expense")}
               />
             </BarChart>
@@ -255,19 +256,19 @@ export function MonthComparisonReport() {
           <table className="w-full text-sm">
             <thead className="bg-muted">
               <tr>
-                <th className="px-4 py-2 text-left">
+                <th className="px-3 py-2 text-left">
                   {t("reports.tableHeaders.category")}
                 </th>
-                <th className="px-4 py-2 text-right">
+                <th className="px-3 py-2 text-right">
                   {getMonthLabel(data.month1)}
                 </th>
-                <th className="px-4 py-2 text-right">
+                <th className="px-3 py-2 text-right">
                   {getMonthLabel(data.month2)}
                 </th>
-                <th className="px-4 py-2 text-right">
+                <th className="px-3 py-2 text-right">
                   {t("reports.tableHeaders.change")}
                 </th>
-                <th className="px-4 py-2 text-right">
+                <th className="px-3 py-2 text-right">
                   {t("reports.tableHeaders.changeRate")}
                 </th>
               </tr>
@@ -283,17 +284,19 @@ export function MonthComparisonReport() {
                   : `${Math.abs(item.changePct).toFixed(1)}%`;
                 return (
                   <tr key={item.categoryId}>
-                    <td className="px-4 py-2">{item.categoryName}</td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-3 py-2">{item.categoryName}</td>
+                    <td className="font-mono px-3 py-2 text-right">
                       {formatAmount(item.month1Amount)}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="font-mono px-3 py-2 text-right">
                       {formatAmount(item.month2Amount)}
                     </td>
-                    <td className={`px-4 py-2 text-right ${changeColor}`}>
+                    <td
+                      className={`font-mono px-3 py-2 text-right ${changeColor}`}
+                    >
                       {changeIcon} {formatAmount(Math.abs(item.diff))}
                     </td>
-                    <td className={`px-4 py-2 text-right ${changeColor}`}>
+                    <td className={`px-3 py-2 text-right ${changeColor}`}>
                       {changePctDisplay}
                     </td>
                   </tr>

@@ -1,5 +1,4 @@
-export { DashboardSummaryCards } from "./DashboardSummaryCards";
-export { FinancialHealthCards } from "./FinancialHealthCards";
+export { DashboardStatusBar } from "./DashboardStatusBar";
 export { MonthlyIncomeExpenseChart } from "./MonthlyIncomeExpenseChart";
 export { CategoryBreakdownChart } from "./CategoryBreakdownChart";
 export { TopExpensesList } from "./TopExpensesList";

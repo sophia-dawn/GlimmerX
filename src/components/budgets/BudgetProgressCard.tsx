@@ -85,13 +85,17 @@ export function BudgetProgressCard({
       {/* Amount details */}
       <div className="flex justify-between text-sm">
         <div>
-          <span className="text-muted-foreground">{t("budgets.spent")}: </span>
+          <span className="font-mono text-muted-foreground">
+            {t("budgets.spent")}:{" "}
+          </span>
           <span className={cn(isOverBudget && "text-destructive font-medium")}>
             {formatAmount(budget.spent)}
           </span>
         </div>
         <div>
-          <span className="text-muted-foreground">{t("budgets.limit")}: </span>
+          <span className="font-mono text-muted-foreground">
+            {t("budgets.limit")}:{" "}
+          </span>
           <span>{formatAmount(budget.amount)}</span>
         </div>
       </div>
@@ -103,6 +107,7 @@ export function BudgetProgressCard({
         </span>
         <span
           className={cn(
+            "font-mono",
             budget.remaining < 0 ? "text-destructive" : "text-income",
           )}
         >

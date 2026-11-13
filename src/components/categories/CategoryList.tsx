@@ -69,7 +69,7 @@ export function CategoryList({
                   {/* The category's own ledger account: this is where its
                       money lives, so the balance belongs here rather than on
                       the accounts page. */}
-                  <span className="text-muted-foreground text-sm tabular-nums">
+                  <span className="text-muted-foreground text-sm font-mono">
                     {formatAmount(category.balance ?? 0)}
                   </span>
                   <div className="flex gap-1">

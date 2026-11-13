@@ -3,9 +3,14 @@ import { Link } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTopExpenses } from "@/hooks/useTopExpenses";
 import { formatAmount } from "@/utils/format";
-import { formatDateShort } from "@/utils/date";
-import { ArrowRight } from "lucide-react";
 
+/**
+ * The largest expenses this month, as a tight list.
+ *
+ * Like the recent-transactions panel, this used to render one padded card per
+ * row — ten panels to show ten numbers. A ranked list is a single column of
+ * aligned amounts; boxing each row hid that the whole point is comparing them.
+ */
 export function TopExpensesList() {
   const { t } = useTranslation();
   const { data, isLoading, error } = useTopExpenses();
@@ -34,9 +39,9 @@ export function TopExpensesList() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+          <div className="space-y-1.5">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-6 animate-pulse rounded-sm bg-muted" />
             ))}
           </div>
         ) : expenses.length === 0 ? (
@@ -44,35 +49,29 @@ export function TopExpensesList() {
             {t("dashboard.topExpensesEmpty")}
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="divide-y divide-border/60">
             {expenses.map((expense) => (
               <Link
                 key={expense.posting_id}
                 to={`/transactions/${expense.transaction_id}`}
-                className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
+                className="-mx-1 flex items-baseline gap-2 rounded-sm px-1 py-1.5 transition-colors hover:bg-muted/60"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {expense.category_icon && (
-                      <span className="text-sm">{expense.category_icon}</span>
-                    )}
-                    <span className="font-medium truncate">
-                      {expense.description || t("transactions.noDescription")}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground text-xs mt-1">
-                    <span>{formatDateShort(expense.date)}</span>
-                    {expense.category_name && (
-                      <span className="truncate">{expense.category_name}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-expense font-medium">
-                    {formatAmount(expense.amount)}
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
+                <span className="shrink-0 whitespace-nowrap font-mono text-xs text-muted-foreground">
+                  {expense.date.slice(5)}
+                </span>
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  title={
+                    expense.category_name
+                      ? `${expense.description} · ${expense.category_name}`
+                      : expense.description
+                  }
+                >
+                  {expense.description || t("transactions.noDescription")}
+                </span>
+                <span className="shrink-0 font-mono text-expense">
+                  {formatAmount(expense.amount)}
+                </span>
               </Link>
             ))}
           </div>

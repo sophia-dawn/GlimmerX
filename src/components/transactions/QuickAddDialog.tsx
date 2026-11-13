@@ -305,7 +305,7 @@ export function QuickAddDialog({
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="tabular-nums"
+                className="font-mono"
               />
             </div>
 

@@ -35,16 +35,17 @@ export function yuanToCents(yuan: string): number {
 /**
  * Format an amount in cents to a display string.
  *
- * Negative amounts keep their own minus sign (`¥-50.00`); callers that want a
- * `+` prefix for inflow should use {@link formatAmountWithSign}.
+ * The minus sign goes *before* the currency symbol (`-¥50.00`, not `¥-50.00`):
+ * the sign is part of how the number reads, and burying it between the symbol
+ * and the digits makes a liability look like a malformed positive. Callers that
+ * want a `+` prefix for inflow should use {@link formatAmountWithSign}.
  */
 export function formatAmount(cents: number): string {
-  const formatted = centsToYuan(cents).toLocaleString(AMOUNT_LOCALE, {
+  const formatted = Math.abs(centsToYuan(cents)).toLocaleString(AMOUNT_LOCALE, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  // yuanAmount includes sign, toLocaleString preserves it
-  return `${MONEY_SYMBOL}${formatted}`;
+  return `${cents < 0 ? "-" : ""}${MONEY_SYMBOL}${formatted}`;
 }
 
 /**

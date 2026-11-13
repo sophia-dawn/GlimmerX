@@ -11,10 +11,12 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { CHART_COLORS } from "@/constants";
+import { useChartColors } from "@/utils/chartColors";
+import { formatAmount } from "@/utils/format";
 
 export function MonthlyIncomeExpenseChart() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const colors = useChartColors();
   const { data, isLoading, error } = useMonthlyChart();
 
   if (error) {
@@ -43,6 +45,11 @@ export function MonthlyIncomeExpenseChart() {
 
   const hasData = chartData.some((d) => d.hasTransactions);
 
+  // Full digits with grouping, not compact notation. `notation: "compact"`
+  // switches unit at 10 000, so one axis read "1.8万" above "9,000" — two scales
+  // on one axis. Every tick has to be in the same unit to be comparable.
+  const formatTick = (value: number) => value.toLocaleString(i18n.language);
+
   return (
     <Card>
       <CardHeader>
@@ -50,52 +57,64 @@ export function MonthlyIncomeExpenseChart() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="h-[300px] flex items-center justify-center">
+          <div className="flex h-[300px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.loading")}</p>
           </div>
         ) : !hasData ? (
-          <div className="h-[300px] flex items-center justify-center">
+          <div className="flex h-[300px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.noRecords")}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+            <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0 }}>
+              <CartesianGrid
+                stroke={colors.grid}
+                strokeDasharray="2 4"
+                vertical={false}
+              />
               <XAxis
                 dataKey="date"
-                className="text-muted-foreground"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 11, fill: colors.axis }}
+                tickLine={false}
+                axisLine={{ stroke: colors.grid }}
+                interval="preserveStartEnd"
+                minTickGap={24}
               />
               <YAxis
-                className="text-muted-foreground"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 11, fill: colors.axis }}
+                tickLine={false}
+                axisLine={false}
+                width={56}
+                tickFormatter={formatTick}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "var(--color-card)",
+                  backgroundColor: "var(--color-popover)",
                   border: "1px solid var(--color-border)",
                   borderRadius: "var(--radius)",
+                  fontSize: "12px",
                 }}
-                labelStyle={{ color: "var(--color-foreground)" }}
+                labelStyle={{ color: "var(--color-muted-foreground)" }}
+                formatter={(value) => formatAmount((value as number) * 100)}
               />
-              <Legend />
+              <Legend iconSize={8} wrapperStyle={{ fontSize: "11px" }} />
               <Line
                 type="monotone"
                 dataKey="income"
                 name={t("dashboard.monthlyChartIncome")}
-                stroke={CHART_COLORS.income}
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
+                stroke={colors.income}
+                strokeWidth={1.5}
+                dot={false}
+                activeDot={{ r: 4 }}
               />
               <Line
                 type="monotone"
                 dataKey="expense"
                 name={t("dashboard.monthlyChartExpense")}
-                stroke={CHART_COLORS.expense}
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
+                stroke={colors.expense}
+                strokeWidth={1.5}
+                dot={false}
+                activeDot={{ r: 4 }}
               />
             </LineChart>
           </ResponsiveContainer>

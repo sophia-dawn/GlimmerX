@@ -372,7 +372,7 @@ export function TransactionForm({
                       updatePosting(index, "amount", e.target.value)
                     }
                     className={cn(
-                      "w-[120px] tabular-nums",
+                      "w-[120px] font-mono",
                       precisionWarnings.has(index) && "border-signal",
                       zeroCentsWarnings.has(index) && "border-expense",
                     )}

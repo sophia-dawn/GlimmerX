@@ -250,7 +250,9 @@ export function UnlockPage() {
 
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">{t("unlock.title")}</CardTitle>
+            <CardTitle className="text-xl font-medium">
+              {t("unlock.title")}
+            </CardTitle>
             <CardDescription>{t("unlock.selectAction")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -339,7 +341,9 @@ export function UnlockPage() {
 
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{t("unlock.title")}</CardTitle>
+          <CardTitle className="text-xl font-medium">
+            {t("unlock.title")}
+          </CardTitle>
           <CardDescription>
             {isCreateMode ? (
               <>

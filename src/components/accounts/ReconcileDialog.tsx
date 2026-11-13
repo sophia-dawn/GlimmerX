@@ -245,13 +245,13 @@ export function ReconcileDialog({
                     checked={selected.includes(candidate.postingId)}
                     onCheckedChange={() => toggle(candidate.postingId)}
                   />
-                  <span className="w-24 shrink-0 text-xs text-muted-foreground tabular-nums">
+                  <span className="w-24 shrink-0 text-xs text-muted-foreground font-mono">
                     {candidate.date}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {candidate.description || t("transactions.noDescription")}
                   </span>
-                  <span className="text-sm tabular-nums">
+                  <span className="text-sm font-mono">
                     {formatAmount(candidate.amount)}
                   </span>
                 </li>
@@ -265,7 +265,7 @@ export function ReconcileDialog({
             <span className="text-muted-foreground">
               {t("reconcile.openingBalance")}
             </span>
-            <span className="tabular-nums">
+            <span className="font-mono">
               {formatAmount(previewQuery.data?.openingBalance ?? 0)}
             </span>
           </div>
@@ -273,13 +273,13 @@ export function ReconcileDialog({
             <span className="text-muted-foreground">
               {t("reconcile.selectedTotal")}
             </span>
-            <span className="tabular-nums">
+            <span className="font-mono">
               {formatAmount(totals?.selectedTotal ?? 0)}
             </span>
           </div>
           <div className="flex justify-between font-medium">
             <span>{t("reconcile.expectedBalance")}</span>
-            <span className="tabular-nums">
+            <span className="font-mono">
               {formatAmount(totals?.expectedBalance ?? 0)}
             </span>
           </div>
@@ -288,7 +288,7 @@ export function ReconcileDialog({
               {t("reconcile.difference")}
             </span>
             <span
-              className={`tabular-nums ${
+              className={`font-mono ${
                 totals?.balanced ? "text-income" : "text-destructive"
               }`}
             >
@@ -306,10 +306,10 @@ export function ReconcileDialog({
                   key={record.id}
                   className="flex items-center gap-3 px-3 py-2"
                 >
-                  <span className="w-24 shrink-0 text-xs text-muted-foreground tabular-nums">
+                  <span className="w-24 shrink-0 text-xs text-muted-foreground font-mono">
                     {record.statementDate}
                   </span>
-                  <span className="flex-1 tabular-nums">
+                  <span className="flex-1 font-mono">
                     {formatAmount(record.closingBalance)}
                   </span>
                   <Button

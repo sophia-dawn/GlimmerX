@@ -11,12 +11,13 @@ import {
 import { useBalanceSheetReport } from "@/hooks/useBalanceSheetReport";
 import { formatAmount, MONEY_SYMBOL } from "@/utils/format";
 import { todayLocalDate } from "@/utils/date";
+import { useChartColors } from "@/utils/chartColors";
 import { useState } from "react";
-import { REPORT_CHART_COLORS } from "@/constants/report";
 import { useTranslation } from "react-i18next";
 
 export function BalanceSheetReport() {
   const { t } = useTranslation();
+  const colors = useChartColors();
   const symbol = MONEY_SYMBOL;
   const [snapshotDate, setSnapshotDate] = useState(todayLocalDate());
   const { data, isLoading, error } = useBalanceSheetReport(snapshotDate);
@@ -77,7 +78,7 @@ export function BalanceSheetReport() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-info">
+              <div className="text-xl font-mono font-medium text-info">
                 {data ? formatAmount(data.netWorth) : `${symbol}0.00`}
               </div>
               <div className="text-sm mt-1 text-muted-foreground">
@@ -92,10 +93,7 @@ export function BalanceSheetReport() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Wallet
-              className="h-5 w-5"
-              style={{ color: REPORT_CHART_COLORS.assets }}
-            />
+            <Wallet className="h-5 w-5" style={{ color: colors.info }} />
             {t("reports.balanceSheet.assetDetails")}
           </CardTitle>
         </CardHeader>
@@ -109,13 +107,13 @@ export function BalanceSheetReport() {
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th className="px-4 py-2 text-left">
+                  <th className="px-3 py-2 text-left">
                     {t("reports.tableHeaders.accountName")}
                   </th>
-                  <th className="px-4 py-2 text-left">
+                  <th className="px-3 py-2 text-left">
                     {t("reports.tableHeaders.accountType")}
                   </th>
-                  <th className="px-4 py-2 text-right">
+                  <th className="px-3 py-2 text-right">
                     {t("reports.tableHeaders.balance")}
                   </th>
                 </tr>
@@ -123,11 +121,11 @@ export function BalanceSheetReport() {
               <tbody>
                 {data.assets.map((item) => (
                   <tr key={item.accountId} className="border-b">
-                    <td className="px-4 py-2">{item.accountName}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-3 py-2">{item.accountName}</td>
+                    <td className="px-3 py-2">
                       {formatAccountType(item.accountType)}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="font-mono px-3 py-2 text-right">
                       {formatAmount(item.balance)}
                     </td>
                   </tr>
@@ -135,10 +133,10 @@ export function BalanceSheetReport() {
               </tbody>
               <tfoot className="bg-muted/50">
                 <tr>
-                  <td className="px-4 py-2 font-medium" colSpan={2}>
+                  <td className="px-3 py-2 font-medium" colSpan={2}>
                     {t("reports.balanceSheet.assetTotal")}
                   </td>
-                  <td className="px-4 py-2 text-right font-medium">
+                  <td className="font-mono px-3 py-2 text-right font-medium">
                     {formatAmount(data.totalAssets)}
                   </td>
                 </tr>
@@ -151,10 +149,7 @@ export function BalanceSheetReport() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CreditCard
-              className="h-5 w-5"
-              style={{ color: REPORT_CHART_COLORS.liabilities }}
-            />
+            <CreditCard className="h-5 w-5" style={{ color: colors.signal }} />
             {t("reports.balanceSheet.liabilityDetails")}
           </CardTitle>
         </CardHeader>
@@ -170,13 +165,13 @@ export function BalanceSheetReport() {
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th className="px-4 py-2 text-left">
+                  <th className="px-3 py-2 text-left">
                     {t("reports.tableHeaders.accountName")}
                   </th>
-                  <th className="px-4 py-2 text-left">
+                  <th className="px-3 py-2 text-left">
                     {t("reports.tableHeaders.accountType")}
                   </th>
-                  <th className="px-4 py-2 text-right">
+                  <th className="px-3 py-2 text-right">
                     {t("reports.tableHeaders.balance")}
                   </th>
                 </tr>
@@ -184,11 +179,11 @@ export function BalanceSheetReport() {
               <tbody>
                 {data.liabilities.map((item) => (
                   <tr key={item.accountId} className="border-b">
-                    <td className="px-4 py-2">{item.accountName}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-3 py-2">{item.accountName}</td>
+                    <td className="px-3 py-2">
                       {formatAccountType(item.accountType)}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="font-mono px-3 py-2 text-right">
                       {formatAmount(item.balance)}
                     </td>
                   </tr>
@@ -196,10 +191,10 @@ export function BalanceSheetReport() {
               </tbody>
               <tfoot className="bg-muted/50">
                 <tr>
-                  <td className="px-4 py-2 font-medium" colSpan={2}>
+                  <td className="px-3 py-2 font-medium" colSpan={2}>
                     {t("reports.balanceSheet.liabilityTotal")}
                   </td>
-                  <td className="px-4 py-2 text-right font-medium">
+                  <td className="font-mono px-3 py-2 text-right font-medium">
                     {formatAmount(data.totalLiabilities)}
                   </td>
                 </tr>
@@ -220,8 +215,8 @@ export function BalanceSheetReport() {
                 {t("reports.balanceSheet.totalAssets")}
               </div>
               <div
-                className="text-xl font-bold"
-                style={{ color: REPORT_CHART_COLORS.assets }}
+                className="text-xl font-mono font-medium"
+                style={{ color: colors.info }}
               >
                 {data ? formatAmount(data.totalAssets) : `${symbol}0.00`}
               </div>
@@ -231,8 +226,8 @@ export function BalanceSheetReport() {
                 {t("reports.balanceSheet.totalLiabilities")}
               </div>
               <div
-                className="text-xl font-bold"
-                style={{ color: REPORT_CHART_COLORS.liabilities }}
+                className="text-xl font-mono font-medium"
+                style={{ color: colors.signal }}
               >
                 {data ? formatAmount(data.totalLiabilities) : `${symbol}0.00`}
               </div>
@@ -242,8 +237,8 @@ export function BalanceSheetReport() {
                 {t("reports.balanceSheet.netWorth")}
               </div>
               <div
-                className="text-xl font-bold"
-                style={{ color: REPORT_CHART_COLORS.net }}
+                className="text-xl font-mono font-medium"
+                style={{ color: colors.info }}
               >
                 {data ? formatAmount(data.netWorth) : `${symbol}0.00`}
               </div>

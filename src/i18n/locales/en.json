@@ -87,14 +87,11 @@
     "skipForNow": "Skip, Set Up Later"
   },
   "dashboard": {
-    "welcome": "Welcome to GlimmerX",
-    "subtitle": "Personal double-entry bookkeeping desktop app — In Development",
     "monthIncome": "Month Income",
     "monthExpense": "Month Expense",
-    "yearIncome": "Year Income",
-    "yearExpense": "Year Expense",
-    "totalAssets": "Total Assets",
-    "totalDebt": "Total Debt",
+    "monthBalance": "Month balance",
+    "assetsShort": "Assets",
+    "liabilitiesShort": "Liabilities",
     "netWorth": "Net Worth",
     "recentTransactions": "Recent Transactions",
     "noTransactions": "No transactions yet",
@@ -106,11 +103,13 @@
     "monthlyChartIncome": "Income",
     "monthlyChartExpense": "Expense",
     "categoryBreakdown": "Category Breakdown",
+    "categoryTotal": "Total",
     "topExpenses": "Top 10 Expenses",
     "topExpensesEmpty": "No expenses this month",
     "budgetOverview": "Budget Overview",
     "viewAllBudgets": "View All Budgets",
-    "noBudgetsSet": "No budgets set"
+    "noBudgetsSet": "No budgets set",
+    "moreBudgets": "{{n}} more"
   },
   "accounts": {
     "title": "Accounts",

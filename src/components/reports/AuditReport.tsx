@@ -70,7 +70,7 @@ export function AuditReport() {
               <div className="text-sm text-muted-foreground">
                 {t("reports.audit.totalTransactions")}
               </div>
-              <div className="text-xl font-bold">
+              <div className="text-xl font-mono font-medium">
                 {data.balanceCheck.totalTransactions}
               </div>
             </div>
@@ -78,7 +78,7 @@ export function AuditReport() {
               <div className="text-sm text-muted-foreground">
                 {t("reports.audit.balancedTransactions")}
               </div>
-              <div className="text-xl font-bold text-income">
+              <div className="text-xl font-mono font-medium text-income">
                 {data.balanceCheck.balancedCount}
               </div>
             </div>
@@ -87,7 +87,7 @@ export function AuditReport() {
                 {t("reports.audit.issuesFound")}
               </div>
               <div
-                className={`text-xl font-bold ${isHealthy ? "text-income" : "text-expense"}`}
+                className={`text-xl font-mono font-medium ${isHealthy ? "text-income" : "text-expense"}`}
               >
                 {totalIssues}
               </div>
@@ -145,13 +145,13 @@ export function AuditReport() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="px-4 py-2 text-left">
+                      <th className="px-3 py-2 text-left">
                         {t("reports.tableHeaders.date")}
                       </th>
-                      <th className="px-4 py-2 text-left">
+                      <th className="px-3 py-2 text-left">
                         {t("reports.tableHeaders.description")}
                       </th>
-                      <th className="px-4 py-2 text-right">
+                      <th className="px-3 py-2 text-right">
                         {t("reports.tableHeaders.difference")}
                       </th>
                     </tr>
@@ -160,10 +160,10 @@ export function AuditReport() {
                     {data.balanceCheck.unbalancedTransactions.map(
                       (tx: UnbalancedTransaction) => (
                         <tr key={tx.transactionId} className="border-b">
-                          <td className="px-4 py-2">{tx.date}</td>
-                          <td className="px-4 py-2">{tx.description}</td>
+                          <td className="px-3 py-2">{tx.date}</td>
+                          <td className="px-3 py-2">{tx.description}</td>
                           <td
-                            className={`px-4 py-2 text-right ${tx.sum > 0 ? "text-expense" : "text-income"}`}
+                            className={`font-mono px-3 py-2 text-right ${tx.sum > 0 ? "text-expense" : "text-income"}`}
                           >
                             {formatAmount(tx.sum)}
                           </td>
@@ -223,10 +223,10 @@ export function AuditReport() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="px-4 py-2 text-left">
+                      <th className="px-3 py-2 text-left">
                         {t("reports.tableHeaders.date")}
                       </th>
-                      <th className="px-4 py-2 text-left">
+                      <th className="px-3 py-2 text-left">
                         {t("reports.tableHeaders.description")}
                       </th>
                     </tr>
@@ -235,8 +235,8 @@ export function AuditReport() {
                     {data.categoryCheck.uncategorizedList.map(
                       (tx: UncategorizedTransaction) => (
                         <tr key={tx.transactionId} className="border-b">
-                          <td className="px-4 py-2">{tx.date}</td>
-                          <td className="px-4 py-2">{tx.description}</td>
+                          <td className="px-3 py-2">{tx.date}</td>
+                          <td className="px-3 py-2">{tx.description}</td>
                         </tr>
                       ),
                     )}
@@ -261,22 +261,22 @@ export function AuditReport() {
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th className="px-4 py-2 text-left">
+                  <th className="px-3 py-2 text-left">
                     {t("reports.tableHeaders.accountName")}
                   </th>
-                  <th className="px-4 py-2 text-left">
+                  <th className="px-3 py-2 text-left">
                     {t("reports.tableHeaders.accountType")}
                   </th>
-                  <th className="px-4 py-2 text-right">
+                  <th className="px-3 py-2 text-right">
                     {t("reports.tableHeaders.postingCount")}
                   </th>
-                  <th className="px-4 py-2 text-right">
+                  <th className="px-3 py-2 text-right">
                     {t("reports.tableHeaders.debitTotal")}
                   </th>
-                  <th className="px-4 py-2 text-right">
+                  <th className="px-3 py-2 text-right">
                     {t("reports.tableHeaders.creditTotal")}
                   </th>
-                  <th className="px-4 py-2 text-left">
+                  <th className="px-3 py-2 text-left">
                     {t("reports.audit.lastTransaction")}
                   </th>
                 </tr>
@@ -284,20 +284,20 @@ export function AuditReport() {
               <tbody>
                 {data.accountUsage.map((stat: AccountUsageStat) => (
                   <tr key={stat.accountId} className="border-b">
-                    <td className="px-4 py-2">{stat.accountName}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-3 py-2">{stat.accountName}</td>
+                    <td className="px-3 py-2">
                       {t(`accounts.types.${stat.accountType}`)}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-3 py-2 text-right">
                       {stat.postingCount}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="font-mono px-3 py-2 text-right">
                       {formatAmount(stat.totalDebit)}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="font-mono px-3 py-2 text-right">
                       {formatAmount(stat.totalCredit)}
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-3 py-2">
                       {stat.lastTransactionDate ?? "-"}
                     </td>
                   </tr>
