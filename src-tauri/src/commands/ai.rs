@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::db::categories::{create_category, find_by_type_and_name, list_by_type, CategoryType};
+use crate::db::categories::{list_by_type, CategoryType};
 use crate::db::{accounts, settings, transactions, AppError};
 use crate::services::ai::{self, AiConfig, AiContext};
 use crate::AppState;
@@ -8,40 +8,6 @@ use crate::AppState;
 // ---------------------------------------------------------------------------
 // Helpers (category matching, account inference)
 // ---------------------------------------------------------------------------
-
-/// Match or create a category by name and type.
-/// 1. Exact match (case-insensitive, trimmed)
-/// 2. Contains match (bidirectional)
-/// 3. Auto-create if not found
-fn resolve_category(
-    conn: &rusqlite::Connection,
-    name: &str,
-    category_type: &CategoryType,
-) -> Result<String, AppError> {
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return Err(AppError::AiError("parseFailed".to_string()));
-    }
-
-    // 1. Exact match
-    if let Some(cat) = find_by_type_and_name(conn, category_type, trimmed)? {
-        return Ok(cat.id);
-    }
-
-    // 2. Contains match (bidirectional)
-    let existing = list_by_type(conn, category_type)?;
-    let lower = trimmed.to_lowercase();
-    for cat in &existing {
-        let cat_lower = cat.name.to_lowercase();
-        if cat_lower.contains(&lower) || lower.contains(&cat_lower) {
-            return Ok(cat.id.clone());
-        }
-    }
-
-    // 3. Auto-create
-    let id = create_category(conn, trimmed, category_type, None)?;
-    Ok(id)
-}
 
 /// Infer the source asset account from AI hint or fall back to default.
 /// When matching by hint, longer account-name matches are preferred to avoid
@@ -58,13 +24,17 @@ fn resolve_source_account(
     // Prefer longer names first so specific accounts win over generic ones.
     asset_accounts.sort_by_key(|a| std::cmp::Reverse(a.name.len()));
 
-    // 1. Try matching hint against account names (bidirectional, single pass)
+    // 1. Try matching hint against account names (bidirectional, single pass).
+    // An empty/whitespace hint must fall through: `contains("")` is always
+    // true and would silently pick the first (longest-named) account.
     if let Some(hint_str) = hint {
-        let hint_lower = hint_str.to_lowercase();
-        for acc in &asset_accounts {
-            let cat_lower = acc.name.to_lowercase();
-            if cat_lower.contains(&hint_lower) || hint_lower.contains(&cat_lower) {
-                return Ok(acc.id.clone());
+        let hint_lower = hint_str.trim().to_lowercase();
+        if !hint_lower.is_empty() {
+            for acc in &asset_accounts {
+                let cat_lower = acc.name.to_lowercase();
+                if cat_lower.contains(&hint_lower) || hint_lower.contains(&cat_lower) {
+                    return Ok(acc.id.clone());
+                }
             }
         }
     }
@@ -83,6 +53,9 @@ fn resolve_source_account(
 fn load_ai_config(conn: &rusqlite::Connection) -> Result<AiConfig, AppError> {
     let base_url = settings::get_setting(conn, "ai.base_url")?
         .ok_or_else(|| AppError::AiError("noBaseUrl".to_string()))?;
+    // Defence in depth: settings written by an older build may still hold an
+    // insecure endpoint.
+    crate::services::ai::validate_base_url(&base_url)?;
     let api_key = settings::get_setting(conn, "ai.api_key")?
         .ok_or_else(|| AppError::AiError("noApiKey".to_string()))?;
     let model = settings::get_setting(conn, "ai.model")?
@@ -139,7 +112,7 @@ pub async fn ai_parse_transaction(
         let db_state = state.database.lock().map_err(|e| e.to_string())?;
         let db = db_state
             .as_ref()
-            .ok_or("Database is not unlocked. Please unlock it first.")?;
+            .ok_or(crate::errors::message("errors.databaseLocked"))?;
         let conn = db.get_conn().map_err(|e| e.to_string())?;
 
         let config = load_ai_config(&conn).map_err(|e| e.to_string())?;
@@ -164,20 +137,16 @@ pub async fn ai_parse_transaction(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
-    // Resolve category
+    // Resolve the category type. The category itself is resolved/auto-created
+    // inside the same transaction that writes the postings, so a failed write
+    // cannot leave an orphan category behind.
     let category_type = match ai_result.mode.as_str() {
         "expense" => CategoryType::Expense,
         "income" => CategoryType::Income,
         _ => return Err(AppError::AiError("invalidMode".to_string()).to_string()),
-    };
-
-    let category_id = if let Some(ref cat_name) = ai_result.category_name {
-        Some(resolve_category(&conn, cat_name, &category_type).map_err(|e| e.to_string())?)
-    } else {
-        None
     };
 
     // Resolve accounts (reuse accounts fetched in Phase 1)
@@ -199,19 +168,27 @@ pub async fn ai_parse_transaction(
         }
     };
 
-    // Assemble QuickAddInput and call quick_add_transaction
+    // Assemble QuickAddInput; the category name is resolved inside the db
+    // layer's transaction together with the account and posting writes.
     let quick_input = transactions::QuickAddInput {
         mode: ai_result.mode.clone(),
         amount: ai_result.amount.clone(),
         source_account_id,
         destination_account_id,
-        category_id,
+        category_id: None,
         description: Some(ai_result.description.clone()),
         date: Some(date),
     };
 
-    let tx_with_postings =
-        transactions::quick_add_transaction(&conn, &quick_input).map_err(|e| e.to_string())?;
+    let tx_with_postings = transactions::quick_add_with_category(
+        &conn,
+        &quick_input,
+        ai_result
+            .category_name
+            .as_deref()
+            .map(|name| (name, &category_type)),
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(crate::commands::transactions::to_dto(tx_with_postings))
 }
@@ -222,7 +199,7 @@ pub async fn ai_test_connection(state: State<'_, AppState>) -> Result<(), String
         let db_state = state.database.lock().map_err(|e| e.to_string())?;
         let db = db_state
             .as_ref()
-            .ok_or("Database is not unlocked. Please unlock it first.")?;
+            .ok_or(crate::errors::message("errors.databaseLocked"))?;
         let conn = db.get_conn().map_err(|e| e.to_string())?;
         load_ai_config(&conn).map_err(|e| e.to_string())?
     };
@@ -236,6 +213,7 @@ pub async fn ai_test_connection(state: State<'_, AppState>) -> Result<(), String
 mod tests {
     use super::*;
     use crate::db::accounts::{create_account_with_path, CreateAccountFullInput};
+    use crate::db::categories::{create_category, find_by_type_and_name, resolve_or_create};
     use crate::db::{Database, RecentDbs};
     use std::io::{Read, Write};
     use std::sync::Mutex;
@@ -384,7 +362,7 @@ mod tests {
         let conn = db.get_conn().unwrap();
         let id = create_category(&conn, "餐饮美食", &CategoryType::Expense, None).unwrap();
         assert_eq!(
-            resolve_category(&conn, "  餐饮美食 ", &CategoryType::Expense).unwrap(),
+            resolve_or_create(&conn, "  餐饮美食 ", &CategoryType::Expense).unwrap(),
             id
         );
     }
@@ -395,11 +373,11 @@ mod tests {
         let conn = db.get_conn().unwrap();
         let id = create_category(&conn, "餐饮美食", &CategoryType::Expense, None).unwrap();
         assert_eq!(
-            resolve_category(&conn, "餐饮", &CategoryType::Expense).unwrap(),
+            resolve_or_create(&conn, "餐饮", &CategoryType::Expense).unwrap(),
             id
         );
         assert_eq!(
-            resolve_category(&conn, "超好吃的餐饮美食", &CategoryType::Expense).unwrap(),
+            resolve_or_create(&conn, "超好吃的餐饮美食", &CategoryType::Expense).unwrap(),
             id
         );
     }
@@ -408,7 +386,7 @@ mod tests {
     fn test_resolve_category_autocreate() {
         let (_dir, db) = test_db();
         let conn = db.get_conn().unwrap();
-        let id = resolve_category(&conn, "全新分类", &CategoryType::Income).unwrap();
+        let id = resolve_or_create(&conn, "全新分类", &CategoryType::Income).unwrap();
         let found = find_by_type_and_name(&conn, &CategoryType::Income, "全新分类")
             .unwrap()
             .unwrap();
@@ -419,8 +397,8 @@ mod tests {
     fn test_resolve_category_empty_name_fails() {
         let (_dir, db) = test_db();
         let conn = db.get_conn().unwrap();
-        assert!(resolve_category(&conn, "", &CategoryType::Expense).is_err());
-        assert!(resolve_category(&conn, "   ", &CategoryType::Expense).is_err());
+        assert!(resolve_or_create(&conn, "", &CategoryType::Expense).is_err());
+        assert!(resolve_or_create(&conn, "   ", &CategoryType::Expense).is_err());
     }
 
     fn make_account(id: &str, name: &str, is_active: bool) -> accounts::AccountRecord {
@@ -474,6 +452,24 @@ mod tests {
     fn test_resolve_source_account_no_match_errors() {
         let accs = make_accounts();
         assert!(resolve_source_account(&accs, &None, &None).is_err());
+    }
+
+    #[test]
+    fn test_resolve_source_account_empty_hint_uses_default() {
+        let accs = make_accounts();
+        for empty in [String::new(), "   ".to_string(), "\t".to_string()] {
+            assert_eq!(
+                resolve_source_account(&accs, &Some(empty.clone()), &Some("id-cash".into()))
+                    .unwrap(),
+                "id-cash"
+            );
+            assert!(resolve_source_account(&accs, &Some(empty), &None).is_err());
+        }
+        // An empty hint must not silently pick the longest-named account.
+        assert_ne!(
+            resolve_source_account(&accs, &Some(String::new()), &Some("id-cash".into())).unwrap(),
+            "id-wechat-long-name"
+        );
     }
 
     #[test]
@@ -614,7 +610,7 @@ mod tests {
             serde_json::json!({ "text": "x" }),
         )
         .unwrap_err();
-        assert!(err.as_str().unwrap().contains("invalidMode"));
+        assert!(err.as_str().unwrap().contains("交易类型无效"));
     }
 
     #[test]
@@ -643,7 +639,7 @@ mod tests {
             serde_json::json!({ "text": "x" }),
         )
         .unwrap_err();
-        assert!(err.as_str().unwrap().contains("invalidAmount"));
+        assert!(err.as_str().unwrap().contains("金额无效"));
     }
 
     #[test]
@@ -672,7 +668,7 @@ mod tests {
             serde_json::json!({ "text": "x" }),
         )
         .unwrap_err();
-        assert!(err.as_str().unwrap().contains("missingDate"));
+        assert!(err.as_str().unwrap().contains("AI 未返回日期"));
     }
 
     #[test]
@@ -684,7 +680,7 @@ mod tests {
             serde_json::json!({ "text": "x" }),
         )
         .unwrap_err();
-        assert!(err.as_str().unwrap().contains("not unlocked"));
+        assert!(err.as_str().unwrap().contains("数据库未解锁"));
     }
 
     #[test]
@@ -697,7 +693,7 @@ mod tests {
             serde_json::json!({ "text": "x" }),
         )
         .unwrap_err();
-        assert!(err.as_str().unwrap().contains("noBaseUrl"));
+        assert!(err.as_str().unwrap().contains("未配置"));
     }
 
     #[test]
@@ -724,6 +720,6 @@ mod tests {
         }
         let (_app, webview) = mock_app(Some(sdb));
         let err = invoke(&webview, "ai_test_connection", serde_json::json!({})).unwrap_err();
-        assert!(err.as_str().unwrap().contains("apiCallFailed"));
+        assert!(err.as_str().unwrap().contains("调用失败"));
     }
 }
