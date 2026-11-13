@@ -83,14 +83,20 @@ fmt-frontend:
 
 fmt-backend:
 	cd src-tauri && cargo fmt
-fmt-md:
-	find . \
-	-name "*.md " \
+
+MD_FILES = find . \
+	-name "*.md" \
 	-type f \
 	-not -path "*/node_modules/*" \
 	-not -path "*/dist/*" \
 	-not -path "*/src-tauri/target/*" \
-	-not -path "*/.git/*" -exec node_modules/markdownlint-cli/markdownlint.js --fix  {} \;
+	-not -path "*/.git/*"
+
+fmt-md:
+	$(MD_FILES) -exec node_modules/markdownlint-cli/markdownlint.js --fix {} \;
+
+lint-md:
+	$(MD_FILES) -exec node_modules/markdownlint-cli/markdownlint.js {} \;
 # ── Test ──────────────────────────────────────────────────────
 test: test-frontend test-backend
 
@@ -115,12 +121,20 @@ check:
 	@echo "→ ESLint check..."
 	npx eslint . --max-warnings=0
 	@echo "→ Prettier check..."
-	npx prettier --check "src/**/*.{ts,tsx,css,json}" --write
+	npx prettier --check "src/**/*.{ts,tsx,css,json}"
 	@echo "→ Rust fmt check..."
 	cd src-tauri && cargo fmt -- --check
 	@echo "→ Rust clippy..."
 	cd src-tauri && cargo clippy -- -D warnings
 	@echo "✓ All checks passed"
+
+# ── Build (应用构建) ───────────────────────────────────────────
+# `build` = frontend + Tauri bundle for the current platform.
+build:
+	npx tauri build
+
+# `bundle` is kept as an alias because AGENTS.md refers to it.
+bundle: release
 
 # ── Release (安装版) ─────────────────────────────────────────────
 

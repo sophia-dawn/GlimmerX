@@ -33,7 +33,8 @@
     ],
     "windows": {
       "webviewInstallMode": {
-        "type": "skip"
+        "silent": true,
+        "type": "downloadBootstrapper"
       }
     }
   }
