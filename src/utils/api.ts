@@ -634,6 +634,15 @@ export async function exportTransactionsBeancount(
 }
 
 /**
+ * Keep backend error messages in sync with the UI language.
+ */
+export async function setUiLanguage(language: string): Promise<void> {
+  // No Tauri runtime in web dev / unit tests; nothing to synchronize.
+  if (!("__TAURI_INTERNALS__" in window)) return;
+  return invokeCommand<void>("set_ui_language", { language });
+}
+
+/**
  * Import transactions from CSV format.
  */
 export async function importTransactionsCsv(

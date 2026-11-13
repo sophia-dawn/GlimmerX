@@ -100,7 +100,7 @@ pub async fn budget_list(state: State<'_, AppState>) -> Result<Vec<BudgetDto>, S
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let budgets = crate::db::budgets::list_budgets(&conn).map_err(|e| e.to_string())?;
@@ -117,7 +117,7 @@ pub async fn budget_list_statuses(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let statuses =
@@ -134,7 +134,7 @@ pub async fn budget_create(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -152,7 +152,7 @@ pub async fn budget_create(
 
     let budget = crate::db::budgets::find_budget(&conn, &id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "errors.budgetNotFound".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.budgetNotFound"))?;
 
     Ok(record_to_dto(budget))
 }
@@ -166,7 +166,7 @@ pub async fn budget_update(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -190,7 +190,7 @@ pub async fn budget_update(
 
     let budget = crate::db::budgets::find_budget(&conn, &id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "errors.budgetNotFound".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.budgetNotFound"))?;
 
     Ok(record_to_dto(budget))
 }
@@ -200,7 +200,7 @@ pub async fn budget_delete(id: String, state: State<'_, AppState>) -> Result<(),
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -384,10 +384,7 @@ mod ipc_tests {
             }),
         )
         .expect_err("invalid amount must fail");
-        assert!(err
-            .as_str()
-            .unwrap()
-            .contains("errors.transaction.invalidAmount"));
+        assert!(err.as_str().unwrap().contains("金额格式无效"));
 
         // zero amount fails at the DB layer
         let err = invoke(
@@ -402,10 +399,7 @@ mod ipc_tests {
             }),
         )
         .expect_err("zero amount must fail");
-        assert!(err
-            .as_str()
-            .unwrap()
-            .contains("errors.budgetAmountPositive"));
+        assert!(err.as_str().unwrap().contains("预算金额必须大于零"));
     }
 
     #[test]
@@ -447,10 +441,7 @@ mod ipc_tests {
             }),
         )
         .expect_err("invalid amount on update must fail");
-        assert!(err
-            .as_str()
-            .unwrap()
-            .contains("errors.transaction.invalidAmount"));
+        assert!(err.as_str().unwrap().contains("金额格式无效"));
     }
 
     #[test]
@@ -492,10 +483,7 @@ mod ipc_tests {
             }),
         )
         .expect_err("zero amount on update must fail");
-        assert!(err
-            .as_str()
-            .unwrap()
-            .contains("errors.budgetAmountPositive"));
+        assert!(err.as_str().unwrap().contains("预算金额必须大于零"));
     }
 
     #[test]
@@ -510,6 +498,6 @@ mod ipc_tests {
             serde_json::json!({ "id": "nonexistent-id" }),
         )
         .expect_err("deleting nonexistent budget should fail");
-        assert!(err.as_str().unwrap().contains("budgetNotFound"));
+        assert!(err.as_str().unwrap().contains("预算不存在"));
     }
 }

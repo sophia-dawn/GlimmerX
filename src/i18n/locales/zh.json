@@ -528,14 +528,22 @@
       "incomeRequiresDestination": "收入需要一个目标账户。",
       "transferRequiresBothAccounts": "转账需要来源和目标账户。",
       "transferToSelf": "不能转账到同一账户。",
-      "equityAccountRestricted": "权益账户仅用于系统交易。"
+      "equityAccountRestricted": "权益账户仅用于系统交易。",
+      "duplicateAccount": "同一账户不能在同一交易中出现多次",
+      "expenseRequiresDestinationOrCategory": "支出交易需要指定目标账户或分类",
+      "incomeRequiresAccount": "收入交易需要指定来源账户或分类",
+      "invalidAmount": "金额格式无效",
+      "invalidMode": "交易类型无效",
+      "noChanges": "没有需要更新的字段",
+      "notFound": "交易不存在"
     },
     "import": {
       "fileNotFound": "导入文件未找到",
       "invalidCsvFormat": "CSV格式无效",
       "emptyFile": "CSV文件为空",
       "noTransactions": "CSV不包含有效交易",
-      "currencyMismatch": "账户货币不匹配"
+      "currencyMismatch": "账户货币不匹配",
+      "tooManyRows": "CSV 行数超过上限（最多 200000 行），请拆分文件后重试"
     },
     "ai": {
       "noApiKey": "未配置 AI API Key，请先在设置中配置",
@@ -549,8 +557,15 @@
       "invalidAmount": "AI 返回的金额无效",
       "networkError": "网络错误，无法连接 AI 服务",
       "timeout": "AI 服务响应超时",
-      "noSourceAccount": "无法确定来源账户"
-    }
+      "noSourceAccount": "无法确定来源账户",
+      "insecureBaseUrl": "仅支持 https:// 的 API 地址（本地 127.0.0.1 可用 http）"
+    },
+    "account": {
+      "inactive": "该账户已停用，无法使用"
+    },
+    "backupFailed": "备份失败，请检查目标路径是否可写",
+    "databaseError": "数据库操作失败，请重试或检查数据库文件",
+    "databaseLocked": "数据库未解锁，请先解锁"
   },
   "quickAdd": {
     "title": "快速记账",

@@ -142,6 +142,37 @@ pub fn find_by_type_and_name(
     Ok(row)
 }
 
+/// Match or create a category by name and type.
+///
+/// Lives in the db layer so the AI quick-add path can resolve/auto-create a
+/// category inside the same transaction that writes the transaction itself.
+/// Matching order: exact (case-insensitive, trimmed), then bidirectional
+/// substring match, then auto-create.
+pub fn resolve_or_create(
+    conn: &Connection,
+    name: &str,
+    category_type: &CategoryType,
+) -> Result<String, AppError> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::ValidationError("分类名称不能为空".to_string()));
+    }
+
+    if let Some(cat) = find_by_type_and_name(conn, category_type, trimmed)? {
+        return Ok(cat.id);
+    }
+
+    let lower = trimmed.to_lowercase();
+    for cat in list_by_type(conn, category_type)? {
+        let cat_lower = cat.name.to_lowercase();
+        if cat_lower.contains(&lower) || lower.contains(&cat_lower) {
+            return Ok(cat.id);
+        }
+    }
+
+    create_category(conn, trimmed, category_type, None)
+}
+
 // ---------------------------------------------------------------------------
 // Create operation
 // ---------------------------------------------------------------------------

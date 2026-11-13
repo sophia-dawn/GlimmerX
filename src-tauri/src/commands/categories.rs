@@ -76,7 +76,7 @@ pub async fn category_list(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let categories = match category_type {
@@ -103,7 +103,7 @@ pub async fn category_create(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -118,7 +118,7 @@ pub async fn category_create(
 
     let category = crate::db::categories::find_category(&conn, &id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "errors.categoryNotFound".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.categoryNotFound"))?;
 
     Ok(record_to_dto(category))
 }
@@ -132,7 +132,7 @@ pub async fn category_update(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let icon_action = match input.icon {
@@ -154,7 +154,7 @@ pub async fn category_update(
 
     let category = crate::db::categories::find_category(&conn, &id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "errors.categoryNotFound".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.categoryNotFound"))?;
     Ok(record_to_dto(category))
 }
 
@@ -166,7 +166,7 @@ pub async fn category_delete_preview(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let preview = crate::db::categories::preview_delete(&conn, &id).map_err(|e| e.to_string())?;
@@ -187,7 +187,7 @@ pub async fn category_delete(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -312,10 +312,7 @@ mod ipc_tests {
             serde_json::json!({ "input": { "name": "餐饮", "type": "expense" } }),
         )
         .expect_err("duplicate category must fail");
-        assert!(
-            err.as_str().unwrap().contains("already exists")
-                || err.as_str().unwrap().contains("errors.")
-        );
+        assert!(err.as_str().unwrap().contains("已存在"));
 
         // list filters by type
         let list: Vec<serde_json::Value> = serde_json::from_value(

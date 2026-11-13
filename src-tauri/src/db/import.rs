@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::db::accounts::{create_account_with_path, find_account_by_type_and_name};
-use crate::db::schema::ensure_transaction_hashes_table;
 use crate::db::transactions::{create_transaction, PostingInput as DbPostingInput};
 use crate::utils::time::now_rfc3339;
 
@@ -81,27 +80,59 @@ pub fn compute_transaction_hash(
     hex::encode(hasher.finalize())
 }
 
+/// Upper bound on rows per CSV import (about 20 MB of typical data).
+const MAX_IMPORT_ROWS: usize = 200_000;
+
+fn check_row_limit(count: usize) -> Result<(), String> {
+    if count > MAX_IMPORT_ROWS {
+        return Err(crate::errors::message("errors.import.tooManyRows"));
+    }
+    Ok(())
+}
+
 /// Main CSV import function.
 pub fn import_csv(
     conn: &mut Connection,
     input_path: &Path,
     options: &ImportOptions,
 ) -> Result<ImportResult, String> {
-    ensure_transaction_hashes_table(conn).map_err(|e| e.to_string())?;
     ensure_existing_hashes(conn)?;
 
     let mut rdr = ReaderBuilder::new()
         .has_headers(true)
         .from_path(input_path)
-        .map_err(|e| format!("Cannot read file: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[glimmerx] internal error: {e}");
+            crate::errors::message("errors.import.fileNotFound")
+        })?;
 
+    // Read at most one row more than the cap so an oversized file is rejected
+    // without buffering the whole thing in memory.
     let rows: Vec<ImportRow> = rdr
         .deserialize()
+        .take(MAX_IMPORT_ROWS + 1)
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("CSV parse error: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[glimmerx] internal error: {e}");
+            crate::errors::message("errors.import.invalidCsvFormat")
+        })?;
 
     if rows.is_empty() {
-        return Err("errors.import.emptyFile".to_string());
+        return Err(crate::errors::message("errors.import.emptyFile"));
+    }
+    check_row_limit(rows.len())?;
+
+    // Validate every business date before any write. Invalid dates would
+    // otherwise pollute all date-ordered reports and range filters.
+    for (index, row) in rows.iter().enumerate() {
+        if crate::utils::validation::parse_business_date(&row.date).is_err() {
+            eprintln!(
+                "[glimmerx] invalid CSV date at line {}: {}",
+                index + 2,
+                row.date
+            );
+            return Err(crate::errors::render("errors.invalidDateFormat"));
+        }
     }
 
     let mut transactions: HashMap<String, Vec<ImportRow>> = HashMap::new();
@@ -119,18 +150,19 @@ pub fn import_csv(
             result.errors.push(ImportError {
                 row_number: 0,
                 transaction_id: txn_id.clone(),
-                message: "errors.transactionMinPostings".to_string(),
+                message: crate::errors::message("errors.transactionMinPostings"),
             });
             result.error_count += 1;
             continue;
         }
 
-        let sum: i64 = txn_rows.iter().map(|r| r.amount).sum();
+        let sum: i128 = txn_rows.iter().map(|r| i128::from(r.amount)).sum();
         if sum != 0 {
+            eprintln!("[glimmerx] unbalanced CSV transaction {txn_id}: sum={sum}");
             result.errors.push(ImportError {
                 row_number: 0,
                 transaction_id: txn_id.clone(),
-                message: format!("errors.transactionUnbalanced: sum={}", sum),
+                message: crate::errors::message("errors.transactionUnbalanced"),
             });
             result.error_count += 1;
             continue;
@@ -140,7 +172,7 @@ pub fn import_csv(
             result.errors.push(ImportError {
                 row_number: 0,
                 transaction_id: txn_id.clone(),
-                message: "errors.transaction.equityAccountRestricted".to_string(),
+                message: crate::errors::message("errors.transaction.equityAccountRestricted"),
             });
             result.error_count += 1;
             continue;
@@ -570,7 +602,7 @@ mod tests {
         let path = write_csv(&dir, "empty.csv", HEADER);
 
         let err = import_csv(&mut conn, &path, &import_options(true, false)).unwrap_err();
-        assert_eq!(err, "errors.import.emptyFile");
+        assert_eq!(err, crate::errors::message("errors.import.emptyFile"));
     }
 
     #[test]
@@ -586,7 +618,7 @@ mod tests {
         );
 
         let err = import_csv(&mut conn, &path, &import_options(true, false)).unwrap_err();
-        assert!(err.contains("CSV parse error"));
+        assert!(err.contains("CSV格式无效"));
     }
 
     #[test]
@@ -597,7 +629,7 @@ mod tests {
         let path = dir.path().join("does-not-exist.csv");
 
         let err = import_csv(&mut conn, &path, &import_options(true, false)).unwrap_err();
-        assert!(err.contains("Cannot read file"));
+        assert!(err.contains("导入文件未找到"));
     }
 
     #[test]
@@ -617,7 +649,10 @@ mod tests {
         let result = import_csv(&mut conn, &path, &import_options(true, false)).unwrap();
         assert_eq!(result.imported_count, 0);
         assert_eq!(result.error_count, 1);
-        assert_eq!(result.errors[0].message, "errors.transactionMinPostings");
+        assert_eq!(
+            result.errors[0].message,
+            crate::errors::message("errors.transactionMinPostings")
+        );
     }
 
     #[test]
@@ -639,7 +674,7 @@ mod tests {
         assert_eq!(result.imported_count, 0);
         assert!(result.errors[0]
             .message
-            .contains("errors.transactionUnbalanced"));
+            .contains(&crate::errors::message("errors.transactionUnbalanced")));
     }
 
     #[test]
@@ -658,9 +693,9 @@ mod tests {
 
         let result = import_csv(&mut conn, &path, &import_options(true, false)).unwrap();
         assert_eq!(result.error_count, 1);
-        assert!(result.errors[0]
-            .message
-            .contains("errors.transaction.equityAccountRestricted"));
+        assert!(result.errors[0].message.contains(&crate::errors::message(
+            "errors.transaction.equityAccountRestricted"
+        )));
     }
 
     #[test]
@@ -737,5 +772,45 @@ mod tests {
 
         // Second call finds hashes already present
         assert_eq!(ensure_existing_hashes(&mut conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_import_csv_rejects_invalid_business_dates() {
+        let db = setup_db();
+        let mut conn = db.get_conn().unwrap();
+        let dir = TempDir::new().unwrap();
+        for bad_date in [
+            "9999-99-99",
+            "2024-2-3",
+            "2024/02/03",
+            "",
+            "2024-02-30",
+            "1899-12-31",
+        ] {
+            let csv = valid_txn_csv().replace("2024-02-01", bad_date);
+            let path = write_csv(&dir, "bad-date.csv", &csv);
+            let err = import_csv(&mut conn, &path, &import_options(true, false)).unwrap_err();
+            assert!(
+                err.contains("日期格式无效"),
+                "expected {bad_date:?} to be rejected, got {err}"
+            );
+        }
+        // A rejected batch must not write anything.
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM transactions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_row_limit_boundary() {
+        assert!(check_row_limit(0).is_ok());
+        assert!(check_row_limit(MAX_IMPORT_ROWS).is_ok());
+        let err = check_row_limit(MAX_IMPORT_ROWS + 1).unwrap_err();
+        assert_eq!(
+            err,
+            crate::errors::message("errors.import.tooManyRows"),
+            "oversized files must be rejected with a friendly message"
+        );
     }
 }

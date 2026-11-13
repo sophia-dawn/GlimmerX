@@ -259,7 +259,7 @@ pub async fn transaction_create(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -291,7 +291,7 @@ pub async fn transaction_list(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let transactions = crate::db::transactions::list_transactions(
@@ -312,7 +312,7 @@ pub async fn transaction_get(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx_with_postings = crate::db::transactions::get_transaction_with_postings(&conn, &id)
@@ -328,7 +328,7 @@ pub async fn transaction_list_paginated(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let backend_filter = TransactionFilter {
@@ -363,7 +363,7 @@ pub async fn quick_add_transaction(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let tx_with_postings =
@@ -384,7 +384,7 @@ pub async fn transaction_detail(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     crate::db::transactions::get_transaction_detail(&conn, &id).map_err(|e| e.to_string())
@@ -403,7 +403,7 @@ pub async fn transaction_update(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let db_input = crate::db::transactions::UpdateTransactionInput {
@@ -433,7 +433,7 @@ pub async fn transaction_delete_preview(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     crate::db::transactions::get_delete_preview(&conn, &id).map_err(|e| e.to_string())
@@ -444,7 +444,7 @@ pub async fn transaction_delete(id: String, state: State<'_, AppState>) -> Resul
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     crate::db::transactions::delete_transaction(&mut conn, &id).map_err(|e| e.to_string())
@@ -755,7 +755,7 @@ mod tests {
             amount: "abc".to_string(),
         }])
         .expect_err("invalid amount string must fail");
-        assert!(err.contains("errors.transaction.invalidAmount"));
+        assert!(err.contains("金额格式无效"));
 
         // Empty list is valid (unbalanced validation happens later)
         assert!(to_db_postings(vec![]).unwrap().is_empty());
@@ -1022,7 +1022,7 @@ mod ipc_tests {
             }),
         )
         .expect_err("invalid quick add mode must fail");
-        assert!(err.as_str().unwrap().contains("invalidMode"));
+        assert!(err.as_str().unwrap().contains("交易类型无效"));
     }
 
     #[test]
@@ -1050,7 +1050,7 @@ mod ipc_tests {
             }),
         )
         .expect_err("invalid posting amount must fail");
-        assert!(err.as_str().unwrap().contains("invalidAmount"));
+        assert!(err.as_str().unwrap().contains("金额格式无效"));
     }
 
     #[test]
@@ -1096,7 +1096,7 @@ mod ipc_tests {
             let err = invoke(&webview, cmd, body)
                 .expect_err("locked db must fail for every transaction command");
             assert!(
-                err.as_str().unwrap().contains("not unlocked"),
+                err.as_str().unwrap().contains("数据库未解锁"),
                 "unexpected error for {}: {}",
                 cmd,
                 err.as_str().unwrap()

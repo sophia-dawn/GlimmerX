@@ -14,7 +14,7 @@ pub async fn dashboard_summary(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let (month_start, month_end) = time::current_month_bounds();
@@ -36,7 +36,7 @@ pub async fn dashboard_monthly_chart(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let year = year.unwrap_or(time::current_year());
@@ -55,7 +55,7 @@ pub async fn dashboard_category_breakdown(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let year = year.unwrap_or(time::current_year());
@@ -85,7 +85,7 @@ pub async fn dashboard_top_expenses(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let year = year.unwrap_or(time::current_year());
@@ -301,6 +301,6 @@ mod ipc_tests {
 
         let err = invoke(&webview, "dashboard_summary", serde_json::json!({}))
             .expect_err("locked db must fail");
-        assert!(err.as_str().unwrap().contains("not unlocked"));
+        assert!(err.as_str().unwrap().contains("数据库未解锁"));
     }
 }

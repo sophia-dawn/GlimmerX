@@ -22,10 +22,11 @@ pub fn validate_non_empty_name(name: &str, field_name: &str) -> Result<(), AppEr
     Ok(())
 }
 
-#[allow(dead_code)]
-pub fn validate_date_format(date: &str) -> Result<(), AppError> {
-    // Enforce strict YYYY-MM-DD shape (chrono's %Y-%m-%d accepts 1-digit
-    // month/day, which we intentionally reject).
+/// Parse a strict YYYY-MM-DD business date (1900..=2100).
+///
+/// Shared by CSV import and AI date validation. chrono's `%Y-%m-%d` accepts
+/// 1-digit months/days, so the shape is checked explicitly.
+pub fn parse_business_date(date: &str) -> Result<chrono::NaiveDate, AppError> {
     let bytes = date.as_bytes();
     let valid_shape = bytes.len() == 10
         && bytes[4] == b'-'
@@ -46,8 +47,12 @@ pub fn validate_date_format(date: &str) -> Result<(), AppError> {
             "errors.invalidDateFormat".to_string(),
         ));
     }
+    Ok(parsed)
+}
 
-    Ok(())
+#[allow(dead_code)]
+pub fn validate_date_format(date: &str) -> Result<(), AppError> {
+    parse_business_date(date).map(|_| ())
 }
 
 #[allow(dead_code)]

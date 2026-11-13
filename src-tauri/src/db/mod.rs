@@ -1,7 +1,6 @@
 use rusqlite::Connection;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use thiserror::Error;
 
 pub mod accounts;
 pub mod budgets;
@@ -9,6 +8,7 @@ pub mod categories;
 pub mod dashboard;
 pub mod export;
 pub mod import;
+mod migrations;
 mod recent_dbs;
 pub mod reports;
 mod schema;
@@ -18,29 +18,39 @@ pub mod transactions;
 pub use export::{export_beancount, export_csv, ExportResult};
 #[allow(unused_imports)]
 pub use recent_dbs::{RecentDb, RecentDbs};
+#[allow(unused_imports)]
 pub use schema::init_schema;
 
 /// Application-level error type.
-#[derive(Error, Debug)]
+///
+/// `Display` is the single boundary where internal keys / English internals are
+/// turned into friendly, localized messages (AGENTS.md hard rule). The frontend
+/// must never transform, translate or reconstruct what it receives.
+#[derive(Debug)]
 pub enum AppError {
-    #[error("Database error: {0}")]
     DatabaseError(String),
-
-    #[error("errors.invalidPassword")]
     InvalidPassword,
-
-    #[error("Not found: {0}")]
     NotFound(String),
-
-    #[error("Validation error: {0}")]
     ValidationError(String),
-
-    #[error("I/O error: {0}")]
     IoError(String),
-
-    #[error("errors.ai.{0}")]
     AiError(String),
 }
+
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            Self::DatabaseError(s)
+            | Self::NotFound(s)
+            | Self::ValidationError(s)
+            | Self::IoError(s) => crate::errors::user_text(s),
+            Self::InvalidPassword => crate::errors::message("errors.invalidPassword"),
+            Self::AiError(code) => crate::errors::message(&format!("errors.ai.{code}")),
+        };
+        f.write_str(&text)
+    }
+}
+
+impl std::error::Error for AppError {}
 
 impl From<rusqlite::Error> for AppError {
     fn from(err: rusqlite::Error) -> Self {
@@ -88,7 +98,7 @@ impl Database {
             )));
         }
 
-        let conn = Connection::open(path)
+        let mut conn = Connection::open(path)
             .map_err(|e| AppError::DatabaseError(format!("Failed to open database file: {}", e)))?;
 
         set_pragma_key(&conn, password)?;
@@ -98,6 +108,10 @@ impl Database {
         conn.query_row("SELECT count(*) FROM sqlite_master;", [], |_| Ok(()))
             .map_err(|_| AppError::InvalidPassword)?;
 
+        // Apply connection PRAGMAs and migrate released 0.1.2 databases.
+        // open() backs up the file before any pending migration is applied.
+        migrations::migrate(&mut conn, path, false)?;
+
         Ok(Self {
             path: path.clone(),
             conn: Mutex::new(conn),
@@ -106,13 +120,14 @@ impl Database {
 
     /// Create a new SQLCipher database at the given path and initialize the schema.
     pub fn create(path: &PathBuf, password: &str) -> Result<Self, AppError> {
-        let conn = Connection::open(path).map_err(|e| {
+        let mut conn = Connection::open(path).map_err(|e| {
             AppError::DatabaseError(format!("Failed to create database file: {}", e))
         })?;
 
         set_pragma_key(&conn, password)?;
 
-        init_schema(&conn)?;
+        // A brand-new database has nothing to lose, so no backup is needed.
+        migrations::migrate(&mut conn, path, true)?;
 
         Ok(Self {
             path: path.clone(),
@@ -298,7 +313,9 @@ mod tests {
         let db = Database::create(&env.path, "secret").unwrap();
         let debug = format!("{:?}", db);
         assert!(debug.contains("Database"));
-        assert!(debug.contains(env.path.to_str().unwrap()));
+        // PathBuf's Debug output escapes path separators on Windows, so match
+        // against the escaped representation instead of the raw path string.
+        assert!(debug.contains(&format!("{:?}", env.path)));
     }
 
     #[test]

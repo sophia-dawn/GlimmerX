@@ -1,30 +1,13 @@
 import type { TFunction } from "i18next";
 
 /**
- * Translate error messages from backend.
- * Backend returns either:
- * - Error codes prefixed with "errors." (e.g., "errors.accountIsSystem")
- * - Legacy English messages (e.g., "Account not found")
- *
- * Error codes are translated via i18next, legacy messages displayed as-is.
+ * Backend errors are already friendly, localized messages (AGENTS.md hard
+ * rule: the frontend must display them verbatim). This helper keeps its
+ * historical name and signature so all call sites stay unchanged; it never
+ * translates, strips or reconstructs backend text.
  */
-export function translateErrorMessage(err: unknown, t: TFunction): string {
-  let message: string;
-  if (typeof err === "string") {
-    message = err.replace(/^Validation error: /, "");
-  } else if (err instanceof Error) {
-    message = err.message;
-  } else {
-    return t("common.errorGeneric");
-  }
-
-  if (message.startsWith("errors.")) {
-    const translated = t(message);
-    if (translated === message) {
-      return t(message.slice(7), message);
-    }
-    return translated;
-  }
-
-  return message;
+export function translateErrorMessage(err: unknown, _t: TFunction): string {
+  if (typeof err === "string") return err;
+  if (err instanceof Error) return err.message;
+  return _t("common.errorGeneric");
 }

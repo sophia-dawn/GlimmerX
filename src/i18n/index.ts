@@ -1,5 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import { setUiLanguage } from "@/utils/api";
 import en from "./locales/en.json";
 import zh from "./locales/zh.json";
 
@@ -36,10 +37,15 @@ i18n.use(initReactI18next).init({
 export function setLanguage(lng: SupportedLanguage) {
   localStorage.setItem(STORAGE_KEY, lng);
   i18n.changeLanguage(lng);
+  // Backend error messages are localized too; ignore failures outside Tauri.
+  void setUiLanguage(lng).catch(() => {});
 }
 
 export function getCurrentLanguage(): SupportedLanguage {
   return (i18n.language as SupportedLanguage) || "en";
 }
+
+// Initial sync; ignore failures outside Tauri (web dev / unit tests).
+void setUiLanguage(getCurrentLanguage()).catch(() => {});
 
 export default i18n;

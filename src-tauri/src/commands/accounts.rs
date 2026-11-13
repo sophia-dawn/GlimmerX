@@ -27,17 +27,17 @@ fn parse_decimal_to_cents(s: &str) -> Result<i64, AppError> {
 
     let parts: Vec<&str> = num_str.split('.').collect();
     if parts.len() > 2 {
-        return Err(AppError::ValidationError(
-            "Invalid amount format: multiple decimal points".into(),
-        ));
+        return Err(AppError::ValidationError(crate::errors::message(
+            "errors.transaction.invalidAmount",
+        )));
     }
 
     let integer_part: i64 = if parts.is_empty() || parts[0].is_empty() {
         0
     } else {
-        parts[0]
-            .parse()
-            .map_err(|_| AppError::ValidationError("Invalid amount format".into()))?
+        parts[0].parse().map_err(|_| {
+            AppError::ValidationError(crate::errors::message("errors.transaction.invalidAmount"))
+        })?
     };
 
     let fractional_part: i64 = if parts.len() > 1 {
@@ -52,9 +52,9 @@ fn parse_decimal_to_cents(s: &str) -> Result<i64, AppError> {
         } else {
             frac.to_string()
         };
-        frac_str
-            .parse()
-            .map_err(|_| AppError::ValidationError("Invalid amount format".into()))?
+        frac_str.parse().map_err(|_| {
+            AppError::ValidationError(crate::errors::message("errors.transaction.invalidAmount"))
+        })?
     } else {
         0
     };
@@ -215,7 +215,7 @@ pub async fn account_create(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     // Start transaction for atomicity
@@ -233,7 +233,7 @@ pub async fn account_create(
     if let Some(first) = segments.first() {
         let lower = first.to_lowercase();
         if lower == "equity" || lower == "equities" {
-            return Err("errors.accountSystemManaged".to_string());
+            return Err(crate::errors::message("errors.accountSystemManaged"));
         }
     }
 
@@ -323,7 +323,7 @@ pub async fn account_list(state: State<'_, AppState>) -> Result<Vec<AccountDto>,
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let accounts_list = accounts::list_accounts(&conn).map_err(|e| e.to_string())?;
@@ -342,7 +342,7 @@ pub async fn account_update(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     // Start transaction for atomicity
@@ -364,7 +364,7 @@ pub async fn account_update(
 
     let existing_account = accounts::find_account(&tx, &id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Account not found: {}", id))?;
+        .ok_or_else(|| crate::errors::message("errors.accountNotFound"))?;
 
     if let Some(ref meta) = &input.meta {
         if !meta.is_empty() {
@@ -389,7 +389,7 @@ pub async fn account_update(
     if let Some(balance_str) = &input.initial_balance {
         let record = accounts::find_account(&tx, &id)
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| format!("Account not found: {}", id))?;
+            .ok_or_else(|| crate::errors::message("errors.accountNotFound"))?;
 
         if record.account_type == "asset" || record.account_type == "liability" {
             let balance = parse_decimal_to_cents(balance_str).map_err(|e| e.to_string())?;
@@ -411,7 +411,7 @@ pub async fn account_update(
     // Read result (outside transaction)
     let record = accounts::find_account(&conn, &id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Account not found: {}", id))?;
+        .ok_or_else(|| crate::errors::message("errors.accountNotFound"))?;
 
     let meta = accounts::get_meta_for_account(&conn, &id).map_err(|e| e.to_string())?;
 
@@ -445,7 +445,7 @@ pub async fn account_delete(id: String, state: State<'_, AppState>) -> Result<()
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     // Start transaction for atomicity
@@ -463,7 +463,7 @@ pub async fn account_balance(id: String, state: State<'_, AppState>) -> Result<i
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     accounts::get_account_balance(&conn, &id).map_err(|e| e.to_string())
@@ -477,7 +477,7 @@ pub async fn account_balances_batch(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     let balances = accounts::get_account_balances_batch(&conn, &ids).map_err(|e| e.to_string())?;
@@ -499,7 +499,7 @@ pub async fn account_transfer(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     // Start transaction for atomicity (double-entry integrity)
@@ -521,7 +521,7 @@ pub async fn account_batch_create(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
 
     // Start transaction for atomicity
@@ -564,7 +564,7 @@ pub async fn account_transactions(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     accounts::get_account_transactions(&conn, &id, from_date.as_deref(), to_date.as_deref())
@@ -579,7 +579,7 @@ pub async fn account_meta_get(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
     accounts::get_meta_for_account(&conn, &account_id).map_err(|e| e.to_string())
 }
@@ -594,7 +594,7 @@ pub async fn account_meta_set(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
     accounts::insert_meta(&conn, &account_id, &key, &value).map_err(|e| e.to_string())?;
     Ok(())
@@ -609,7 +609,7 @@ pub async fn account_meta_batch_set(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
     accounts::set_meta_batch(&conn, &account_id, &metas).map_err(|e| e.to_string())?;
     Ok(())
@@ -1146,7 +1146,7 @@ mod ipc_tests {
             serde_json::json!({ "input": { "name": "Equity/Owner" } }),
         )
         .expect_err("equity account creation must be rejected");
-        assert_eq!(err.as_str().unwrap(), "errors.accountSystemManaged");
+        assert_eq!(err.as_str().unwrap(), "股权类账户由系统管理，无法手动创建");
     }
 
     #[test]
@@ -1280,7 +1280,7 @@ mod ipc_tests {
             serde_json::json!({ "input": { "name": "Equities/X" } }),
         )
         .expect_err("equities prefix must be rejected");
-        assert_eq!(err.as_str().unwrap(), "errors.accountSystemManaged");
+        assert_eq!(err.as_str().unwrap(), "股权类账户由系统管理，无法手动创建");
     }
 
     #[test]

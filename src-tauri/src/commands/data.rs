@@ -18,21 +18,33 @@ pub async fn db_backup(backup_path: String, state: State<'_, AppState>) -> Resul
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "errors.databaseLocked".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked"))?;
 
     let conn = db.get_conn().map_err(|e| e.to_string())?;
     conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
-        .map_err(|e| format!("Checkpoint failed: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[glimmerx] internal error: {e}");
+            crate::errors::message("errors.databaseError")
+        })?;
 
     let backup_path = Path::new(&backup_path);
     // Copy to a temporary file first, then rename into place so an interrupted
     // backup never leaves a truncated file at the destination path.
     let tmp_path = backup_path.with_extension("tmp-backup");
-    std::fs::copy(&db.path, &tmp_path).map_err(|e| format!("errors.backupFailed: {}", e))?;
+    std::fs::copy(&db.path, &tmp_path).map_err(|e| {
+        eprintln!("[glimmerx] internal error: {e}");
+        crate::errors::message("errors.backupFailed")
+    })?;
     if backup_path.exists() {
-        std::fs::remove_file(backup_path).map_err(|e| format!("errors.backupFailed: {}", e))?;
+        std::fs::remove_file(backup_path).map_err(|e| {
+            eprintln!("[glimmerx] internal error: {e}");
+            crate::errors::message("errors.backupFailed")
+        })?;
     }
-    std::fs::rename(&tmp_path, backup_path).map_err(|e| format!("errors.backupFailed: {}", e))?;
+    std::fs::rename(&tmp_path, backup_path).map_err(|e| {
+        eprintln!("[glimmerx] internal error: {e}");
+        crate::errors::message("errors.backupFailed")
+    })?;
 
     Ok(())
 }
@@ -50,7 +62,7 @@ pub async fn export_transactions_csv(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "errors.databaseLocked".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked"))?;
 
     let conn = db.get_conn().map_err(|e| e.to_string())?;
     let output_path = Path::new(&output_path);
@@ -76,7 +88,7 @@ pub async fn export_transactions_beancount(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "errors.databaseLocked".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked"))?;
 
     let conn = db.get_conn().map_err(|e| e.to_string())?;
     let output_path = Path::new(&output_path);
@@ -99,7 +111,7 @@ pub async fn import_transactions_csv(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "errors.databaseLocked".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked"))?;
 
     let mut conn = db.get_conn().map_err(|e| e.to_string())?;
     let input_path = Path::new(&input_path);
@@ -108,7 +120,13 @@ pub async fn import_transactions_csv(
         skip_duplicates,
     };
 
-    import_csv(&mut conn, input_path, &options)
+    let mut result =
+        import_csv(&mut conn, input_path, &options).map_err(|e| crate::errors::render(&e))?;
+    // ImportError.message is data, not an AppError: render keys at the boundary.
+    for error in &mut result.errors {
+        error.message = crate::errors::render(&error.message);
+    }
+    Ok(result)
 }
 
 #[cfg(test)]

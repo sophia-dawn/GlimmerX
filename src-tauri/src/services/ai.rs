@@ -1,16 +1,86 @@
 use crate::db::AppError;
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::Local;
 
 // ---------------------------------------------------------------------------
 // Configuration & data structures
 // ---------------------------------------------------------------------------
 
 /// AI service configuration loaded from settings.
-#[derive(Debug)]
+///
+/// `Debug` is implemented manually so the API key can never leak into logs.
 pub(crate) struct AiConfig {
     pub base_url: String,
     pub api_key: String,
     pub model: String,
+}
+
+impl std::fmt::Debug for AiConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AiConfig")
+            .field("base_url", &self.base_url)
+            .field("api_key", &"***")
+            .field("model", &self.model)
+            .finish()
+    }
+}
+
+/// Maximum number of characters of an upstream body kept in logs.
+const LOG_BODY_LIMIT: usize = 200;
+
+/// Truncate an upstream response body so diagnostics stay useful without
+/// dumping a full provider payload (which can echo user data) into stderr.
+fn log_body(body: &str) -> String {
+    let mut out: String = body.chars().take(LOG_BODY_LIMIT).collect();
+    if body.chars().nth(LOG_BODY_LIMIT).is_some() {
+        out.push('…');
+    }
+    out
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1")
+}
+
+/// Enforce `https://` for the AI endpoint. Plain `http://` is only allowed for
+/// loopback hosts (local mock servers and development).
+pub(crate) fn validate_base_url(raw: &str) -> Result<(), AppError> {
+    let trimmed = raw.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let (scheme, rest) = if let Some(rest) = lower.strip_prefix("https://") {
+        ("https", rest)
+    } else if let Some(rest) = lower.strip_prefix("http://") {
+        ("http", rest)
+    } else {
+        return Err(AppError::ValidationError(
+            "errors.ai.insecureBaseUrl".to_string(),
+        ));
+    };
+
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    // Drop userinfo if present, then isolate the host from the port.
+    let authority = authority.rsplit('@').next().unwrap_or_default();
+    let host = if let Some(stripped) = authority.strip_prefix('[') {
+        stripped.split(']').next().unwrap_or_default().to_string()
+    } else {
+        authority.split(':').next().unwrap_or_default().to_string()
+    };
+    let host = if authority.starts_with('[') {
+        format!("[{}]", host)
+    } else {
+        host
+    };
+
+    if scheme == "http" && !is_loopback_host(&host) {
+        return Err(AppError::ValidationError(
+            "errors.ai.insecureBaseUrl".to_string(),
+        ));
+    }
+    if scheme == "https" && host.is_empty() {
+        return Err(AppError::ValidationError(
+            "errors.ai.insecureBaseUrl".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Context provided to the AI (available categories + accounts).
@@ -48,11 +118,16 @@ pub(crate) fn validate_mode(mode: &str) -> Result<(), AppError> {
 }
 
 /// Validate AI-returned amount string. Must parse to a positive number.
-pub(crate) fn validate_amount(amount: &str) -> Result<f64, AppError> {
-    match amount.parse::<f64>() {
-        Ok(v) if v > 0.0 => Ok(v),
-        _ => Err(AppError::AiError("invalidAmount".to_string())),
+///
+/// Reuses the decimal-only parser so an LLM response such as `"1e309"` can
+/// never reach the database as a saturated `i64::MAX` amount.
+pub(crate) fn validate_amount(amount: &str) -> Result<(), AppError> {
+    let cents = crate::utils::money::parse_amount_to_cents(amount)
+        .map_err(|_| AppError::AiError("invalidAmount".to_string()))?;
+    if cents <= 0 {
+        return Err(AppError::AiError("invalidAmount".to_string()));
     }
+    Ok(())
 }
 
 /// Validate AI-returned date string. Must be YYYY-MM-DD, parseable, not too
@@ -63,19 +138,10 @@ pub(crate) fn validate_date(date: &Option<String>) -> Result<String, AppError> {
         _ => return Err(AppError::AiError("missingDate".to_string())),
     };
 
-    if date_str.len() != 10
-        || date_str.chars().nth(4) != Some('-')
-        || date_str.chars().nth(7) != Some('-')
-    {
-        return Err(AppError::AiError("invalidDate".to_string()));
-    }
-
-    let parsed = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
+    // Reuse the shared strict-format parser; the "not too far in the future"
+    // rule below is AI-specific and intentionally not part of it.
+    let parsed = crate::utils::validation::parse_business_date(&date_str)
         .map_err(|_| AppError::AiError("invalidDate".to_string()))?;
-
-    if parsed.year() < 1900 {
-        return Err(AppError::AiError("invalidDate".to_string()));
-    }
 
     let today = Local::now().date_naive();
     let tomorrow = today.succ_opt().unwrap_or(today);
@@ -280,7 +346,8 @@ pub(crate) async fn parse_transaction(
     let error_body = resp.text().await.unwrap_or_default();
     eprintln!(
         "[ai] parse_transaction first attempt failed: HTTP {} body: {}",
-        status, error_body
+        status,
+        log_body(&error_body)
     );
 
     // If 400, retry without response_format (provider may not support JSON mode)
@@ -320,7 +387,8 @@ pub(crate) async fn parse_transaction(
         let error_body2 = resp2.text().await.unwrap_or_default();
         eprintln!(
             "[ai] parse_transaction retry (no response_format) also failed: HTTP {} body: {}",
-            status2, error_body2
+            status2,
+            log_body(&error_body2)
         );
     }
 
@@ -361,7 +429,8 @@ pub(crate) async fn test_connection(config: &AiConfig) -> Result<(), AppError> {
         let error_body = resp.text().await.unwrap_or_default();
         eprintln!(
             "[ai] test_connection failed: HTTP {} body: {}",
-            status, error_body
+            status,
+            log_body(&error_body)
         );
         return Err(AppError::AiError("apiCallFailed".to_string()));
     }
@@ -395,12 +464,12 @@ mod tests {
 
     #[test]
     fn test_validate_amount_valid() {
-        assert_eq!(validate_amount("18.00").unwrap(), 18.0);
+        assert!(validate_amount("18.00").is_ok());
     }
 
     #[test]
     fn test_validate_amount_integer() {
-        assert_eq!(validate_amount("100").unwrap(), 100.0);
+        assert!(validate_amount("100").is_ok());
     }
 
     #[test]
@@ -416,6 +485,16 @@ mod tests {
     #[test]
     fn test_validate_amount_non_numeric() {
         assert!(validate_amount("abc").is_err());
+    }
+
+    #[test]
+    fn test_validate_amount_rejects_non_finite_and_overflow() {
+        for value in ["inf", "NaN", "1e309", "9e18", "9223372036854775807"] {
+            assert!(
+                validate_amount(value).is_err(),
+                "expected {value:?} to be rejected"
+            );
+        }
     }
 
     #[test]
@@ -767,5 +846,55 @@ mod tests {
             "unexpected error: {:?}",
             err
         );
+    }
+
+    #[test]
+    fn test_ai_config_debug_redacts_api_key() {
+        let config = AiConfig {
+            base_url: "https://api.example.com/v1".to_string(),
+            api_key: "sk-super-secret".to_string(),
+            model: "gpt-4o-mini".to_string(),
+        };
+        let rendered = format!("{:?}", config);
+        assert!(!rendered.contains("sk-super-secret"), "{rendered}");
+        assert!(rendered.contains("api_key: \"***\""));
+        assert!(rendered.contains("https://api.example.com/v1"));
+    }
+
+    #[test]
+    fn test_log_body_truncates_long_payloads() {
+        let long = "a".repeat(LOG_BODY_LIMIT + 50);
+        let logged = log_body(&long);
+        assert_eq!(logged.chars().count(), LOG_BODY_LIMIT + 1);
+        assert!(logged.ends_with('…'));
+        assert_eq!(log_body("short"), "short");
+    }
+
+    #[test]
+    fn test_validate_base_url_allows_https_and_loopback() {
+        for url in [
+            "https://api.openai.com/v1",
+            "https://api.example.com/v1/",
+            "http://127.0.0.1:9",
+            "http://localhost:8080/v1",
+            "http://[::1]:1234",
+        ] {
+            assert!(validate_base_url(url).is_ok(), "should allow {url}");
+        }
+    }
+
+    #[test]
+    fn test_validate_base_url_rejects_insecure_remote_hosts() {
+        for url in [
+            "http://api.example.com/v1",
+            "http://10.0.0.2:8080",
+            "ftp://api.example.com",
+            "api.example.com/v1",
+            "",
+            "   ",
+            "https://",
+        ] {
+            assert!(validate_base_url(url).is_err(), "should reject {url}");
+        }
     }
 }

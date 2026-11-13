@@ -15,7 +15,7 @@ pub async fn report_standard(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_standard_report(&conn, &filter).map_err(|e| e.to_string())
@@ -30,7 +30,7 @@ pub async fn report_month_comparison(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_month_comparison(&conn, &month1, &month2).map_err(|e| e.to_string())
@@ -45,7 +45,7 @@ pub async fn report_category_breakdown(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_category_breakdown_report(&conn, &filter, &income_or_expense)
@@ -60,7 +60,7 @@ pub async fn report_balance_sheet(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_balance_sheet_report(&conn, &snapshot_date).map_err(|e| e.to_string())
@@ -74,7 +74,7 @@ pub async fn report_trend(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_trend_report(&conn, &filter).map_err(|e| e.to_string())
@@ -88,7 +88,7 @@ pub async fn report_year_summary(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_year_summary_report(&conn, year).map_err(|e| e.to_string())
@@ -105,7 +105,7 @@ pub async fn report_account_transactions(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_account_transactions_report(&conn, &account_id, &filter, page, page_size)
@@ -121,7 +121,7 @@ pub async fn report_account_balance_trend(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_account_balance_trend_report(&conn, &account_id, &filter)
@@ -133,7 +133,7 @@ pub async fn report_audit(state: State<'_, AppState>) -> Result<AuditReportDto, 
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     reports::get_audit_report(&conn).map_err(|e| e.to_string())
@@ -493,7 +493,7 @@ mod ipc_tests {
             let err = invoke(&webview, cmd, body)
                 .expect_err("locked db must fail for every report command");
             assert!(
-                err.as_str().unwrap().contains("not unlocked"),
+                err.as_str().unwrap().contains("数据库未解锁"),
                 "unexpected error for {}: {}",
                 cmd,
                 err.as_str().unwrap()

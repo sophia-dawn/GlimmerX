@@ -2,6 +2,12 @@ use tauri::State;
 
 use crate::AppState;
 
+/// Synchronize the UI language so backend error messages are localized too.
+#[tauri::command]
+pub fn set_ui_language(language: String) {
+    crate::errors::set_language(&language);
+}
+
 #[tauri::command]
 pub async fn get_setting(
     key: String,
@@ -10,7 +16,7 @@ pub async fn get_setting(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     crate::db::settings::get_setting(&conn, &key).map_err(|e| e.to_string())
@@ -22,10 +28,16 @@ pub async fn set_setting(
     value: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    // Reject endpoints that would send the API key in cleartext. Loopback
+    // hosts stay allowed for local mock servers and development.
+    if key == "ai.base_url" {
+        crate::services::ai::validate_base_url(&value).map_err(|e| e.to_string())?;
+    }
+
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.")?;
+        .ok_or(crate::errors::message("errors.databaseLocked"))?;
     let conn = db.get_conn().map_err(|e| e.to_string())?;
 
     crate::db::settings::set_setting(&conn, &key, &value).map_err(|e| e.to_string())
@@ -110,7 +122,41 @@ mod tests {
                 serde_json::json!({ "key": "k", "value": "v" }),
             )
             .unwrap_err();
-            assert!(err.as_str().unwrap().contains("not unlocked"));
+            let message = err.as_str().unwrap();
+            assert!(!message.is_empty());
+            assert!(!message.starts_with("errors."));
+            assert!(!message.contains("not unlocked"));
         }
+    }
+
+    #[test]
+    fn test_set_ai_base_url_rejects_cleartext_remote_host() {
+        let dir = TempDir::new().unwrap();
+        let db = Database::create(&dir.path().join("t.db"), "secret").unwrap();
+        let webview = mock_app(Some(db));
+
+        let err = invoke(
+            &webview,
+            "set_setting",
+            serde_json::json!({
+                "key": "ai.base_url",
+                "value": "http://api.example.com/v1"
+            }),
+        )
+        .unwrap_err();
+        let message = err.as_str().unwrap();
+        assert!(!message.starts_with("errors."), "{message}");
+        assert!(message.contains("https"), "{message}");
+
+        // Loopback is allowed for local mock servers.
+        invoke(
+            &webview,
+            "set_setting",
+            serde_json::json!({
+                "key": "ai.base_url",
+                "value": "http://127.0.0.1:9"
+            }),
+        )
+        .unwrap();
     }
 }

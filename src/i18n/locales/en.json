@@ -528,14 +528,22 @@
       "incomeRequiresDestination": "Income requires a destination account.",
       "transferRequiresBothAccounts": "Transfer requires both source and destination accounts.",
       "transferToSelf": "Cannot transfer to the same account.",
-      "equityAccountRestricted": "Equity accounts are only for system transactions."
+      "equityAccountRestricted": "Equity accounts are only for system transactions.",
+      "duplicateAccount": "The same account cannot appear twice in one transaction",
+      "expenseRequiresDestinationOrCategory": "An expense requires a destination account or a category",
+      "incomeRequiresAccount": "An income entry requires a source account or a category",
+      "invalidAmount": "Invalid amount format",
+      "invalidMode": "Invalid transaction mode",
+      "noChanges": "No fields to update",
+      "notFound": "Transaction not found"
     },
     "import": {
       "fileNotFound": "Import file not found",
       "invalidCsvFormat": "Invalid CSV format",
       "emptyFile": "CSV file is empty",
       "noTransactions": "CSV contains no valid transactions",
-      "currencyMismatch": "Account currency mismatch"
+      "currencyMismatch": "Account currency mismatch",
+      "tooManyRows": "CSV has too many rows (limit: 200000). Please split the file"
     },
     "ai": {
       "noApiKey": "AI API Key not configured, please set it in Settings",
@@ -549,8 +557,15 @@
       "invalidAmount": "Invalid amount from AI",
       "networkError": "Network error, cannot reach AI service",
       "timeout": "AI service timeout",
-      "noSourceAccount": "No source account could be determined"
-    }
+      "noSourceAccount": "No source account could be determined",
+      "insecureBaseUrl": "Only https:// API endpoints are supported (http is allowed for 127.0.0.1)"
+    },
+    "account": {
+      "inactive": "This account is inactive and cannot be used"
+    },
+    "backupFailed": "Backup failed. Please check that the destination is writable",
+    "databaseError": "Database operation failed. Please retry or check the database file",
+    "databaseLocked": "Database is locked. Please unlock it first"
   },
   "quickAdd": {
     "title": "Quick Add",

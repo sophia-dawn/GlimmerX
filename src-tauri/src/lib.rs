@@ -3,6 +3,7 @@ use std::sync::Mutex;
 mod commands;
 mod constants;
 mod db;
+mod errors;
 mod services;
 mod utils;
 
@@ -15,8 +16,32 @@ pub struct AppState {
     pub recent_dbs: Mutex<RecentDbs>,
 }
 
+/// Portable builds have no installer to bootstrap WebView2. Detect the
+/// runtime before the webview is created so users get a readable message
+/// instead of a silent white window.
+#[cfg(windows)]
+fn ensure_webview_runtime() {
+    if tauri::webview_version().is_ok() {
+        return;
+    }
+    let message = "未检测到 WebView2 运行时，请先安装后重试。 / WebView2 Runtime not found. Please install it and try again.";
+    eprintln!("{message}");
+    let _ = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('未检测到 WebView2 运行时，请先安装后重试。 / WebView2 Runtime not found.', 'GlimmerX', 'OK', 'Error')",
+        ])
+        .status();
+    std::process::exit(1);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    ensure_webview_runtime();
+
     let recent_dbs = RecentDbs::load().unwrap_or_else(|_| RecentDbs::empty());
 
     tauri::Builder::default()
@@ -101,6 +126,7 @@ pub fn run() {
             commands::data::import_transactions_csv,
             commands::settings::get_setting,
             commands::settings::set_setting,
+            commands::settings::set_ui_language,
             commands::ai::ai_parse_transaction,
             commands::ai::ai_test_connection,
         ])

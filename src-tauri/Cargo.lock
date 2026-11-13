@@ -1447,10 +1447,12 @@ dependencies = [
  "chrono",
  "csv",
  "dirs",
+ "embed-resource",
  "hex",
  "itertools",
  "reqwest 0.12.28",
  "rusqlite",
+ "rusqlite_migration",
  "serde",
  "serde_json",
  "serde_with",
@@ -1462,7 +1464,6 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-opener",
  "tempfile",
- "thiserror 2.0.18",
  "tokio",
  "uuid",
 ]
@@ -3387,6 +3388,16 @@ dependencies = [
  "libsqlite3-sys",
  "smallvec",
  "sqlite-wasm-rs",
+]
+
+[[package]]
+name = "rusqlite_migration"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "410e4d2d97ff816796ed012b789c7381ae42c09a809822a75d29a01022181184"
+dependencies = [
+ "log",
+ "rusqlite",
 ]
 
 [[package]]

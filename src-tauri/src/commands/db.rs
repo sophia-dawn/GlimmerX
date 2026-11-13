@@ -51,8 +51,10 @@ pub async fn db_create(
 
     // Ensure parent directory exists
     if let Some(parent) = path_buf.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| {
+            eprintln!("[glimmerx] internal error: {e}");
+            crate::errors::message("errors.databaseError")
+        })?;
     }
 
     let db = Database::create(&path_buf, &password).map_err(|e| e.to_string())?;
@@ -65,7 +67,10 @@ pub async fn db_create(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
             ("db_created_at", &now),
         )
-        .map_err(|e| format!("Failed to save creation time: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[glimmerx] internal error: {e}");
+            crate::errors::message("errors.databaseError")
+        })?;
     }
 
     // Add to recent databases
@@ -134,11 +139,11 @@ pub async fn db_change_password(
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or("Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or(crate::errors::message("errors.databaseLocked").to_string())?;
 
     db.change_password_with_verification(&old_password, &new_password)
         .map_err(|e| match e {
-            AppError::InvalidPassword => "errors.invalidPassword".to_string(),
+            AppError::InvalidPassword => crate::errors::message("errors.invalidPassword"),
             other => other.to_string(),
         })
 }
@@ -192,7 +197,10 @@ pub async fn db_lock(state: State<'_, AppState>) -> Result<(), String> {
     if let Some(db) = db_state.as_ref() {
         let conn = db.get_conn().map_err(|e| e.to_string())?;
         conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
-            .map_err(|e| format!("Checkpoint failed: {}", e))?;
+            .map_err(|e| {
+                eprintln!("[glimmerx] internal error: {e}");
+                crate::errors::message("errors.databaseError")
+            })?;
     }
 
     // Clear state, triggering Drop (which will also attempt checkpoint)
@@ -212,11 +220,14 @@ pub async fn db_ping(state: State<'_, AppState>) -> Result<bool, String> {
     let db_state = state.database.lock().map_err(|e| e.to_string())?;
     let db = db_state
         .as_ref()
-        .ok_or_else(|| "Database is not unlocked. Please unlock it first.".to_string())?;
+        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
 
     let conn = db.get_conn().map_err(|e| e.to_string())?;
     conn.query_row("SELECT 1", [], |_row| Ok(true))
-        .map_err(|e| format!("Database ping failed: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[glimmerx] internal error: {e}");
+            crate::errors::message("errors.databaseError")
+        })?;
     Ok(true)
 }
 
@@ -366,7 +377,7 @@ mod tests {
             serde_json::json!({ "path": db_path, "password": "wrong" }),
         )
         .expect_err("wrong password must fail");
-        assert_eq!(err.as_str().unwrap(), "errors.invalidPassword");
+        assert_eq!(err.as_str().unwrap(), "密码错误或数据库已损坏");
 
         invoke(
             &webview,
@@ -404,7 +415,7 @@ mod tests {
             serde_json::json!({ "path": db_path, "password": "old-pass" }),
         )
         .expect_err("old password must fail after rekey");
-        assert_eq!(err.as_str().unwrap(), "errors.invalidPassword");
+        assert_eq!(err.as_str().unwrap(), "密码错误或数据库已损坏");
 
         invoke(
             &webview,
@@ -458,7 +469,7 @@ mod tests {
             serde_json::json!({ "oldPassword": "wrong", "newPassword": "new-pass" }),
         )
         .expect_err("changing password with wrong old password must fail");
-        assert_eq!(err.as_str().unwrap(), "errors.invalidPassword");
+        assert_eq!(err.as_str().unwrap(), "密码错误或数据库已损坏");
     }
 
     #[test]
@@ -466,6 +477,6 @@ mod tests {
         let (_app, webview) = mock_app(empty_state(test_recent()));
         let err = invoke(&webview, "db_ping", serde_json::json!({}))
             .expect_err("ping without unlocked database must fail");
-        assert!(err.as_str().unwrap().contains("not unlocked"));
+        assert!(err.as_str().unwrap().contains("数据库未解锁"));
     }
 }
