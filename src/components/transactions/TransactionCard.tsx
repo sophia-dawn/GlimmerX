@@ -30,8 +30,10 @@ export const TransactionCard = memo(function TransactionCard({
     const names = transaction.categoryNames;
     if (names.length === 0) return null;
     if (names.length <= 2) return names.join("、");
+    // `remaining`, not `count`: i18next treats `count` as a plural selector and
+    // would look for `splitMore_other`, which no locale defines.
     return `${names.slice(0, 2).join("、")} ${t("transactions.splitMore", {
-      count: names.length - 2,
+      remaining: names.length - 2,
     })}`;
   })();
 

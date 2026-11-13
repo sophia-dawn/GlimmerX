@@ -336,7 +336,7 @@
     "groupAccounts": "Accounts",
     "groupCategories": "Categories",
     "selectAccountOrCategory": "Account or category",
-    "splitMore": "and {{count}} more",
+    "splitMore": "and {{remaining}} more",
     "create": "New Transaction",
     "created": "Transaction created successfully",
     "updated": "Transaction updated successfully",
