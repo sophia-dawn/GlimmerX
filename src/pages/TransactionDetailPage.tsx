@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -31,7 +31,11 @@ import {
 } from "@/components/ui/card";
 import { formatAmount } from "@/utils/format";
 import { formatDateLong, formatDateTimeShort } from "@/utils/date";
-import type { PostingDetail, CreateTransactionInput } from "@/types";
+import type {
+  PostingDetail,
+  CreateTransactionInput,
+  TransactionDto,
+} from "@/types";
 
 export function TransactionDetailPage() {
   const { t } = useTranslation();
@@ -66,6 +70,14 @@ export function TransactionDetailPage() {
     queryFn: () => categoryList(),
     ...QUERY_CONFIG.FINANCIAL,
   });
+
+  // The edit form's init effect keys on `transaction`. Building that object
+  // inline gave it a fresh identity on every parent render (a refetch, a dialog
+  // toggle), so the effect re-ran and wiped whatever the user had typed.
+  const editingTransaction = useMemo<TransactionDto | undefined>(
+    () => transaction,
+    [transaction],
+  );
 
   const updateMutation = useMutation({
     mutationFn: (input: CreateTransactionInput) =>
@@ -276,19 +288,6 @@ export function TransactionDetailPage() {
           </CardContent>
         </Card>
 
-        {transaction.categoryName && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">
-                {t("transactions.category")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Badge variant="secondary">{transaction.categoryName}</Badge>
-            </CardContent>
-          </Card>
-        )}
-
         <Card>
           <CardHeader>
             <CardTitle>{t("transactions.postings")}</CardTitle>
@@ -363,28 +362,12 @@ export function TransactionDetailPage() {
         />
       )}
 
-      {accounts && categories && transaction && (
+      {accounts && categories && editingTransaction && (
         <TransactionForm
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           mode="edit"
-          transaction={{
-            id: transaction.id,
-            date: transaction.date,
-            description: transaction.description,
-            createdAt: transaction.createdAt,
-            updatedAt: transaction.updatedAt,
-            postings: transaction.postings.map((p) => ({
-              id: p.id,
-              transactionId: p.transactionId,
-              accountId: p.accountId,
-              categoryId: p.categoryId ?? null,
-              categoryName: p.categoryName ?? null,
-              amount: p.amount,
-              sequence: p.sequence ?? 0,
-              createdAt: p.createdAt,
-            })),
-          }}
+          transaction={editingTransaction}
           accounts={accounts}
           categories={categories}
           onSubmit={(data) => updateMutation.mutate(data)}

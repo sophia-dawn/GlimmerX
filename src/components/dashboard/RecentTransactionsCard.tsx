@@ -92,7 +92,7 @@ export function RecentTransactionsCard() {
                       <span>{formatDateLong(tx.date)}</span>
                       {tx.categoryNames.length > 0 && (
                         <span className="truncate">
-                          {tx.categoryNames.join("、")}
+                          {tx.categoryNames.join(t("common.listSeparator"))}
                         </span>
                       )}
                     </div>

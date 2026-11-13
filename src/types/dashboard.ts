@@ -49,6 +49,8 @@ export interface CategoryBreakdownData {
 }
 
 export interface TopExpenseItem {
+  /** Row identity — a split transaction yields one row per expense posting. */
+  posting_id: string;
   transaction_id: string;
   date: string;
   description: string;

@@ -57,7 +57,9 @@ export function ChangePasswordDialog({
       toast.success(t("settings.passwordChanged"));
       handleClose();
       // The password changed, so the old key is gone: re-lock and clear the cache.
-      await lockSession();
+      if (!(await lockSession())) {
+        toast.error(t("common.lockFailed"));
+      }
       navigate("/unlock");
     } catch (err: unknown) {
       console.error("Password change failed:", err);

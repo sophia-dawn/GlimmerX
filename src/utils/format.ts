@@ -6,6 +6,8 @@
  * API only invites callers to pass one.
  */
 
+import { parseAmountToCents } from "./money";
+
 /** Every amount renders with this symbol — the ledger is CNY-only. */
 export const MONEY_SYMBOL = "¥";
 
@@ -21,11 +23,13 @@ export function centsToYuan(cents: number): number {
 
 /**
  * Convert a yuan amount to cents.
+ *
+ * Delegates to the shared parser so a value the form accepted is the same value
+ * the backend computes; an unparseable string stays 0 for callers that only
+ * need a fallback.
  */
 export function yuanToCents(yuan: string): number {
-  const value = parseFloat(yuan);
-  if (isNaN(value)) return 0;
-  return Math.round(value * 100);
+  return parseAmountToCents(yuan) ?? 0;
 }
 
 /**

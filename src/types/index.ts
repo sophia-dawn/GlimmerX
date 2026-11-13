@@ -258,6 +258,12 @@ export interface TransactionListItem {
   categoryIcon: string | null;
   postingsSummary: PostingSummary[];
   displayAmount: number; // cents, always positive (debit total)
+  /**
+   * Balance-sheet movement, i.e. the sign to colour by. Negative = money out,
+   * positive = money in, 0 = internal transfer. `displayAmount` is always
+   * positive and cannot tell a payment from a receipt.
+   */
+  flowAmount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -319,10 +325,8 @@ export interface AiConfig {
 
 export interface TransactionDetail {
   id: string;
-  date: string;
+  date: string; // ISO 8601
   description: string;
-  categoryId: string | null;
-  categoryName: string | null;
   postings: PostingDetail[];
   createdAt: string;
   updatedAt: string;
@@ -355,7 +359,6 @@ export interface PostingDetail {
 export interface UpdateTransactionInput {
   date?: string;
   description?: string;
-  categoryId?: string | null;
   postings?: CreatePostingInput[];
 }
 

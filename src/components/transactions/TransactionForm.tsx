@@ -7,6 +7,7 @@ import type {
   Category,
 } from "@/types";
 import { formatAmount } from "@/utils/format";
+import { hasExcessPrecision, parseAmountToCents } from "@/utils/money";
 import { todayLocalDate } from "@/utils/date";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -55,26 +56,10 @@ interface TransactionFormProps {
   isLoading?: boolean;
 }
 
-function decimalToCents(decimal: string): number | null {
-  const value = parseFloat(decimal);
-  if (isNaN(value)) return null;
-  const cents = Math.round(value * 100);
-  if (cents === 0 && value !== 0) return null;
-  return cents;
-}
-
-function hasExcessPrecision(decimal: string): boolean {
-  if (/e/i.test(decimal)) return true;
-  const parts = decimal.split(".");
-  if (parts.length === 1) return false;
-  const decimalPart = parts[1];
-  if (decimalPart === undefined) return false;
-  return decimalPart.length > 2;
-}
-
 function hasZeroCents(decimal: string): boolean {
-  const cents = decimalToCents(decimal);
-  return cents === null && decimal.trim().length > 0;
+  // "0.004" is a real number the user typed but it rounds to nothing; the
+  // backend would reject the resulting zero posting.
+  return parseAmountToCents(decimal) === 0 && decimal.trim().length > 0;
 }
 
 export function TransactionForm({
@@ -155,7 +140,7 @@ export function TransactionForm({
   );
 
   const totalCents = postings.reduce((sum, p) => {
-    const cents = decimalToCents(p.amount);
+    const cents = parseAmountToCents(p.amount);
     return cents === null ? sum : sum + cents;
   }, 0);
   const isBalanced = totalCents === 0;
@@ -166,7 +151,7 @@ export function TransactionForm({
     (p) => p.accountId.trim().length > 0,
   );
   const allPostingsHaveValidAmount = postings.every((p) => {
-    const cents = decimalToCents(p.amount);
+    const cents = parseAmountToCents(p.amount);
     return cents !== null && cents !== 0;
   });
   const hasDuplicateAccounts = (() => {

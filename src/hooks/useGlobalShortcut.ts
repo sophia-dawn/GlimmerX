@@ -38,7 +38,13 @@ export function useGlobalShortcut(
           await unregister(shortcut);
         }
         if (mounted) {
-          await register(shortcut, () => {
+          await register(shortcut, (event) => {
+            // The plugin fires on both press and release. Without this guard
+            // the callback runs twice per keypress, which toggles a quick-add
+            // dialog open and immediately closed again.
+            if (event.state !== "Pressed") {
+              return;
+            }
             callbackRef.current();
           });
           registeredRef.current = true;

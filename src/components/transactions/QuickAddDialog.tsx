@@ -72,10 +72,10 @@ export function QuickAddDialog({
     } else if (mode === "income") {
       setSourceAccountId("");
     }
-    // Reset category when switching to transfer (no category needed)
-    if (mode === "transfer") {
-      setCategoryId(NO_CATEGORY_VALUE);
-    }
+    // Always drop the category: the picker only lists categories of the
+    // current mode, so a leftover expense category would stay selected while
+    // invisible and then be posted to an income transaction.
+    setCategoryId(NO_CATEGORY_VALUE);
   }, [mode, open]);
 
   const { data: accounts = [] } = useQuery({

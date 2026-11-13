@@ -14,7 +14,8 @@ import {
   savingsUpdate,
 } from "@/utils/api";
 import { QUERY_CONFIG } from "@/constants/query";
-import { centsToYuan, formatAmount, yuanToCents } from "@/utils/format";
+import { centsToYuan, formatAmount } from "@/utils/format";
+import { parseAmountToCents } from "@/utils/money";
 import { translateErrorMessage } from "@/utils/errorTranslation";
 import { useHeaderActions } from "@/contexts/HeaderContext";
 import { Button } from "@/components/ui/button";
@@ -431,7 +432,10 @@ function TransferDialog({
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts", "asset-for-transfer"],
     queryFn: () => accountList(["asset"]),
-    ...QUERY_CONFIG.STATIC,
+    // Not STATIC: an account created while the app is running must appear here.
+    // With `staleTime: Infinity` + `refetchOnMount: false` + `gcTime: Infinity`
+    // the list was cached for the lifetime of the process.
+    ...QUERY_CONFIG.FINANCIAL,
   });
 
   // The goal's own account must not appear in the picker.
@@ -439,9 +443,13 @@ function TransferDialog({
 
   const handleSubmit = async () => {
     if (!sourceId) return;
+    const cents = parseAmountToCents(amount);
+    if (cents === null || cents <= 0) {
+      toast.error(t("savings.invalidAmount"));
+      return;
+    }
     setSaving(true);
     try {
-      const cents = yuanToCents(amount);
       const description =
         direction === "deposit"
           ? t("savings.depositTitle", { name: goal.name })

@@ -29,12 +29,16 @@ export const TransactionCard = memo(function TransactionCard({
   const categoryLabel = (() => {
     const names = transaction.categoryNames;
     if (names.length === 0) return null;
-    if (names.length <= 2) return names.join("、");
+    // The list separator is language-specific: a hardcoded "、" shows up in the
+    // English UI as `Food、Transport`.
+    const joined = names.join(t("common.listSeparator"));
+    if (names.length <= 2) return joined;
     // `remaining`, not `count`: i18next treats `count` as a plural selector and
     // would look for `splitMore_other`, which no locale defines.
-    return `${names.slice(0, 2).join("、")} ${t("transactions.splitMore", {
-      remaining: names.length - 2,
-    })}`;
+    return `${names.slice(0, 2).join(t("common.listSeparator"))} ${t(
+      "transactions.splitMore",
+      { remaining: names.length - 2 },
+    )}`;
   })();
 
   const categoryDisplay =
@@ -122,7 +126,13 @@ export const TransactionCard = memo(function TransactionCard({
         <span
           className={cn(
             "text-sm font-medium tabular-nums",
-            transaction.displayAmount >= 0 ? "text-green-600" : "text-red-600",
+            // Colour by cash flow, not by `displayAmount` — that is the debit
+            // total and never negative, so every row used to render green.
+            transaction.flowAmount > 0
+              ? "text-green-600"
+              : transaction.flowAmount < 0
+                ? "text-red-600"
+                : "text-muted-foreground",
           )}
         >
           {formatAmount(transaction.displayAmount)}

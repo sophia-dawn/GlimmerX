@@ -12,10 +12,17 @@ import {
 } from "lucide-react";
 import { lockSession } from "@/utils/session";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export function Sidebar() {
   const { t } = useTranslation();
-  const handleLock = () => void lockSession();
+  const handleLock = async () => {
+    // The UI locks either way, but a key that refused to drop still leaves an
+    // open connection behind — never close this silently.
+    if (!(await lockSession())) {
+      toast.error(t("common.lockFailed"));
+    }
+  };
 
   const navItems = [
     { label: t("navigation.overview"), to: "/", icon: LayoutDashboard },
