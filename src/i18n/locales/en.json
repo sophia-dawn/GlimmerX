@@ -510,6 +510,7 @@
       "incomeRequiresDestination": "Income requires a destination account.",
       "transferRequiresBothAccounts": "Transfer requires both source and destination accounts.",
       "transferToSelf": "Cannot transfer to the same account.",
+      "transferHasNoCategory": "Transfers do not take a category.",
       "equityAccountRestricted": "Equity accounts are only for system transactions.",
       "duplicateAccount": "The same account cannot appear twice in one transaction",
       "expenseRequiresDestinationOrCategory": "An expense requires a destination account or a category",
@@ -527,12 +528,14 @@
       "parseFailed": "Failed to parse AI response",
       "invalidDate": "Invalid date from AI",
       "missingDate": "AI did not return a date",
-      "invalidMode": "Invalid transaction type from AI",
       "invalidAmount": "Invalid amount from AI",
       "networkError": "Network error, cannot reach AI service",
       "timeout": "AI service timeout",
       "noSourceAccount": "No source account could be determined",
-      "insecureBaseUrl": "Only https:// API endpoints are supported (http is allowed for 127.0.0.1)"
+      "insecureBaseUrl": "Only https:// API endpoints are supported (http is allowed for 127.0.0.1)",
+      "invalidAction": "AI returned an invalid action",
+      "invalidAccountPath": "AI returned an invalid account path; it must start with Assets/ or Liabilities/",
+      "noDestinationAccount": "Cannot determine the destination account"
     },
     "account": {
       "inactive": "This account is inactive and cannot be used",
@@ -569,6 +572,16 @@
       "goalNotFound": "Savings goal not found",
       "invalidTarget": "The target amount must be greater than zero",
       "goalHasHistory": "This goal already has deposits or withdrawals — archive it instead of deleting"
+    },
+    "ledger": {
+      "accountNameNotFound": "No account matches that name",
+      "accountNameAmbiguous": "That account name matches several accounts — pass the account id instead",
+      "invalidDate": "Invalid date format, expected YYYY-MM-DD",
+      "categoryTypeMismatch": "The category type does not match the transaction type"
+    },
+    "mcp": {
+      "invalidTrustMode": "Invalid trust mode: expected readonly, confirm or trust",
+      "invalidPort": "Invalid port number"
     }
   },
   "quickAdd": {
@@ -588,7 +601,11 @@
       "expenseDesc": "Money spent from an asset account to an expense category",
       "incomeDesc": "Money received into an asset account from an income category",
       "transferDesc": "Move money between two asset or liability accounts"
-    }
+    },
+    "newCategorySuffix": "new",
+    "assetAccount": "Asset",
+    "liabilityAccount": "Liability",
+    "createAccountAction": "Create account"
   },
   "ai": {
     "title": "AI Bookkeeping",
@@ -612,6 +629,14 @@
       "providerDeepseek": "DeepSeek",
       "providerOllama": "Ollama (local)",
       "providerCustom": "Custom"
+    },
+    "review": {
+      "title": "Confirm entry",
+      "proposed": "AI proposal",
+      "openingBalance": "Opening balance",
+      "accountPath": "Account path",
+      "accountKind": "Account type",
+      "back": "Revise input"
     }
   },
   "placeholder": {
@@ -880,5 +905,43 @@
     "transferDone": "Recorded",
     "invalidAmount": "Enter an amount greater than zero",
     "editTitle": "Edit goal"
+  },
+  "mcp": {
+    "title": "Automation (MCP)",
+    "enable": "Local MCP server",
+    "notRunning": "Not running",
+    "runningOn": "Running · 127.0.0.1:{{port}}/mcp",
+    "port": "Port",
+    "applyPort": "Apply",
+    "trustMode": "Trust mode",
+    "trustReadonly": "Read-only",
+    "trustConfirm": "Confirm writes (default)",
+    "trustTrust": "Trust (write directly)",
+    "trustHint": "Read-only: writes are rejected. Confirm: a card pops up; no response within 120s cancels. Trust: writes go straight through.",
+    "token": "Access token",
+    "resetToken": "Reset token",
+    "clientConfig": "Client configuration",
+    "copyConfig": "Copy MCP config",
+    "kind": {
+      "expense": "Expense",
+      "income": "Income",
+      "transfer": "Transfer"
+    },
+    "approval": {
+      "title": "An external app wants to write the ledger",
+      "transactionDesc": "An MCP client asks to record a transaction. Confirming writes it immediately — there is no undo.",
+      "createAccountDesc": "An MCP client asks to create an account. Confirming creates it immediately.",
+      "amount": "Amount",
+      "kind": "Kind",
+      "date": "Date",
+      "source": "From account",
+      "destination": "To account",
+      "category": "Category",
+      "path": "Account path",
+      "openingBalance": "Opening balance",
+      "description": "Description",
+      "approve": "Approve write",
+      "reject": "Reject"
+    }
   }
 }

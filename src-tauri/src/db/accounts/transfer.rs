@@ -1,32 +1,20 @@
 //! Transfers between two accounts.
 
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::db::AppError;
 use crate::utils::money::MAX_AMOUNT_CENTS;
 
-/// A transfer moves money between balance-sheet accounts only. Posting to a P&L
-/// account here would create profit out of nothing, and posting to equity would
-/// bypass `validate_no_equity_accounts`.
-fn validate_endpoint(conn: &Connection, account_id: &str) -> Result<(), AppError> {
-    let row: Option<(String, bool)> = conn
-        .query_row(
-            "SELECT type, is_active FROM accounts WHERE id = ?1",
-            [account_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()?;
-    match row {
-        Some((kind, true)) if kind == "asset" || kind == "liability" => Ok(()),
-        _ => Err(AppError::ValidationError(
-            "errors.account.transferAccountInvalid".into(),
-        )),
-    }
-}
+// Shared with the quick-add transfer path; see `validate.rs` (P0-1).
+use super::validate::validate_endpoint;
 
 /// Create a transfer transaction between two accounts with balanced postings.
 /// Returns the transaction ID.
+///
+/// Legacy entry: this path hardcodes `today_date()` and takes raw cents. New
+/// callers — the AI path and the ledger capability layer — must go through
+/// quick-add instead, which supports a business date (design doc 25, P0-4).
 pub fn create_transfer(
     conn: &Connection,
     from_id: &str,

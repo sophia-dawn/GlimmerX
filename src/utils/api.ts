@@ -5,8 +5,12 @@ import type {
   AccountMetaSchema,
   AccountTransaction,
   AccountType,
+  AiProposal,
   AutoMatchResult,
   CreateSavingsGoalInput,
+  McpApprovalRequest,
+  McpConfig,
+  McpTrustMode,
   ReconcilePreview,
   ReconciliationRecord,
   ReconcileTotals,
@@ -392,10 +396,8 @@ export async function quickAddTransaction(
 // AI commands
 // ---------------------------------------------------------------------------
 
-export async function aiParseTransaction(
-  text: string,
-): Promise<TransactionDto> {
-  return invokeCommand<TransactionDto>("ai_parse_transaction", { text });
+export async function aiParseTransaction(text: string): Promise<AiProposal> {
+  return invokeCommand<AiProposal>("ai_parse_transaction", { text });
 }
 
 export async function aiTestConnection(): Promise<void> {
@@ -715,4 +717,38 @@ export async function savingsSetStatus(
 
 export async function savingsDelete(id: string): Promise<void> {
   return invokeCommand<void>("savings_delete", { id });
+}
+
+// ---------------------------------------------------------------------------
+// MCP commands (design doc 25, §5/§8)
+// ---------------------------------------------------------------------------
+
+export async function mcpGetConfig(): Promise<McpConfig> {
+  return invokeCommand<McpConfig>("mcp_get_config");
+}
+
+/** Update any subset; persists and (re)starts the server. */
+export async function mcpSetConfig(input: {
+  enabled?: boolean;
+  port?: number;
+  trust?: McpTrustMode;
+}): Promise<McpConfig> {
+  return invokeCommand<McpConfig>("mcp_set_config", input);
+}
+
+/** Rotate the access token (restarts the server when it was running). */
+export async function mcpResetToken(): Promise<McpConfig> {
+  return invokeCommand<McpConfig>("mcp_reset_token");
+}
+
+/** Resolve the pending approval; false = the request was already handled. */
+export async function mcpApproveRequest(
+  requestId: string,
+  approved: boolean,
+): Promise<boolean> {
+  return invokeCommand<boolean>("mcp_approve_request", { requestId, approved });
+}
+
+export async function mcpCurrentApproval(): Promise<McpApprovalRequest | null> {
+  return invokeCommand<McpApprovalRequest | null>("mcp_current_approval");
 }

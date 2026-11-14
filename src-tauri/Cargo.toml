@@ -29,11 +29,30 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 dirs = "6"
 itertools = "0.14"
-hex = "0.4"
-sha2 = "0.10"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+# MCP server (design doc 25, §5 / §10.5). Locked to 3.x: the SDK has had
+# breaking renames between minor versions (Error -> ErrorData,
+# with_stateful_mode -> with_legacy_session_mode); it is confined to `mcp/`
+# so none of its types leak into `commands/` or `db/`.
+rmcp = { version = "3.10", features = [
+    "server",
+    "macros",
+    "transport-streamable-http-server",
+] }
+axum = "0.8"
+# Moved from dev-dependencies: the MCP server runs on the app's async runtime.
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "net",
+    "macros",
+    "sync",
+    "time",
+] }
 
 [dev-dependencies]
+# Only used by tests (schema-v1 freeze digest), so dev-only: a normal
+# dependency that only test code links is flagged by cargo's lint.
+hex = "0.4"
+sha2 = "0.10"
 tempfile = "3"
 tauri = { version = "2", features = ["test"] }
-tokio = { version = "1", features = ["macros", "rt"] }

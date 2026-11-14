@@ -4,6 +4,7 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { QuickAddDialog } from "@/components/transactions/QuickAddDialog";
 import { AiInputDialog } from "@/components/transactions/AiInputDialog";
+import { McpApprovalDialog } from "@/components/settings/McpApprovalDialog";
 import { HeaderProvider } from "@/contexts/HeaderContext";
 import { useUiStore } from "@/stores/uiStore";
 
@@ -43,6 +44,8 @@ export function AppShell() {
         </div>
         <QuickAddDialog open={quickAddOpen} onOpenChange={setQuickAddOpen} />
         <AiInputDialog open={aiInputOpen} onOpenChange={setAiInputOpen} />
+        {/* MCP writes in "confirm" mode land here from the backend event. */}
+        <McpApprovalDialog />
       </div>
     </HeaderProvider>
   );

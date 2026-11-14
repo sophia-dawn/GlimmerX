@@ -45,6 +45,7 @@ fn path_label(path: &std::path::Path) -> String {
 pub async fn db_create(
     password: String,
     path: String,
+    mcp: State<'_, crate::mcp::McpRuntime>,
     state: State<'_, AppState>,
 ) -> Result<DbInfo, String> {
     let path_buf = PathBuf::from(&path);
@@ -80,8 +81,15 @@ pub async fn db_create(
         .map_err(crate::errors::from_error)?;
 
     // Store in app state
-    let mut db_state = state.database.lock().map_err(crate::errors::from_error)?;
-    *db_state = Some(db);
+    {
+        let mut db_state = state.database.lock().map_err(crate::errors::from_error)?;
+        *db_state = Some(db);
+    }
+
+    // The MCP server's settings (token included) live in the encrypted db,
+    // so it materializes only once a db is available. Must run after the
+    // state guard is released — `sync` locks it too.
+    crate::mcp::sync_from(&mcp);
 
     Ok(DbInfo {
         path: path_buf.to_string_lossy().to_string(),
@@ -95,6 +103,7 @@ pub async fn db_create(
 pub async fn db_unlock(
     password: String,
     path: String,
+    mcp: State<'_, crate::mcp::McpRuntime>,
     state: State<'_, AppState>,
 ) -> Result<DbInfo, String> {
     let path_buf = PathBuf::from(&path);
@@ -119,8 +128,12 @@ pub async fn db_unlock(
         .map_err(crate::errors::from_error)?;
 
     // Store in app state
-    let mut db_state = state.database.lock().map_err(crate::errors::from_error)?;
-    *db_state = Some(db);
+    {
+        let mut db_state = state.database.lock().map_err(crate::errors::from_error)?;
+        *db_state = Some(db);
+    }
+
+    crate::mcp::sync_from(&mcp);
 
     Ok(DbInfo {
         path: path_buf.to_string_lossy().to_string(),
@@ -266,6 +279,8 @@ mod tests {
     ) {
         let app = tauri::test::mock_builder()
             .manage(state)
+            // db_create/db_unlock restart the MCP server through this state.
+            .manage(crate::mcp::McpRuntime::default())
             .invoke_handler(tauri::generate_handler![
                 db_create,
                 db_unlock,

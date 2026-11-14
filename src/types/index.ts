@@ -301,8 +301,55 @@ export interface QuickAddInput {
   sourceAccountId?: string;
   destinationAccountId?: string;
   categoryId?: string;
+  /** Category by name; the backend derives the type from mode and
+   * resolves-or-creates the category in the same transaction. */
+  categoryName?: string;
   description?: string;
   date?: string; // ISO 8601
+}
+
+// ---------------------------------------------------------------------------
+// AI proposal (design doc 25, §4.2 — propose only, confirm before writing)
+// ---------------------------------------------------------------------------
+
+/** An account the AI proposal resolved to, ready for the confirm step. */
+export interface AiResolvedAccount {
+  id: string;
+  name: string;
+}
+
+/** The natural-language parse result. Nothing is written until the user
+ * confirms the proposal — writes go through quickAddTransaction /
+ * accountCreate. */
+export interface AiProposal {
+  action: "expense" | "income" | "transfer" | "create_account";
+  amount?: string; // Decimal string like "35.00"
+  date: string; // YYYY-MM-DD
+  description: string;
+  sourceAccount?: AiResolvedAccount;
+  destinationAccount?: AiResolvedAccount;
+  categoryName?: string;
+  accountPath?: string; // create_account only, e.g. "Assets/支付宝"
+  accountKind?: "asset" | "liability";
+  openingBalance?: string; // Decimal string
+  /** Every "guessed on your behalf" decision (fuzzy account match, new
+   * category, default-account fallback). Must be shown on the confirm card. */
+  warnings: string[];
+}
+
+/** Pre-filled state for QuickAddDialog's review variant. */
+export interface QuickAddInitial {
+  mode: "expense" | "income" | "transfer";
+  amount: string;
+  sourceAccountId?: string;
+  sourceAccountName?: string;
+  destinationAccountId?: string;
+  destinationAccountName?: string;
+  categoryId?: string;
+  categoryName?: string;
+  description?: string;
+  date: string;
+  warnings?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -463,4 +510,30 @@ export interface UpdateSavingsGoalInput {
   targetAmount?: string;
   targetDate?: string | null;
   monthlyPlan?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// MCP (design doc 25, §5/§8)
+// ---------------------------------------------------------------------------
+
+export type McpTrustMode = "readonly" | "confirm" | "trust";
+
+/** Full MCP state for the automation settings section. */
+export interface McpConfig {
+  enabled: boolean;
+  /** Configured (preferred) port. */
+  port: number;
+  /** Port actually bound; null when the server is not running. */
+  actualPort: number | null;
+  running: boolean;
+  trustMode: McpTrustMode;
+  token: string;
+}
+
+/** A pending MCP write awaiting user approval ("confirm" trust mode). */
+export interface McpApprovalRequest {
+  requestId: string;
+  tool: "record_transaction" | "create_account";
+  request: Record<string, unknown>;
+  createdAt: string;
 }

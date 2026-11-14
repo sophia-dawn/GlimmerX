@@ -12,9 +12,14 @@ mod opening;
 mod path;
 mod transfer;
 mod types;
+mod validate;
 
 #[cfg(test)]
 mod tests;
+
+// Cross-module but crate-internal: the quick-add transfer branch in
+// `db::transactions` shares this rule (design doc 25, P0-1/P0-2).
+pub(in crate::db) use validate::validate_endpoint;
 
 pub use create::{batch_create_accounts, create_account_with_path};
 #[allow(unused_imports)]

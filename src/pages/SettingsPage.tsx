@@ -10,6 +10,7 @@ import { useSecurityStore, AUTO_LOCK_CHOICES } from "@/stores/securityStore";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { DataManagementSection } from "@/components/DataManagementSection";
 import { AiSettingsSection } from "@/components/settings/AiSettingsSection";
+import { McpSettingsSection } from "@/components/settings/McpSettingsSection";
 import { AuditPanel } from "@/components/settings/AuditPanel";
 import {
   Dialog,
@@ -252,6 +253,11 @@ export function SettingsPage() {
         {/* AI Bookkeeping */}
         <div className="space-y-3">
           <AiSettingsSection />
+        </div>
+
+        {/* Automation: local MCP server for external agents */}
+        <div className="space-y-3">
+          <McpSettingsSection />
         </div>
 
         {/* Data Management */}

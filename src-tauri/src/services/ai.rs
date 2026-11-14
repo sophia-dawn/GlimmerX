@@ -93,15 +93,32 @@ pub(crate) struct AiContext {
     pub asset_accounts: Vec<String>,
 }
 
-/// Raw parsed result from AI JSON response.
+/// Raw parsed proposal from the AI JSON response (design doc 25, §4.1).
+///
+/// Discriminated by `action`; the fields only apply to some actions:
+/// - expense/income: `amount`, `category_name`, one account, `date`
+/// - transfer: `amount`, `source_account` + `destination_account`, `date`
+/// - create_account: `account_path`, `account_kind`, `opening_balance`, `date`
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AiParseResult {
-    pub mode: String,
-    pub amount: String,
+    pub action: String,
+    #[serde(default)]
+    pub amount: Option<String>,
+    #[serde(default)]
     pub category_name: Option<String>,
-    pub account_hint: Option<String>,
+    #[serde(default)]
+    pub source_account: Option<String>,
+    #[serde(default)]
+    pub destination_account: Option<String>,
+    #[serde(default)]
+    pub account_path: Option<String>,
+    #[serde(default)]
+    pub account_kind: Option<String>,
+    #[serde(default)]
+    pub opening_balance: Option<String>,
     pub date: Option<String>,
+    #[serde(default)]
     pub description: String,
 }
 
@@ -109,11 +126,11 @@ pub(crate) struct AiParseResult {
 // Validation pure functions
 // ---------------------------------------------------------------------------
 
-/// Validate AI-returned mode. Only expense/income allowed (transfer is phase 2).
-pub(crate) fn validate_mode(mode: &str) -> Result<(), AppError> {
-    match mode {
-        "expense" | "income" => Ok(()),
-        _ => Err(AppError::AiError("invalidMode".to_string())),
+/// Validate AI-returned action (the discriminant of the proposal union).
+pub(crate) fn validate_action(action: &str) -> Result<(), AppError> {
+    match action {
+        "expense" | "income" | "transfer" | "create_account" => Ok(()),
+        _ => Err(AppError::AiError("invalidAction".to_string())),
     }
 }
 
@@ -201,29 +218,36 @@ fn extract_json_from_content(content: &str) -> Option<String> {
 // Prompt construction
 // ---------------------------------------------------------------------------
 
-/// Build the system prompt with context injected.
+/// Build the system prompt with context injected (design doc 25, §4.1).
+///
+/// The prompt asks for a single action-discriminated proposal. The AI only
+/// proposes; the app resolves names, shows a confirmation card, and writes.
 fn build_system_prompt(context: &AiContext) -> String {
     let join = |v: &[String]| v.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ");
     format!(
-        r#"You are a bookkeeping assistant. Parse the user's natural-language bookkeeping text into structured JSON.
+        r#"You are a bookkeeping assistant. Parse the user's natural-language text into ONE structured JSON proposal. You only propose — you never record anything.
 
 Current date: {today}, timezone offset: {tz}.
-Resolve relative dates (e.g. "昨天"->yesterday, "前天"->day before yesterday, "3号"->the 3rd of current month) relative to the current date. If no date given, use today ({today}).
+Resolve relative dates (e.g. "昨天"->yesterday, "3号"->the 3rd of current month) relative to the current date. If no date given, use today ({today}).
 
 Available expense categories: {exp}
 Available income categories: {inc}
 Available asset accounts: {acct}
 
+Choose exactly one action:
+- "expense": money leaves an asset account. Set sourceAccount to the paying account name, categoryName to the best expense category (or propose a new name), destinationAccount null.
+- "income": money arrives in an asset account. Set destinationAccount to the receiving account name, categoryName to the best income category (or propose a new name), sourceAccount null.
+- "transfer": money moves between two asset accounts. Both sourceAccount and destinationAccount are required and must differ; categoryName null.
+- "create_account": ONLY when the user explicitly asks to create an account. Set accountPath like "Assets/支付宝" or "Liabilities/信用卡", accountKind "asset" or "liability", optional openingBalance, amount null, category null.
+
 Rules:
-1. mode: "expense" or "income" only
-2. amount: positive string, two decimals, e.g. "18.00"
-3. categoryName: best match from categories above; if none, propose a name (auto-created)
-4. accountHint: if user mentions an account, give keyword; else null
-5. date: YYYY-MM-DD format, always a concrete date
-6. description: brief summary excluding amount and date
+1. Account names: use exact names from the list above when the user mentions an account; otherwise null (the app falls back to the default account).
+2. amount: positive string with two decimals, e.g. "18.00"; null for create_account.
+3. date: YYYY-MM-DD, always a concrete date.
+4. description: brief summary excluding amount and date.
 
 Return ONLY JSON:
-{{"mode":"expense","amount":"18.00","categoryName":"餐饮","accountHint":null,"date":"{today}","description":"中午吃饭"}}"#,
+{{"action":"expense","amount":"18.00","date":"{today}","description":"中午吃饭","sourceAccount":"微信钱包","destinationAccount":null,"categoryName":"餐饮","accountPath":null,"accountKind":null,"openingBalance":null}}"#,
         today = context.today,
         tz = context.timezone_offset,
         exp = join(&context.expense_categories),
@@ -443,23 +467,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_validate_mode_expense() {
-        assert!(validate_mode("expense").is_ok());
+    fn test_validate_action_expense() {
+        assert!(validate_action("expense").is_ok());
     }
 
     #[test]
-    fn test_validate_mode_income() {
-        assert!(validate_mode("income").is_ok());
+    fn test_validate_action_income() {
+        assert!(validate_action("income").is_ok());
     }
 
     #[test]
-    fn test_validate_mode_transfer_rejected() {
-        assert!(validate_mode("transfer").is_err());
+    fn test_validate_action_transfer() {
+        assert!(validate_action("transfer").is_ok());
     }
 
     #[test]
-    fn test_validate_mode_invalid() {
-        assert!(validate_mode("foo").is_err());
+    fn test_validate_action_create_account() {
+        assert!(validate_action("create_account").is_ok());
+    }
+
+    #[test]
+    fn test_validate_action_invalid() {
+        assert!(validate_action("foo").is_err());
+        assert!(validate_action("mode").is_err());
     }
 
     #[test]
@@ -532,14 +562,39 @@ mod tests {
 
     #[test]
     fn test_parse_json_response_success() {
-        let content = r#"{"mode":"expense","amount":"18.00","categoryName":"餐饮","accountHint":null,"date":"2026-08-21","description":"中午吃饭"}"#;
+        let content = r#"{"action":"expense","amount":"18.00","categoryName":"餐饮","sourceAccount":"微信钱包","destinationAccount":null,"accountPath":null,"accountKind":null,"openingBalance":null,"date":"2026-08-21","description":"中午吃饭"}"#;
         let result = parse_json_response(content).unwrap();
-        assert_eq!(result.mode, "expense");
-        assert_eq!(result.amount, "18.00");
+        assert_eq!(result.action, "expense");
+        assert_eq!(result.amount, Some("18.00".to_string()));
         assert_eq!(result.category_name, Some("餐饮".to_string()));
-        assert_eq!(result.account_hint, None);
+        assert_eq!(result.source_account, Some("微信钱包".to_string()));
+        assert_eq!(result.destination_account, None);
         assert_eq!(result.date, Some("2026-08-21".to_string()));
         assert_eq!(result.description, "中午吃饭");
+    }
+
+    #[test]
+    fn test_parse_json_response_transfer_with_both_ends() {
+        let content = r#"{"action":"transfer","amount":"500.00","sourceAccount":"支付宝","destinationAccount":"微信钱包","date":"2026-08-21","description":"转账"}"#;
+        let result = parse_json_response(content).unwrap();
+        assert_eq!(result.action, "transfer");
+        assert_eq!(result.source_account, Some("支付宝".to_string()));
+        assert_eq!(result.destination_account, Some("微信钱包".to_string()));
+        // Fields absent from the JSON default to None/empty.
+        assert_eq!(result.category_name, None);
+        assert_eq!(result.opening_balance, None);
+        assert_eq!(result.description, "转账");
+    }
+
+    #[test]
+    fn test_parse_json_response_create_account() {
+        let content = r#"{"action":"create_account","amount":null,"accountPath":"Assets/支付宝","accountKind":"asset","openingBalance":"100.00","date":"2026-08-21","description":"新建账户"}"#;
+        let result = parse_json_response(content).unwrap();
+        assert_eq!(result.action, "create_account");
+        assert_eq!(result.account_path, Some("Assets/支付宝".to_string()));
+        assert_eq!(result.account_kind, Some("asset".to_string()));
+        assert_eq!(result.opening_balance, Some("100.00".to_string()));
+        assert_eq!(result.amount, None);
     }
 
     #[test]
@@ -549,15 +604,20 @@ mod tests {
 
     #[test]
     fn test_parse_json_response_extract_from_text() {
-        let content = r#"Result: {"mode":"income","amount":"5000","categoryName":"工资","accountHint":null,"date":"2026-08-21","description":"工资"} done."#;
+        let content = r#"Result: {"action":"income","amount":"5000","categoryName":"工资","date":"2026-08-21","description":"工资"} done."#;
         let result = parse_json_response(content).unwrap();
-        assert_eq!(result.mode, "income");
-        assert_eq!(result.amount, "5000");
+        assert_eq!(result.action, "income");
+        assert_eq!(result.amount, Some("5000".to_string()));
     }
 
     #[test]
     fn test_parse_json_response_missing_fields() {
-        assert!(parse_json_response(r#"{"mode":"expense"}"#).is_err());
+        // action is required.
+        assert!(parse_json_response(r#"{"amount":"18.00"}"#).is_err());
+        // Optional fields default to None; a missing date is caught by
+        // validate_date at the command layer, not by the parser.
+        let result = parse_json_response(r#"{"action":"expense"}"#).unwrap();
+        assert_eq!(result.date, None);
     }
 
     #[test]
@@ -596,6 +656,10 @@ mod tests {
             asset_accounts: vec!["现金".to_string(), "微信钱包".to_string()],
         };
         let prompt = build_system_prompt(&context);
+        assert!(prompt.contains("create_account"));
+        assert!(prompt.contains("accountPath"));
+        assert!(prompt.contains("openingBalance"));
+        assert!(prompt.contains("You only propose"));
         assert!(prompt.contains("2026-08-22"));
         assert!(prompt.contains("餐饮"));
         assert!(prompt.contains("交通"));
@@ -662,10 +726,10 @@ mod tests {
         serde_json::json!({ "choices": [{ "message": { "content": content } }] }).to_string()
     }
 
-    fn parse_result_json(mode: &str, amount: &str) -> String {
+    fn parse_result_json(action: &str, amount: &str) -> String {
         format!(
-            r#"{{"mode":"{}","amount":"{}","categoryName":null,"accountHint":null,"date":"2026-01-15","description":"lunch"}}"#,
-            mode, amount
+            r#"{{"action":"{}","amount":"{}","categoryName":null,"sourceAccount":null,"destinationAccount":null,"accountPath":null,"accountKind":null,"openingBalance":null,"date":"2026-01-15","description":"lunch"}}"#,
+            action, amount
         )
     }
 
@@ -698,8 +762,8 @@ mod tests {
         let result = parse_transaction(&config, "lunch 12", &test_context())
             .await
             .unwrap();
-        assert_eq!(result.mode, "expense");
-        assert_eq!(result.amount, "12.00");
+        assert_eq!(result.action, "expense");
+        assert_eq!(result.amount, Some("12.00".to_string()));
     }
 
     #[tokio::test]
@@ -716,8 +780,8 @@ mod tests {
         let result = parse_transaction(&config, "salary", &test_context())
             .await
             .unwrap();
-        assert_eq!(result.mode, "income");
-        assert_eq!(result.amount, "5000");
+        assert_eq!(result.action, "income");
+        assert_eq!(result.amount, Some("5000".to_string()));
     }
 
     #[tokio::test]

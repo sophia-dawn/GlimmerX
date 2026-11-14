@@ -2,6 +2,7 @@
 
 use rusqlite::Connection;
 
+use crate::db::categories::CategoryType;
 use crate::db::AppError;
 
 use super::create::create_transaction;
@@ -9,33 +10,43 @@ use super::query::get_transaction_with_postings;
 use super::types::{PostingInput, QuickAddInput, TransactionWithPostings};
 use super::validate::validate_quick_add_input;
 
-#[allow(dead_code)]
+/// Write a quick-add transaction atomically.
+///
+/// Category resolution/creation, the derived account creation, the
+/// transaction row and all postings share one transaction. This is the single
+/// transaction boundary for every quick-add caller; command layers must not
+/// open their own, otherwise `unchecked_transaction()` would nest.
+///
+/// The category comes from `input.category_name` (type derived from `mode`),
+/// or `input.category_id` when the caller already resolved one. The AI path
+/// (design doc 25, §4.2) now proposes without writing, so the explicit
+/// category argument of the old `quick_add_with_category` is gone.
 pub fn quick_add_transaction(
     conn: &Connection,
     input: &QuickAddInput,
 ) -> Result<TransactionWithPostings, AppError> {
-    quick_add_with_category(conn, input, None)
-}
-
-/// Write a quick-add transaction atomically.
-///
-/// Category resolution/creation (AI path), the derived account creation, the
-/// transaction row and all postings share one transaction. This is the single
-/// transaction boundary for every quick-add caller; command layers must not
-/// open their own, otherwise `unchecked_transaction()` would nest.
-pub fn quick_add_with_category(
-    conn: &Connection,
-    input: &QuickAddInput,
-    category: Option<(&str, &crate::db::categories::CategoryType)>,
-) -> Result<TransactionWithPostings, AppError> {
     let tx = conn.unchecked_transaction()?;
 
     let mut resolved = input.clone();
-    if let Some((name, category_type)) = category {
+    // A caller-supplied category id wins: it already resolved the name (and
+    // verified the type), so re-resolving by name could land elsewhere.
+    if resolved.category_id.is_none() && resolved.category_name.is_some() {
+        let name = resolved.category_name.clone().unwrap();
+        let category_type = match resolved.mode.as_str() {
+            "expense" => CategoryType::Expense,
+            "income" => CategoryType::Income,
+            // A transfer posts between balance-sheet accounts only; a P&L
+            // category on it is meaningless and must not be resolved.
+            _ => {
+                return Err(AppError::ValidationError(
+                    "errors.transaction.transferHasNoCategory".to_string(),
+                ))
+            }
+        };
         resolved.category_id = Some(crate::db::categories::resolve_or_create(
             &tx,
-            name,
-            category_type,
+            &name,
+            &category_type,
         )?);
     }
 
@@ -134,6 +145,14 @@ fn derive_postings(
                     "errors.transaction.transferToSelf".to_string(),
                 ));
             }
+
+            // Same endpoint rule as `db::accounts::transfer::create_transfer`
+            // (design doc 25, P0-2): both endpoints must be active
+            // asset/liability accounts. Without this, a transfer whose
+            // endpoint is an expense account would create money out of a
+            // P&L category.
+            crate::db::accounts::validate_endpoint(conn, &debit_account)?;
+            crate::db::accounts::validate_endpoint(conn, &credit_account)?;
 
             Ok(vec![
                 PostingInput {

@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { QuickAddInput } from "@/types";
+import type { AiProposal, QuickAddInput, QuickAddInitial } from "@/types";
 import { accountList, categoryList, quickAddTransaction } from "@/utils/api";
 import { QUERY_CONFIG } from "@/constants/query";
 import { translateErrorMessage } from "@/utils/errorTranslation";
@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ProposalReview } from "@/components/transactions/ProposalReview";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -36,6 +37,9 @@ import {
 } from "lucide-react";
 
 const NO_CATEGORY_VALUE = "__none__";
+/** Selected when the prefilled category name has no matching category yet;
+ * the name travels to the backend via `categoryName` on submit. */
+const NEW_CATEGORY_VALUE = "__new__";
 
 type TransactionMode = "expense" | "income" | "transfer";
 
@@ -43,12 +47,22 @@ interface QuickAddDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  /**
+   * "create" (default): blank form on open.
+   * "review": prefilled from an AI proposal — the form IS the confirmation
+   * card (design doc 25, §4.2); the user edits and confirms before any write.
+   * Requires `initial` when set.
+   */
+  variant?: "create" | "review";
+  initial?: QuickAddInitial;
 }
 
 export function QuickAddDialog({
   open,
   onOpenChange,
   onSuccess,
+  variant = "create",
+  initial,
 }: QuickAddDialogProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -58,25 +72,41 @@ export function QuickAddDialog({
   const [sourceAccountId, setSourceAccountId] = useState("");
   const [destinationAccountId, setDestinationAccountId] = useState("");
   const [categoryId, setCategoryId] = useState<string>(NO_CATEGORY_VALUE);
+  const [newCategoryName, setNewCategoryName] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  /** Review mode: the proposal being confirmed, kept for the summary card. */
+  const proposalSummary = variant === "review" ? initial : undefined;
+  /** True while the open-transition is a review prefill, so the mode-change
+   * effect below does not wipe the prefilled category / opposite account. */
+  const prefilling = useRef(false);
+  /** Set by handleModeSelect so the clearing effect only reacts to
+   * user-initiated mode switches, never to prefill or reset. */
+  const modeChangedByUser = useRef(false);
 
-  // Clear account state when mode changes (not just on dialog open)
+  // Clear the opposite side's account and the category when the USER switches
+  // mode. The category picker only lists categories of the current mode, so a
+  // leftover expense category would stay selected while invisible and then be
+  // posted to an income transaction.
   useEffect(() => {
-    if (!open) return;
-    // Clear the opposite side's account when mode changes
+    if (!open || !modeChangedByUser.current) return;
+    modeChangedByUser.current = false;
     if (mode === "expense") {
       setDestinationAccountId("");
     } else if (mode === "income") {
       setSourceAccountId("");
     }
-    // Always drop the category: the picker only lists categories of the
-    // current mode, so a leftover expense category would stay selected while
-    // invisible and then be posted to an income transaction.
     setCategoryId(NO_CATEGORY_VALUE);
+    setNewCategoryName(null);
   }, [mode, open]);
+
+  const handleModeSelect = (next: TransactionMode) => {
+    if (next === mode) return;
+    modeChangedByUser.current = true;
+    setMode(next);
+  };
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
@@ -100,6 +130,30 @@ export function QuickAddDialog({
   useEffect(() => {
     if (!open) {
       setSubmitError(null);
+      prefilling.current = false;
+      modeChangedByUser.current = false;
+      return;
+    }
+
+    if (variant === "review" && initial) {
+      // Prefill once per open; user edits stay while the dialog is open.
+      if (prefilling.current) return;
+      prefilling.current = true;
+      setMode(initial.mode);
+      setAmount(initial.amount ?? "");
+      setSourceAccountId(initial.sourceAccountId ?? "");
+      setDestinationAccountId(initial.destinationAccountId ?? "");
+      // The prefilled category name may not exist yet — then it travels as
+      // `categoryName` and is created (or fuzzy-matched) on submit.
+      setCategoryId(initial.categoryId ?? NEW_CATEGORY_VALUE);
+      setNewCategoryName(
+        initial.categoryName && !initial.categoryId
+          ? initial.categoryName
+          : null,
+      );
+      setDescription(initial.description ?? "");
+      setDate(initial.date || todayLocalDate());
+      setSubmitError(null);
       return;
     }
 
@@ -108,9 +162,11 @@ export function QuickAddDialog({
     setSourceAccountId("");
     setDestinationAccountId("");
     setCategoryId(NO_CATEGORY_VALUE);
+    setNewCategoryName(null);
     setDescription("");
     setDate(todayLocalDate());
     setSubmitError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const mutation = useMutation({
@@ -122,6 +178,7 @@ export function QuickAddDialog({
           query.queryKey[0] === "transactionDetail",
       });
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
       onOpenChange(false);
       onSuccess?.();
     },
@@ -129,6 +186,31 @@ export function QuickAddDialog({
       setSubmitError(translateErrorMessage(err, t));
     },
   });
+
+  // The categories query loads asynchronously; a prefilled category name that
+  // matches an existing category upgrades from "new" to the real id once the
+  // list arrives.
+  useEffect(() => {
+    if (categoryId !== NEW_CATEGORY_VALUE || !newCategoryName) return;
+    const expectedType =
+      mode === "expense" ? "expense" : mode === "income" ? "income" : null;
+    if (!expectedType) return;
+    const hit = categories.find(
+      (c) => c.name === newCategoryName && c.type === expectedType,
+    );
+    if (hit) {
+      setCategoryId(hit.id);
+      setNewCategoryName(null);
+    }
+  }, [categories, categoryId, newCategoryName, mode]);
+
+  const selectCategory = (value: string) => {
+    setCategoryId(value);
+    // Any explicit pick (a real category or "none") replaces the proposed name.
+    if (value !== NEW_CATEGORY_VALUE) {
+      setNewCategoryName(null);
+    }
+  };
 
   const parsedAmount = parseFloat(amount);
   const hasValidAmount = !isNaN(parsedAmount) && parsedAmount > 0;
@@ -165,7 +247,14 @@ export function QuickAddDialog({
         mode === "income" || mode === "transfer"
           ? destinationAccountId
           : undefined,
-      categoryId: categoryId === NO_CATEGORY_VALUE ? undefined : categoryId,
+      categoryId:
+        categoryId === NO_CATEGORY_VALUE || categoryId === NEW_CATEGORY_VALUE
+          ? undefined
+          : categoryId,
+      categoryName:
+        categoryId === NEW_CATEGORY_VALUE
+          ? (newCategoryName ?? undefined)
+          : undefined,
       description: description.trim() || undefined,
       date,
     };
@@ -201,6 +290,33 @@ export function QuickAddDialog({
 
   const handleDialogInteractOutside = usePreventDialogCloseWhenPopperOpen(open);
 
+  const proposal = useMemo(
+    () =>
+      proposalSummary
+        ? ({
+            action: proposalSummary.mode,
+            amount: proposalSummary.amount || undefined,
+            date: proposalSummary.date,
+            description: proposalSummary.description ?? "",
+            sourceAccount: proposalSummary.sourceAccountName
+              ? {
+                  id: proposalSummary.sourceAccountId ?? "",
+                  name: proposalSummary.sourceAccountName,
+                }
+              : undefined,
+            destinationAccount: proposalSummary.destinationAccountName
+              ? {
+                  id: proposalSummary.destinationAccountId ?? "",
+                  name: proposalSummary.destinationAccountName,
+                }
+              : undefined,
+            categoryName: proposalSummary.categoryName,
+            warnings: proposalSummary.warnings ?? [],
+          } satisfies AiProposal)
+        : null,
+    [proposalSummary],
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -208,11 +324,17 @@ export function QuickAddDialog({
         onInteractOutside={handleDialogInteractOutside}
       >
         <DialogHeader>
-          <DialogTitle>{t("quickAdd.title")}</DialogTitle>
+          <DialogTitle>
+            {variant === "review" ? t("ai.review.title") : t("quickAdd.title")}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
+            {variant === "review" && proposal && (
+              <ProposalReview proposal={proposal} />
+            )}
+
             <div className="flex gap-2">
               {modeButtons.map((btn) => (
                 <Button
@@ -220,7 +342,7 @@ export function QuickAddDialog({
                   type="button"
                   variant={mode === btn.mode ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setMode(btn.mode)}
+                  onClick={() => handleModeSelect(btn.mode)}
                   className={cn(
                     "flex-1 gap-1",
                     mode === btn.mode &&
@@ -342,7 +464,7 @@ export function QuickAddDialog({
                     ({t("transactions.categoryOptional")})
                   </span>
                 </Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
+                <Select value={categoryId} onValueChange={selectCategory}>
                   <SelectTrigger id="expense-category">
                     <SelectValue
                       placeholder={t("transactions.selectCategory")}
@@ -352,6 +474,14 @@ export function QuickAddDialog({
                     <SelectItem value={NO_CATEGORY_VALUE}>
                       {t("transactions.noCategory")}
                     </SelectItem>
+                    {newCategoryName && (
+                      <SelectItem value={NEW_CATEGORY_VALUE}>
+                        {newCategoryName}
+                        <span className="text-muted-foreground">
+                          （{t("quickAdd.newCategorySuffix")}）
+                        </span>
+                      </SelectItem>
+                    )}
                     {expenseCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.icon ? `${category.icon} ` : ""}
@@ -396,7 +526,7 @@ export function QuickAddDialog({
                     ({t("transactions.categoryOptional")})
                   </span>
                 </Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
+                <Select value={categoryId} onValueChange={selectCategory}>
                   <SelectTrigger id="income-category">
                     <SelectValue
                       placeholder={t("transactions.selectCategory")}
@@ -406,6 +536,14 @@ export function QuickAddDialog({
                     <SelectItem value={NO_CATEGORY_VALUE}>
                       {t("transactions.noCategory")}
                     </SelectItem>
+                    {newCategoryName && (
+                      <SelectItem value={NEW_CATEGORY_VALUE}>
+                        {newCategoryName}
+                        <span className="text-muted-foreground">
+                          （{t("quickAdd.newCategorySuffix")}）
+                        </span>
+                      </SelectItem>
+                    )}
                     {incomeCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.icon ? `${category.icon} ` : ""}

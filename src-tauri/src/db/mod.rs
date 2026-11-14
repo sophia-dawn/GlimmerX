@@ -100,6 +100,9 @@ impl Database {
             )));
         }
 
+        // Give SQLCipher's key-page lock a working-set quota to fit in.
+        crate::utils::memory::raise_working_set_floor();
+
         let mut conn = Connection::open(path).map_err(|e| {
             eprintln!("[glimmerx] failed to open database file: {e}");
             AppError::DatabaseError(crate::errors::message("errors.databaseOpenFailed"))
@@ -124,6 +127,9 @@ impl Database {
 
     /// Create a new SQLCipher database at the given path and initialize the schema.
     pub fn create(path: &PathBuf, password: &str) -> Result<Self, AppError> {
+        // Give SQLCipher's key-page lock a working-set quota to fit in.
+        crate::utils::memory::raise_working_set_floor();
+
         let mut conn = Connection::open(path).map_err(|e| {
             eprintln!("[glimmerx] failed to create database file: {e}");
             AppError::DatabaseError(crate::errors::message("errors.databaseCreateFailed"))

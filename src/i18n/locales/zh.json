@@ -510,6 +510,7 @@
       "incomeRequiresDestination": "收入需要一个目标账户。",
       "transferRequiresBothAccounts": "转账需要来源和目标账户。",
       "transferToSelf": "不能转账到同一账户。",
+      "transferHasNoCategory": "转账不使用分类。",
       "equityAccountRestricted": "权益账户仅用于系统交易。",
       "duplicateAccount": "同一账户不能在同一交易中出现多次",
       "expenseRequiresDestinationOrCategory": "支出交易需要指定目标账户或分类",
@@ -527,12 +528,14 @@
       "parseFailed": "AI 返回内容解析失败",
       "invalidDate": "AI 返回的日期无效",
       "missingDate": "AI 未返回日期",
-      "invalidMode": "AI 返回的交易类型无效",
       "invalidAmount": "AI 返回的金额无效",
       "networkError": "网络错误，无法连接 AI 服务",
       "timeout": "AI 服务响应超时",
       "noSourceAccount": "无法确定来源账户",
-      "insecureBaseUrl": "仅支持 https:// 的 API 地址（本地 127.0.0.1 可用 http）"
+      "insecureBaseUrl": "仅支持 https:// 的 API 地址（本地 127.0.0.1 可用 http）",
+      "invalidAction": "AI 返回的操作类型无效",
+      "invalidAccountPath": "AI 返回的账户路径无效，应以 Assets/ 或 Liabilities/ 开头",
+      "noDestinationAccount": "无法确定目标账户"
     },
     "account": {
       "inactive": "该账户已停用，无法使用",
@@ -569,6 +572,16 @@
       "goalNotFound": "储蓄目标不存在",
       "invalidTarget": "目标金额必须大于零",
       "goalHasHistory": "该目标已有存取记录，无法删除，请改为归档"
+    },
+    "ledger": {
+      "accountNameNotFound": "找不到该名称的账户",
+      "accountNameAmbiguous": "该账户名匹配到多个账户，请改用账户 id",
+      "invalidDate": "日期格式无效，应为 YYYY-MM-DD",
+      "categoryTypeMismatch": "分类类型与交易类型不匹配"
+    },
+    "mcp": {
+      "invalidTrustMode": "信任模式无效，应为只读、确认或信任",
+      "invalidPort": "端口号无效"
     }
   },
   "quickAdd": {
@@ -588,7 +601,11 @@
       "expenseDesc": "从资产账户支出到支出分类",
       "incomeDesc": "从收入分类收入到资产账户",
       "transferDesc": "在两个资产或负债账户之间转移资金"
-    }
+    },
+    "newCategorySuffix": "新建",
+    "assetAccount": "资产",
+    "liabilityAccount": "负债",
+    "createAccountAction": "新建账户"
   },
   "ai": {
     "title": "AI 记账",
@@ -612,6 +629,14 @@
       "providerDeepseek": "DeepSeek",
       "providerOllama": "Ollama (本地)",
       "providerCustom": "自定义"
+    },
+    "review": {
+      "title": "确认记账",
+      "proposed": "AI 提案",
+      "openingBalance": "期初余额",
+      "accountPath": "账户路径",
+      "accountKind": "账户类型",
+      "back": "重新输入"
     }
   },
   "placeholder": {
@@ -880,5 +905,43 @@
     "transferDone": "已记录",
     "invalidAmount": "请输入大于零的金额",
     "editTitle": "编辑目标"
+  },
+  "mcp": {
+    "title": "自动化（MCP）",
+    "enable": "本地 MCP 服务",
+    "notRunning": "未运行",
+    "runningOn": "运行中 · 127.0.0.1:{{port}}/mcp",
+    "port": "端口",
+    "applyPort": "应用",
+    "trustMode": "信任模式",
+    "trustReadonly": "只读",
+    "trustConfirm": "写入前确认（默认）",
+    "trustTrust": "信任（直接写入）",
+    "trustHint": "只读：写操作被拒。确认：写入前弹卡片，120 秒无响应自动取消。信任：直接写入。",
+    "token": "访问令牌",
+    "resetToken": "重置令牌",
+    "clientConfig": "客户端配置",
+    "copyConfig": "复制 MCP 配置",
+    "kind": {
+      "expense": "支出",
+      "income": "收入",
+      "transfer": "转账"
+    },
+    "approval": {
+      "title": "外部应用请求写入账本",
+      "transactionDesc": "一个 MCP 客户端请求记一笔交易。确认后立即落库，无撤销。",
+      "createAccountDesc": "一个 MCP 客户端请求新建账户。确认后立即创建。",
+      "amount": "金额",
+      "kind": "类型",
+      "date": "日期",
+      "source": "转出账户",
+      "destination": "转入账户",
+      "category": "分类",
+      "path": "账户路径",
+      "openingBalance": "期初余额",
+      "description": "备注",
+      "approve": "确认写入",
+      "reject": "拒绝"
+    }
   }
 }

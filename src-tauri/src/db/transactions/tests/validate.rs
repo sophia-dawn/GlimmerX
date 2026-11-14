@@ -91,6 +91,7 @@ fn test_validate_quick_add_input_errors() {
         source_account_id: Some(cash.clone()),
         destination_account_id: Some(food.clone()),
         category_id: None,
+        category_name: None,
         description: None,
         date: None,
     };

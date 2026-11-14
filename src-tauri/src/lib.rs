@@ -4,6 +4,11 @@ mod commands;
 mod constants;
 mod db;
 mod errors;
+// The MCP server (design doc 25, §5): rmcp types are confined to this
+// module; nothing here leaks into `commands/` (which only sees plain DTOs)
+// or `db/`.
+pub mod ledger;
+mod mcp;
 mod services;
 mod utils;
 
@@ -62,6 +67,16 @@ pub fn run() {
         .manage(AppState {
             database: Mutex::new(None),
             recent_dbs: Mutex::new(recent_dbs),
+        })
+        .manage(mcp::McpRuntime::default())
+        .manage(mcp::approval::ApprovalSlot::new())
+        .setup(|app| {
+            // The MCP runtime reaches every managed state through this one
+            // host; commands never take AppHandle params (mock-hostile).
+            app.state::<mcp::McpRuntime>()
+                .set_handle(std::sync::Arc::new(app.handle().clone())
+                    as std::sync::Arc<dyn mcp::host::McpHost>);
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::db::db_create,
@@ -134,6 +149,11 @@ pub fn run() {
             commands::settings::set_ui_language,
             commands::ai::ai_parse_transaction,
             commands::ai::ai_test_connection,
+            commands::mcp::mcp_get_config,
+            commands::mcp::mcp_set_config,
+            commands::mcp::mcp_reset_token,
+            commands::mcp::mcp_approve_request,
+            commands::mcp::mcp_current_approval,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
