@@ -104,6 +104,8 @@
 - **表面三态**：`Card` 的 `elevation="raise | well | float"` → `data-elevation`，
   CSS 在 `globals.css` 用属性选择器画；**默认不带 elevation**，首页之外暂保持平面。
   光源唯一（左上 45°）；内容面板不透明，`float`（Acrylic）只给临时浮层。
+  **首页所有面板统一 `raise`**：单独给一张卡用 `well` 会被读成边框渲染出错，
+  `well` 规则留作备用，不要在一屏对等面板里混用。
 - 深度令牌写在 `:root` / `.dark`，**不要放 `@theme`**（没工具类引用会被 Tailwind 裁掉）。
   `@media print` 里全部复位为 `transparent` / `none`。
 - `body::before` 是 32px/160px 校准网格（= 周 / 五周），不是壁纸；
