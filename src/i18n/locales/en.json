@@ -473,8 +473,6 @@
     "autoLockDesc": "Lock the ledger after this long without activity. Typing, clicking and scrolling all reset the timer.",
     "autoLockOff": "Off",
     "autoLockMinutes": "{{count}} minutes",
-    "lockOnBlur": "Lock when the window loses focus",
-    "lockOnBlurDesc": "Lock immediately when you switch away. Suited to shared machines; every app switch costs an unlock.",
     "quickAddShortcut": "Quick-add shortcut",
     "quickAddShortcutDesc": "Summons the quick-add window from any application. Changes take effect immediately.",
     "shortcutRecording": "Press a key combination…",

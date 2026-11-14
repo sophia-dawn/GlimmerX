@@ -71,7 +71,7 @@ function GlobalQuickAddShortcut() {
 
 function AppRoutes() {
   const { isUnlocked } = useDbStore();
-  // Idle / blur lock. Lives above the routes so it keeps running while the user
+  // Idle lock. Lives above the routes so it keeps running while the user
   // navigates, and unmounts nothing when it fires (the guard only navigates).
   useAutoLock();
 

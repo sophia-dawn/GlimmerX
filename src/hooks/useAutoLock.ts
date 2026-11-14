@@ -40,8 +40,7 @@ export function evaluateIdle(
 }
 
 /**
- * Lock the ledger after a period without input, and optionally the moment the
- * window loses focus.
+ * Lock the ledger after a period without input.
  *
  * Two details matter:
  *
@@ -56,7 +55,6 @@ export function useAutoLock() {
   const navigate = useNavigate();
   const isUnlocked = useDbStore((state) => state.isUnlocked);
   const autoLockMinutes = useSecurityStore((state) => state.autoLockMinutes);
-  const lockOnBlur = useSecurityStore((state) => state.lockOnBlur);
 
   const lastActivityRef = useRef(Date.now());
   const lastTickRef = useRef(Date.now());
@@ -121,12 +119,4 @@ export function useAutoLock() {
 
     return () => window.clearInterval(timer);
   }, [isUnlocked, autoLockMinutes, lock]);
-
-  // Optional paranoid mode: leaving the window locks immediately.
-  useEffect(() => {
-    if (!isUnlocked || !lockOnBlur) return;
-    const onBlur = () => void lock();
-    window.addEventListener("blur", onBlur);
-    return () => window.removeEventListener("blur", onBlur);
-  }, [isUnlocked, lockOnBlur, lock]);
 }

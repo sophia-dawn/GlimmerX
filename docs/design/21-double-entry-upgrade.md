@@ -241,9 +241,8 @@ CREATE TABLE IF NOT EXISTS savings_goals (
 | key | 默认 | 说明 |
 | --- | --- | --- |
 | `glimmerx:security:autoLockMinutes` | `5` | 0 = 关闭 |
-| `glimmerx:security:lockOnBlur` | `false` | 窗口失焦立即锁（偏执模式） |
 
-> 取舍说明：这两项是**设备行为**，不是账本数据。放进 `settings` 表会带来两个副作用 ——
+> 取舍说明：这项是**设备行为**，不是账本数据。放进 `settings` 表会带来两个副作用 ——
 > 计时器要等异步读取完成才能启动；打开另一个账本会悄悄改掉这台机器的锁定习惯。
 > localStorage 让配置在解锁前就可用，且天然按设备隔离。
 
@@ -256,7 +255,6 @@ CREATE TABLE IF NOT EXISTS savings_goals (
   `await dbLock()` → `queryClient.clear()` → 关闭快速记账弹窗 → `setLocked()`；
   **顺序不能反**，否则跳转后短暂仍能读到缓存里的金额。
   侧边栏锁按钮、改密流程原本各写了一遍这个序列（且都漏了 `queryClient.clear()`），已一并收口；
-- `lockOnBlur` 开启时监听 `window.blur`。
 
 `UnlockPage` 已复核：不渲染任何余额、账户名或交易信息。
 

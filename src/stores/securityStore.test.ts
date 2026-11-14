@@ -10,15 +10,13 @@ describe("securityStore", () => {
     localStorage.clear();
     useSecurityStore.setState({
       autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES,
-      lockOnBlur: false,
       quickAddShortcut: DEFAULT_QUICK_ADD_SHORTCUT,
     });
   });
 
-  it("defaults to a 5 minute timeout with blur locking off", () => {
+  it("defaults to a 5 minute timeout", () => {
     const state = useSecurityStore.getState();
     expect(state.autoLockMinutes).toBe(5);
-    expect(state.lockOnBlur).toBe(false);
     expect(state.quickAddShortcut).toBe("CommandOrControl+Shift+A");
   });
 
@@ -33,12 +31,6 @@ describe("securityStore", () => {
     expect(useSecurityStore.getState().autoLockMinutes).toBe(0);
     useSecurityStore.getState().setAutoLockMinutes(Number.NaN);
     expect(useSecurityStore.getState().autoLockMinutes).toBe(0);
-  });
-
-  it("persists the blur preference", () => {
-    useSecurityStore.getState().setLockOnBlur(true);
-    expect(useSecurityStore.getState().lockOnBlur).toBe(true);
-    expect(localStorage.getItem("glimmerx:security:lockOnBlur")).toBe("true");
   });
 
   it("persists a custom shortcut", () => {

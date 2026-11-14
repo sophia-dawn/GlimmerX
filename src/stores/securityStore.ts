@@ -10,8 +10,13 @@ import { create } from "zustand";
  */
 
 const AUTO_LOCK_KEY = "glimmerx:security:autoLockMinutes";
-const LOCK_ON_BLUR_KEY = "glimmerx:security:lockOnBlur";
 const SHORTCUT_KEY = "glimmerx:security:quickAddShortcut";
+
+/**
+ * The window-focus lock is gone; its key goes with it rather than lingering in
+ * every profile that ever turned it on.
+ */
+localStorage.removeItem("glimmerx:security:lockOnBlur");
 
 export const DEFAULT_AUTO_LOCK_MINUTES = 5;
 export const DEFAULT_QUICK_ADD_SHORTCUT = "CommandOrControl+Shift+A";
@@ -27,27 +32,17 @@ function readMinutes(): number {
   return parsed;
 }
 
-function readBool(key: string, fallback: boolean): boolean {
-  const raw = localStorage.getItem(key);
-  if (raw === null) return fallback;
-  return raw === "true";
-}
-
 interface SecurityState {
   /** Idle minutes before locking; 0 = never lock automatically. */
   autoLockMinutes: number;
-  /** Lock as soon as the window loses focus. */
-  lockOnBlur: boolean;
   /** Accelerator for "open quick add", e.g. `CommandOrControl+Shift+A`. */
   quickAddShortcut: string;
   setAutoLockMinutes: (minutes: number) => void;
-  setLockOnBlur: (value: boolean) => void;
   setQuickAddShortcut: (accelerator: string) => void;
 }
 
 export const useSecurityStore = create<SecurityState>((set) => ({
   autoLockMinutes: readMinutes(),
-  lockOnBlur: readBool(LOCK_ON_BLUR_KEY, false),
   quickAddShortcut:
     localStorage.getItem(SHORTCUT_KEY) ?? DEFAULT_QUICK_ADD_SHORTCUT,
 
@@ -55,11 +50,6 @@ export const useSecurityStore = create<SecurityState>((set) => ({
     const normalized = Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
     localStorage.setItem(AUTO_LOCK_KEY, String(normalized));
     set({ autoLockMinutes: normalized });
-  },
-
-  setLockOnBlur: (value: boolean) => {
-    localStorage.setItem(LOCK_ON_BLUR_KEY, String(value));
-    set({ lockOnBlur: value });
   },
 
   setQuickAddShortcut: (accelerator: string) => {

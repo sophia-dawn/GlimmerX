@@ -44,7 +44,7 @@ describe("useAutoLock", () => {
     vi.useFakeTimers();
     mocks.lockSession.mockClear();
     useDbStore.setState({ isUnlocked: true });
-    useSecurityStore.setState({ autoLockMinutes: 5, lockOnBlur: false });
+    useSecurityStore.setState({ autoLockMinutes: 5 });
   });
 
   afterEach(() => {
@@ -96,17 +96,6 @@ describe("useAutoLock", () => {
     });
 
     expect(mocks.lockSession).not.toHaveBeenCalled();
-  });
-
-  it("locks on blur when that preference is enabled", async () => {
-    useSecurityStore.setState({ autoLockMinutes: 0, lockOnBlur: true });
-    renderHook(() => useAutoLock(), { wrapper });
-
-    await act(async () => {
-      window.dispatchEvent(new Event("blur"));
-    });
-
-    expect(mocks.lockSession).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing while the ledger is locked", async () => {

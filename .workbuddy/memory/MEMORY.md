@@ -7,6 +7,10 @@
 - **复式记账是核心**：保留 income/expense 账户，不允许"取消支出账户只留分类"。
   分类与损益账户按 1:1 绑定（`categories.account_id`），账本真相唯一定义在 posting 的账户上。
 - **硬删除**：不做回收站、不做软删除、不做撤销。删除即 `DELETE`，恢复只能靠数据库备份。
+- **锁定只有「自动锁定」一种**：没有"离开窗口即锁定"。`securityStore` 只剩
+  `autoLockMinutes`（空闲计时，默认 5 分钟，0 = 关闭）与全局快捷键；
+  `glimmerx:security:lockOnBlur` 这个 localStorage 键在 store 初始化时清掉。
+  （2026-11-14）
 - **导入导出暂时下线**：CSV / Beancount / CSV 导入已删除，不要再加回来。
   数据库备份（`db_backup`）保留，属于安全兜底。
 

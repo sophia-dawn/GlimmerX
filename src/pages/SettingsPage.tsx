@@ -12,7 +12,6 @@ import {
   DEFAULT_QUICK_ADD_SHORTCUT,
 } from "@/stores/securityStore";
 import { ShortcutRecorder } from "@/components/settings/ShortcutRecorder";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { DataManagementSection } from "@/components/DataManagementSection";
 import { AiSettingsSection } from "@/components/settings/AiSettingsSection";
@@ -112,8 +111,6 @@ export function SettingsPage() {
   const {
     autoLockMinutes,
     setAutoLockMinutes,
-    lockOnBlur,
-    setLockOnBlur,
     quickAddShortcut,
     setQuickAddShortcut,
   } = useSecurityStore();
@@ -232,22 +229,6 @@ export function SettingsPage() {
             <p className="text-xs text-muted-foreground">
               {t("settings.autoLockDesc")}
             </p>
-          </div>
-
-          <div className="flex items-start space-x-2">
-            <Checkbox
-              id="lock-on-blur"
-              checked={lockOnBlur}
-              onCheckedChange={(checked) => setLockOnBlur(checked === true)}
-            />
-            <div className="space-y-0.5">
-              <label htmlFor="lock-on-blur" className="text-sm cursor-pointer">
-                {t("settings.lockOnBlur")}
-              </label>
-              <p className="text-xs text-muted-foreground">
-                {t("settings.lockOnBlurDesc")}
-              </p>
-            </div>
           </div>
 
           <div className="space-y-2">
