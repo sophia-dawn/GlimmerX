@@ -27,7 +27,10 @@ function cellPaint(count: number, max: number, future: boolean) {
  * last quarter" is not one of them.
  *
  * No chart library here: 91 divs in a CSS grid render at zero cost, survive
- * print, and need no ResizeObserver (which is what makes Recharts print blank).
+ * print, and sit exactly on the substrate's 13 week columns — which a canvas
+ * chart, painted at whatever pixel size its container happens to be, does not.
+ * This is a grid, not a plot: there are no axes, no scales and no tooltip to
+ * share with the ECharts build in `components/charts`.
  */
 export function ActivityCalendar() {
   const { t } = useTranslation();
