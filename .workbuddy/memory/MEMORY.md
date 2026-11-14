@@ -53,6 +53,21 @@
   分类色板是 `--chart-1..8`（chroma 压在 0.09–0.16），网格线单独一支 `--chart-grid`
   （比 `--color-border` 更淡，否则抢数据）。已删掉 `CHART_COLORS` / `CATEGORY_COLORS` /
   `REPORT_CHART_COLORS` / `REPORT_CATEGORY_COLORS` 四份硬编码常量。
+- **交给 ECharts 的颜色必须是 zrender 能解析的 `rgb()`/`hex`，不能是原始 `oklch()`**。
+  zrender 自带解析器（`zrender/lib/tool/color.js`）只认 hex/rgb/hsl/hsv，
+  `parse()` 认不出 `oklch()` 就返回空，而 `lift()`（ECharts 用 `liftColor()` 重建
+  强调态样式的唯一入口）**解析失败时返回 `undefined` 而不是原色**——悬停态的描边
+  因此变成 `undefined`，线在鼠标底下直接消失。自定义属性的 computed value 还保留
+  未求值的 `calc()`（`oklch(0.23 calc(0.006 * 1) 250)`），所以也不能直接读。
+  解法在 `chartColors.ts::resolveColor()`：把颜色画进 1×1 canvas 再读像素，
+  拿到 canvas 真正会涂的 sRGB 三元组（`getComputedStyle` 与 `ctx.fillStyle`
+  都会把 oklch 原样吐回来，不可用）。
+- **ECharts 组件必须注册**：用了 `title`（环形图中心的总额）就得
+  `echarts.use([TitleComponent])`，否则组件被跳过、数字根本不画，控制台只留一句
+  `[ECharts] Component title is used but not imported`。注册清单在
+  `src/components/charts/echarts.ts`，按需登记，别多也别少。
+- ECharts 6 的 `grid.containLabel` 已属 legacy，不注册 `LegacyGridContainLabel`
+  会每次画图都告警；本项目注册它，保留调好的旧布局。
 - **金额负数写作 `-¥50.00`**（符号在货币符号前），不是 `¥-50.00`。`format.test.ts` 锁住。
 - **首页是状态条 + 三栏**，不是卡片流：`DashboardStatusBar`（净资产/收入/支出/结余，
   无外框、发丝线分隔）+ 左栏图表 / 中栏交易表 / 右栏预算·账户·Top 支出。

@@ -9,6 +9,11 @@ import zh from "@/i18n/locales/zh.json";
 Element.prototype.scrollIntoView = vi.fn();
 Element.prototype.scrollTo = vi.fn();
 
+// jsdom has no canvas implementation: asking for a 2D context prints a
+// "not implemented" notice and returns null. Stub it, so the colour probe in
+// `utils/chartColors` finds no context (and falls back) without noise.
+HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as never;
+
 // Mock localStorage with proper storage functionality
 const localStorageStore: Record<string, string> = {};
 Object.defineProperty(window, "localStorage", {
