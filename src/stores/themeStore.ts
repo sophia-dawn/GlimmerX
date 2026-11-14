@@ -1,38 +1,97 @@
 import { create } from "zustand";
 
 export type ThemeMode = "light" | "dark" | "system";
-export type AccentColor =
-  | "neutral"
-  | "blue"
-  | "green"
-  | "purple"
-  | "orange"
-  | "rose"
-  | "red"
-  | "amber"
-  | "yellow"
-  | "lime"
-  | "emerald"
-  | "teal"
-  | "cyan"
-  | "sky"
-  | "indigo"
-  | "violet"
-  | "fuchsia"
-  | "pink";
 
-export type AtmosphericTheme =
-  | "none"
-  | "warm"
-  | "cool"
-  | "ocean"
-  | "forest"
-  | "midnight"
-  | "rose-atmosphere";
+/**
+ * Four looks instead of eighteen accents times seven atmospheres.
+ *
+ * The old picker offered two independent axes that both rewrote the same two
+ * variables, so most of the 126 combinations were variations of each other and
+ * a dozen of them were unusable (a fuchsia accent on a rose tint). A preset
+ * fixes the atmosphere and the one accent together, which is the only way they
+ * were ever going to look deliberate. Each preset is four lines of CSS; adding
+ * a fifth is an afternoon, not a palette audit.
+ *
+ * Mode stays a separate axis: a preset says *which* look, `mode` says whether
+ * it is the night or the paper version of it.
+ */
+export type ThemePreset = "terminal" | "terminal-cool" | "paper" | "contrast";
 
-const THEME_KEY = "glimmerx:theme";
-const COLOR_KEY = "glimmerx:color";
-const ATMOSPHERE_KEY = "glimmerx:atmosphere";
+export const THEME_PRESETS: readonly ThemePreset[] = [
+  "terminal",
+  "terminal-cool",
+  "paper",
+  "contrast",
+];
+
+const MODE_KEY = "glimmerx:theme";
+const PRESET_KEY = "glimmerx:preset";
+const LEGACY_COLOR_KEY = "glimmerx:color";
+const LEGACY_ATMOSPHERE_KEY = "glimmerx:atmosphere";
+const DEFAULT_MODE: ThemeMode = "system";
+const DEFAULT_PRESET: ThemePreset = "terminal";
+
+/**
+ * Storage from before presets still exists in the wild, so it is read once,
+ * mapped, and deleted. Deleting matters: if the mapping is ever adjusted, a
+ * stale key must not resurrect a choice the user has since replaced.
+ */
+const LEGACY_ACCENT: Record<string, ThemePreset> = {
+  neutral: "terminal",
+  amber: "terminal",
+  orange: "paper",
+  yellow: "terminal",
+  red: "paper",
+  rose: "paper",
+  pink: "paper",
+  purple: "paper",
+  fuchsia: "paper",
+  blue: "terminal-cool",
+  sky: "terminal-cool",
+  cyan: "terminal-cool",
+  teal: "terminal-cool",
+  emerald: "terminal-cool",
+  green: "terminal-cool",
+  lime: "terminal-cool",
+  indigo: "terminal-cool",
+  violet: "terminal-cool",
+};
+
+const LEGACY_ATMOSPHERE: Record<string, ThemePreset> = {
+  none: "terminal",
+  cool: "terminal",
+  midnight: "terminal",
+  ocean: "terminal-cool",
+  warm: "paper",
+  forest: "paper",
+  "rose-atmosphere": "paper",
+};
+
+function isPreset(value: string | null): value is ThemePreset {
+  return value !== null && (THEME_PRESETS as readonly string[]).includes(value);
+}
+
+function readPreset(): ThemePreset {
+  const saved = localStorage.getItem(PRESET_KEY);
+  if (isPreset(saved)) return saved;
+
+  const accent = localStorage.getItem(LEGACY_COLOR_KEY);
+  const atmosphere = localStorage.getItem(LEGACY_ATMOSPHERE_KEY);
+  if (accent === null && atmosphere === null) return DEFAULT_PRESET;
+
+  // The accent was the more deliberate of the two old choices, but only when it
+  // was not the neutral default — someone on `neutral` + `ocean` wants the tint,
+  // not the accent.
+  const migrated =
+    (accent && accent !== "neutral" ? LEGACY_ACCENT[accent] : undefined) ??
+    (atmosphere ? LEGACY_ATMOSPHERE[atmosphere] : undefined) ??
+    DEFAULT_PRESET;
+
+  localStorage.setItem(PRESET_KEY, migrated);
+  localStorage.removeItem(LEGACY_COLOR_KEY);
+  localStorage.removeItem(LEGACY_ATMOSPHERE_KEY);
+  return migrated;
+}
 
 function getSystemTheme(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -44,125 +103,59 @@ function resolveEffective(mode: ThemeMode): "light" | "dark" {
   return mode === "system" ? getSystemTheme() : mode;
 }
 
-function applyClasses(
-  mode: ThemeMode,
-  color: AccentColor,
-  atmosphere: AtmosphericTheme,
-) {
+/**
+ * The preset is an attribute, not a class: `paper`/`contrast` are words a
+ * utility class could plausibly collide with, and one attribute is a single
+ * place for the CSS to key on.
+ */
+function syncDocument(mode: ThemeMode, preset: ThemePreset) {
   const root = document.documentElement;
-  const effective = resolveEffective(mode);
-
-  root.classList.toggle("dark", effective === "dark");
-
-  // Remove all color classes, add the selected one
-  const colorClasses: AccentColor[] = [
-    "neutral",
-    "blue",
-    "green",
-    "purple",
-    "orange",
-    "rose",
-    "red",
-    "amber",
-    "yellow",
-    "lime",
-    "emerald",
-    "teal",
-    "cyan",
-    "sky",
-    "indigo",
-    "violet",
-    "fuchsia",
-    "pink",
-  ];
-  root.classList.remove(...colorClasses);
-  if (color !== "neutral") {
-    root.classList.add(color);
-  }
-
-  const atmosphereClasses: AtmosphericTheme[] = [
-    "warm",
-    "cool",
-    "ocean",
-    "forest",
-    "midnight",
-    "rose-atmosphere",
-  ];
-  root.classList.remove(...atmosphereClasses);
-  if (atmosphere !== "none") {
-    root.classList.add(atmosphere);
-  }
+  root.classList.toggle("dark", resolveEffective(mode) === "dark");
+  root.dataset.preset = preset;
 }
 
 interface ThemeState {
   mode: ThemeMode;
-  color: AccentColor;
-  atmosphere: AtmosphericTheme;
+  preset: ThemePreset;
   effectiveTheme: "light" | "dark";
   setMode: (mode: ThemeMode) => void;
-  setColor: (color: AccentColor) => void;
-  setAtmosphere: (atmosphere: AtmosphericTheme) => void;
+  setPreset: (preset: ThemePreset) => void;
 }
 
 export const useThemeStore = create<ThemeState>((set) => {
   const savedMode =
-    (localStorage.getItem(THEME_KEY) as ThemeMode | null) ?? "system";
-  const savedColor =
-    (localStorage.getItem(COLOR_KEY) as AccentColor | null) ?? "neutral";
-  const savedAtmosphere =
-    (localStorage.getItem(ATMOSPHERE_KEY) as AtmosphericTheme | null) ?? "none";
+    (localStorage.getItem(MODE_KEY) as ThemeMode | null) ?? DEFAULT_MODE;
+  const savedPreset = readPreset();
   const effective = resolveEffective(savedMode);
 
-  // Apply on init
-  applyClasses(savedMode, savedColor, savedAtmosphere);
+  // Apply on init, before the first paint of any component that reads tokens.
+  syncDocument(savedMode, savedPreset);
 
-  // Listen for system theme changes
   if (typeof window !== "undefined") {
     window
       .matchMedia("(prefers-color-scheme: dark)")
       .addEventListener("change", () => {
         set((state) => {
-          if (state.mode === "system") {
-            const newEffective = getSystemTheme();
-            applyClasses("system", state.color, state.atmosphere);
-            return { effectiveTheme: newEffective };
-          }
-          return state;
+          if (state.mode !== "system") return state;
+          syncDocument("system", state.preset);
+          return { effectiveTheme: getSystemTheme() };
         });
       });
   }
 
   return {
     mode: savedMode,
-    color: savedColor,
-    atmosphere: savedAtmosphere,
+    preset: savedPreset,
     effectiveTheme: effective,
     setMode: (mode) => {
-      localStorage.setItem(THEME_KEY, mode);
-      applyClasses(mode, getColor(), getAtmosphere());
-      const effective = resolveEffective(mode);
-      set({ mode, effectiveTheme: effective });
+      localStorage.setItem(MODE_KEY, mode);
+      syncDocument(mode, useThemeStore.getState().preset);
+      set({ mode, effectiveTheme: resolveEffective(mode) });
     },
-    setColor: (color) => {
-      localStorage.setItem(COLOR_KEY, color);
-      applyClasses(getMode(), color, getAtmosphere());
-      set({ color });
-    },
-    setAtmosphere: (atmosphere) => {
-      localStorage.setItem(ATMOSPHERE_KEY, atmosphere);
-      applyClasses(getMode(), getColor(), atmosphere);
-      set({ atmosphere });
+    setPreset: (preset) => {
+      localStorage.setItem(PRESET_KEY, preset);
+      syncDocument(useThemeStore.getState().mode, preset);
+      set({ preset });
     },
   };
 });
-
-// Helpers to read current state from store closure
-function getMode(): ThemeMode {
-  return (useThemeStore.getState().mode as ThemeMode) ?? "system";
-}
-function getColor(): AccentColor {
-  return (useThemeStore.getState().color as AccentColor) ?? "neutral";
-}
-function getAtmosphere(): AtmosphericTheme {
-  return (useThemeStore.getState().atmosphere as AtmosphericTheme) ?? "none";
-}

@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   useThemeStore,
   type ThemeMode,
-  type AccentColor,
-  type AtmosphericTheme,
+  type ThemePreset,
 } from "@/stores/themeStore";
 import { useLanguageStore } from "@/stores/languageStore";
 import {
@@ -26,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon, Monitor, Check } from "lucide-react";
 
 const THEME_ITEMS: { value: ThemeMode; icon: typeof Sun }[] = [
   { value: "light", icon: Sun },
@@ -34,84 +33,64 @@ const THEME_ITEMS: { value: ThemeMode; icon: typeof Sun }[] = [
   { value: "system", icon: Monitor },
 ];
 
-const COLOR_ITEMS: {
-  value: AccentColor;
-  labelKey: string;
-  colorValue: string;
-}[] = [
-  {
-    value: "neutral",
-    labelKey: "settings.colorNeutral",
-    colorValue: "#404040",
-  },
-  { value: "blue", labelKey: "settings.colorBlue", colorValue: "#3b82f6" },
-  { value: "green", labelKey: "settings.colorGreen", colorValue: "#22c55e" },
-  { value: "purple", labelKey: "settings.colorPurple", colorValue: "#a855f7" },
-  { value: "orange", labelKey: "settings.colorOrange", colorValue: "#f97316" },
-  { value: "rose", labelKey: "settings.colorRose", colorValue: "#f43f5e" },
-  { value: "red", labelKey: "settings.colorRed", colorValue: "#ef4444" },
-  { value: "amber", labelKey: "settings.colorAmber", colorValue: "#f59e0b" },
-  { value: "yellow", labelKey: "settings.colorYellow", colorValue: "#eab308" },
-  { value: "lime", labelKey: "settings.colorLime", colorValue: "#84cc16" },
-  {
-    value: "emerald",
-    labelKey: "settings.colorEmerald",
-    colorValue: "#10b981",
-  },
-  { value: "teal", labelKey: "settings.colorTeal", colorValue: "#14b8a6" },
-  { value: "cyan", labelKey: "settings.colorCyan", colorValue: "#06b6d4" },
-  { value: "sky", labelKey: "settings.colorSky", colorValue: "#0ea5e9" },
-  { value: "indigo", labelKey: "settings.colorIndigo", colorValue: "#6366f1" },
-  { value: "violet", labelKey: "settings.colorViolet", colorValue: "#8b5cf6" },
-  {
-    value: "fuchsia",
-    labelKey: "settings.colorFuchsia",
-    colorValue: "#d946ef",
-  },
-  { value: "pink", labelKey: "settings.colorPink", colorValue: "#ec4899" },
-];
-
-const ATMOSPHERE_ITEMS: {
-  value: AtmosphericTheme;
+const PRESET_ITEMS: {
+  value: ThemePreset;
   labelKey: string;
   descKey: string;
 }[] = [
   {
-    value: "none",
-    labelKey: "settings.atmosphereNone",
-    descKey: "settings.atmosphereDescNone",
+    value: "terminal",
+    labelKey: "settings.presetTerminal",
+    descKey: "settings.presetDescTerminal",
   },
   {
-    value: "warm",
-    labelKey: "settings.atmosphereWarm",
-    descKey: "settings.atmosphereDescWarm",
+    value: "terminal-cool",
+    labelKey: "settings.presetTerminalCool",
+    descKey: "settings.presetDescTerminalCool",
   },
   {
-    value: "cool",
-    labelKey: "settings.atmosphereCool",
-    descKey: "settings.atmosphereDescCool",
+    value: "paper",
+    labelKey: "settings.presetPaper",
+    descKey: "settings.presetDescPaper",
   },
   {
-    value: "ocean",
-    labelKey: "settings.atmosphereOcean",
-    descKey: "settings.atmosphereDescOcean",
-  },
-  {
-    value: "forest",
-    labelKey: "settings.atmosphereForest",
-    descKey: "settings.atmosphereDescForest",
-  },
-  {
-    value: "midnight",
-    labelKey: "settings.atmosphereMidnight",
-    descKey: "settings.atmosphereDescMidnight",
-  },
-  {
-    value: "rose-atmosphere",
-    labelKey: "settings.atmosphereRose",
-    descKey: "settings.atmosphereDescRose",
+    value: "contrast",
+    labelKey: "settings.presetContrast",
+    descKey: "settings.presetDescContrast",
   },
 ];
+
+/**
+ * A preset is previewed by *being* a preset.
+ *
+ * The tile carries `data-preset` and `data-mode` itself, and `.preset-preview`
+ * redeclares the handful of tokens it paints with — a token resolves its `var()`
+ * references where it is declared, so overriding `--hue` alone would repaint
+ * nothing. The upside is that the thumbnail is the real palette, in both modes,
+ * with no hardcoded hex to drift away from the theme the way the old colour
+ * swatches did.
+ */
+function PresetPreview({ preset }: { preset: ThemePreset }) {
+  return (
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border bg-border">
+      {(["light", "dark"] as const).map((mode) => (
+        <div
+          key={mode}
+          data-preset={preset}
+          data-mode={mode}
+          className="preset-preview flex h-11 items-center gap-1.5 bg-background px-1.5"
+        >
+          <div className="h-6 w-8 shrink-0 rounded-xs border bg-card" />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="h-1 w-full rounded-full bg-signal" />
+            <span className="h-1 w-2/3 rounded-full bg-muted-foreground/40" />
+            <span className="h-1 w-1/2 rounded-full bg-muted-foreground/20" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "en", label: "English" },
@@ -120,8 +99,7 @@ const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
 
 export function SettingsPage() {
   const { t } = useTranslation();
-  const { mode, setMode, color, setColor, atmosphere, setAtmosphere } =
-    useThemeStore();
+  const { mode, setMode, preset, setPreset } = useThemeStore();
   const { language, setLanguage } = useLanguageStore();
   const {
     autoLockMinutes,
@@ -147,7 +125,7 @@ export function SettingsPage() {
                 className={cn(
                   "flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                   mode === item.value
-                    ? "border-primary bg-primary/10 text-primary"
+                    ? "border-signal bg-signal/5 text-foreground"
                     : "text-muted-foreground hover:bg-accent",
                 )}
               >
@@ -160,55 +138,38 @@ export function SettingsPage() {
           </div>
         </div>
 
-        {/* Color */}
+        {/* Preset: one look, not a hue wheel */}
         <div className="space-y-3">
-          <label className="text-sm font-medium">{t("settings.color")}</label>
-          <div className="grid grid-cols-6 gap-2">
-            {COLOR_ITEMS.map((item) => (
-              <button
-                key={item.value}
-                onClick={() => setColor(item.value)}
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all",
-                  color === item.value
-                    ? "border-primary scale-110 ring-2 ring-primary/30"
-                    : "border-muted hover:border-primary/50",
-                )}
-                title={t(item.labelKey)}
-                aria-label={t(item.labelKey)}
-              >
-                <span
-                  className="h-5 w-5 rounded-full"
-                  style={{ backgroundColor: item.colorValue }}
-                />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Atmosphere */}
-        <div className="space-y-3">
-          <label className="text-sm font-medium">
-            {t("settings.atmosphere")}
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            {ATMOSPHERE_ITEMS.map((item) => (
-              <button
-                key={item.value}
-                onClick={() => setAtmosphere(item.value)}
-                className={cn(
-                  "flex flex-col items-center justify-center rounded-md border p-3 text-sm transition-all",
-                  atmosphere === item.value
-                    ? "border-primary bg-primary/10"
-                    : "border-muted hover:border-primary/50 hover:bg-accent",
-                )}
-              >
-                <span className="font-medium">{t(item.labelKey)}</span>
-                <span className="text-xs text-muted-foreground">
-                  {t(item.descKey)}
-                </span>
-              </button>
-            ))}
+          <label className="text-sm font-medium">{t("settings.preset")}</label>
+          <div className="grid grid-cols-2 gap-2">
+            {PRESET_ITEMS.map((item) => {
+              const active = preset === item.value;
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setPreset(item.value)}
+                  aria-pressed={active}
+                  className={cn(
+                    "rounded-md border p-2 text-left transition-colors",
+                    active
+                      ? "border-signal bg-signal/5"
+                      : "border-border hover:bg-accent",
+                  )}
+                >
+                  <PresetPreview preset={item.value} />
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">
+                      {t(item.labelKey)}
+                    </span>
+                    {active && <Check className="size-3.5 text-signal" />}
+                  </div>
+                  <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
+                    {t(item.descKey)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

@@ -32,16 +32,15 @@ function readVar(styles: CSSStyleDeclaration, name: string, fallback: string) {
 export function useChartColors(): ChartColors {
   // Re-read on any change that repaints the token ladder.
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
-  const color = useThemeStore((state) => state.color);
-  const atmosphere = useThemeStore((state) => state.atmosphere);
+  const preset = useThemeStore((state) => state.preset);
 
-  // `effectiveTheme` / `color` / `atmosphere` are the trigger, not the source:
-  // the values come out of the computed style, which only changes after the
-  // theme store has repainted the class list. Listing them is therefore what
-  // makes the memo correct, even though the body never names them.
-  /* eslint-disable react-hooks/exhaustive-deps -- the dependency list is the
-     theme triple because the palette is read from the computed style, not from
-     those variables; naming them is what makes the memo re-run on a switch. */
+  // `effectiveTheme` / `preset` are the trigger, not the source: the values come
+  // out of the computed style, which only changes after the theme store has
+  // repainted the class list and the `data-preset` attribute. Listing them is
+  // therefore what makes the memo correct, even though the body never names them.
+  /* eslint-disable react-hooks/exhaustive-deps -- the dependency pair is the
+     theme switch because the palette is read from the computed style, not from
+     those variables; naming them is what makes the memo re-run. */
   return useMemo(() => {
     const styles = getComputedStyle(document.documentElement);
     return {
@@ -56,6 +55,6 @@ export function useChartColors(): ChartColors {
         readVar(styles, `--chart-${i + 1}`, "#7a889a"),
       ),
     };
-  }, [effectiveTheme, color, atmosphere]);
+  }, [effectiveTheme, preset]);
   /* eslint-enable react-hooks/exhaustive-deps */
 }
