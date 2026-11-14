@@ -22,25 +22,36 @@ import {
  * 0.9fr`): a time axis needs horizontal room, the table needs room for four
  * columns, and the side panels are lists that read fine narrow.
  *
+ * The grid fills the viewport instead of growing with its content, and each
+ * pane scrolls internally. That is what keeps the three columns ending on the
+ * same line: card heights used to be decided by content, so a column with two
+ * charts was 200 px taller than a column with one table and the page looked
+ * unfinished. `h-full` is what makes the column heights definite, and it has to
+ * stay on the page root — `min-h-full` would let the columns collapse back to
+ * their content.
+ *
  * The greeting is gone on purpose. The header already says which page this is;
  * a second heading saying "welcome" above four numbers only delays them.
  */
 export function DashboardPage() {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <DashboardStatusBar />
 
-      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[1.2fr_1fr_0.9fr]">
-        <div className="flex min-w-0 flex-col gap-3">
+      <div
+        data-print="panes"
+        className="grid min-h-0 flex-1 gap-3 overflow-auto lg:grid-cols-2 xl:grid-cols-[1.2fr_1fr_0.9fr]"
+      >
+        <div className="flex min-h-0 min-w-0 flex-col gap-3">
           <MonthlyIncomeExpenseChart />
           <CategoryBreakdownChart />
         </div>
 
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-h-0 min-w-0 flex-col gap-3">
           <RecentTransactionsCard />
         </div>
 
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-h-0 min-w-0 flex-col gap-3">
           <BudgetOverviewCard />
           <AccountBalanceList />
           <TopExpensesList />

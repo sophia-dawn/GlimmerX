@@ -77,7 +77,7 @@ export function RecentTransactionsCard() {
           </Link>
         </Button>
       </CardHeader>
-      <CardContent className="min-h-0 flex-1">
+      <CardContent className="min-h-0 flex-1 overflow-auto">
         {isLoading ? (
           <div className="space-y-1.5">
             {[...Array(8)].map((_, i) => (
@@ -90,18 +90,21 @@ export function RecentTransactionsCard() {
           </p>
         ) : (
           <table className="w-full border-collapse text-sm">
+            {/* The header sticks: the pane scrolls, the column names do not. It
+                carries the rule itself because a sticky `<tr>` border scrolls
+                away with the row. */}
             <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground">
-                <th className="w-px py-1.5 pr-2 text-left font-normal">
+              <tr className="text-xs text-muted-foreground">
+                <th className="sticky top-0 z-10 w-px border-b border-border bg-card py-1.5 pr-2 text-left font-normal">
                   {t("transactions.date")}
                 </th>
-                <th className="w-full py-1.5 pr-2 text-left font-normal">
+                <th className="sticky top-0 z-10 w-full border-b border-border bg-card py-1.5 pr-2 text-left font-normal">
                   {t("transactions.description")}
                 </th>
-                <th className="w-px py-1.5 pr-2 text-left font-normal">
+                <th className="sticky top-0 z-10 w-px border-b border-border bg-card py-1.5 pr-2 text-left font-normal">
                   {t("transactions.category")}
                 </th>
-                <th className="w-px py-1.5 text-right font-normal">
+                <th className="sticky top-0 z-10 w-px border-b border-border bg-card py-1.5 text-right font-normal">
                   {t("transactions.amount")}
                 </th>
               </tr>

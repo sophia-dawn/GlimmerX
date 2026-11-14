@@ -41,7 +41,7 @@ export function BudgetOverviewCard() {
   };
 
   return (
-    <Card>
+    <Card className="flex min-h-[120px] flex-1 flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{t("dashboard.budgetOverview")}</CardTitle>
         <Button variant="ghost" size="sm" asChild>
@@ -51,7 +51,7 @@ export function BudgetOverviewCard() {
           </Link>
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1 overflow-auto">
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (

@@ -103,11 +103,11 @@ export function AccountBalanceList() {
   const hasAccounts = Object.keys(groupedAccounts).length > 0;
 
   return (
-    <Card>
+    <Card className="flex min-h-[120px] flex-1 flex-col">
       <CardHeader>
         <CardTitle>{t("dashboard.accountBalanceList")}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1 overflow-auto">
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (

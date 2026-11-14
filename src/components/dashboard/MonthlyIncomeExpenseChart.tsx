@@ -51,21 +51,21 @@ export function MonthlyIncomeExpenseChart() {
   const formatTick = (value: number) => value.toLocaleString(i18n.language);
 
   return (
-    <Card>
+    <Card className="flex min-h-[190px] flex-1 flex-col">
       <CardHeader>
         <CardTitle>{t("dashboard.monthlyChart")}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1">
         {isLoading ? (
-          <div className="flex h-[300px] items-center justify-center">
+          <div className="flex h-full min-h-[150px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.loading")}</p>
           </div>
         ) : !hasData ? (
-          <div className="flex h-[300px] items-center justify-center">
+          <div className="flex h-full min-h-[150px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.noRecords")}</p>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0 }}>
               <CartesianGrid
                 stroke={colors.grid}

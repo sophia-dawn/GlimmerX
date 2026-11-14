@@ -33,11 +33,11 @@ export function TopExpensesList() {
   const expenses = data?.expenses ?? [];
 
   return (
-    <Card>
+    <Card className="flex min-h-[120px] flex-1 flex-col">
       <CardHeader>
         <CardTitle>{t("dashboard.topExpenses")}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1 overflow-auto">
         {isLoading ? (
           <div className="space-y-1.5">
             {[...Array(6)].map((_, i) => (

@@ -55,22 +55,22 @@ export function CategoryBreakdownChart() {
   const hasData = chartData.length > 0;
 
   return (
-    <Card>
+    <Card className="flex h-[300px] shrink-0 flex-col">
       <CardHeader>
         <CardTitle>{t("dashboard.categoryBreakdown")}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1">
         {isLoading ? (
-          <div className="flex h-[300px] items-center justify-center">
+          <div className="flex h-full min-h-[180px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.loading")}</p>
           </div>
         ) : !hasData ? (
-          <div className="flex h-[300px] items-center justify-center">
+          <div className="flex h-full min-h-[180px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.noRecords")}</p>
           </div>
         ) : (
-          <div className="relative">
-            <ResponsiveContainer width="100%" height={300}>
+          <div className="relative h-full min-h-[196px]">
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={chartData}

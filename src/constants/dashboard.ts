@@ -5,7 +5,9 @@
 // 分页限制
 export const DASHBOARD_LIMITS = {
   topExpenses: 10,
-  recentTransactions: 14,
+  // Fills the pane on a 900 px-tall window; the table scrolls on anything
+  // shorter, which is the point of a pane.
+  recentTransactions: 20,
 } as const;
 
 // 日期格式
