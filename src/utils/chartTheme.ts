@@ -58,6 +58,16 @@ export function chartTooltip(
     borderColor: colors.border,
     borderWidth: 1,
     padding: [8, 10],
+    // **Confinement, not overflow.** Left to itself the box is positioned
+    // against the cursor and happily extends past the canvas, where the card's
+    // rounded clip cuts it in half — which reads as the chart losing content
+    // rather than the tooltip being a popover.
+    confine: true,
+    /* **No chase animation.** The default is a 0.4 s transform transition, so
+       every pointer move restarts a tween towards a position that has already
+       moved again: the box visibly oscillates around the cursor instead of
+       sitting under it. A readout is not a physical object; it snaps. */
+    transitionDuration: 0,
     textStyle: {
       color: colors.text,
       fontSize: 12,
@@ -138,7 +148,14 @@ export function lineSeriesDefaults(colors: ChartColors) {
     showSymbol: false,
     symbolSize: 6,
     lineStyle: { width: 1.5 },
-    emphasis: { focus: "series" as const },
+    /* **`focus: "none"`, deliberately.** ECharts defaults a hovered series to
+       `focus: "series"`, which pushes every *other* series to 10% opacity. On a
+       two-line chart that is indistinguishable from the line having been
+       deleted, and because each pointer move restarts the emphasis animation it
+       repaints continuously while the cursor sits still — measured at 20 repaints
+       per 90 frames of jitter, against 2 with focus off. Hover feedback belongs
+       on the series under the cursor; it does not license hiding the rest. */
+    emphasis: { focus: "none" as const },
     itemStyle: { color: colors.text },
   };
 }

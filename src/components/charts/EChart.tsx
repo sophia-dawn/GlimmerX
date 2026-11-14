@@ -41,11 +41,16 @@ export function EChart({
   const chartRef = useRef<EChartsType | null>(null);
   const optionRef = useRef(option);
   optionRef.current = option;
+  /** Size the canvas was last laid out at, so a no-op resize can be skipped. */
+  const sizeRef = useRef({ width: 0, height: 0 });
 
   const paint = useCallback(() => {
     const host = hostRef.current;
     if (!host) return;
-    if (host.clientWidth === 0 || host.clientHeight === 0) return;
+    const width = host.clientWidth;
+    const height = host.clientHeight;
+    if (width === 0 || height === 0) return;
+    sizeRef.current = { width, height };
     if (!chartRef.current) {
       chartRef.current = echarts.init(host, undefined, {
         renderer: "canvas",
@@ -53,6 +58,34 @@ export function EChart({
     }
     chartRef.current.setOption(optionRef.current, { notMerge: true });
   }, []);
+
+  /**
+   * Relayout, but only when the box actually changed.
+   *
+   * An observer callback that resizes unconditionally is a feedback loop
+   * waiting to happen: `resize()` re-lays out the canvas, layout notifies the
+   * observer again, and the chart repaints for as long as the pointer is over
+   * it — which is exactly what a flashing chart is. `force` exists for print,
+   * where the media query has changed the height without the element ever
+   * reporting a new size to the observer first.
+   */
+  const resize = useCallback(
+    (force = false) => {
+      const host = hostRef.current;
+      if (!host) return;
+      const width = host.clientWidth;
+      const height = host.clientHeight;
+      if (width === 0 || height === 0) return;
+      const previous = sizeRef.current;
+      if (!force && width === previous.width && height === previous.height) {
+        return;
+      }
+      sizeRef.current = { width, height };
+      if (chartRef.current) chartRef.current.resize();
+      else paint();
+    },
+    [paint],
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -68,30 +101,32 @@ export function EChart({
       typeof ResizeObserver === "undefined"
         ? null
         : new ResizeObserver(() => {
-            if (chartRef.current) chartRef.current.resize();
-            else paint();
+            resize();
           });
     observer?.observe(host);
-    if (!observer) window.addEventListener("resize", paint);
+    // Wrapped, not passed: the listener receives an event, and `resize` reads
+    // its first argument as the print `force` flag.
+    const onWindowResize = () => resize();
+    if (!observer) window.addEventListener("resize", onWindowResize);
 
     const repaint = () => {
       // Force the print layout before measuring, then repaint at paper size.
       void host.clientHeight;
-      if (chartRef.current) chartRef.current.resize();
-      else paint();
+      resize(true);
     };
     window.addEventListener("beforeprint", repaint);
     window.addEventListener("afterprint", repaint);
 
     return () => {
       observer?.disconnect();
-      window.removeEventListener("resize", paint);
+      window.removeEventListener("resize", onWindowResize);
       window.removeEventListener("beforeprint", repaint);
       window.removeEventListener("afterprint", repaint);
       chartRef.current?.dispose();
       chartRef.current = null;
+      sizeRef.current = { width: 0, height: 0 };
     };
-  }, [paint]);
+  }, [paint, resize]);
 
   // Theme switches and new data both arrive as a new option object.
   useEffect(() => {
