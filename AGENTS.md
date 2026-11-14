@@ -83,4 +83,4 @@ A cross-platform personal double-entry bookkeeping desktop application built wit
 - **clsx + tailwind-merge** — Conditional class names
 - **lucide-react** — Icons
 - **date-fns** — Frontend date formatting
-- **Recharts** — Dashboard charts
+- **ECharts 6** — all charts (canvas)

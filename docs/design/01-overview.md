@@ -27,7 +27,7 @@
 | UI 组件 | **shadcn/ui** + Tailwind CSS | 源码级组件，高度定制 |
 | 数据库 | **SQLCipher** (SQLite 加密扩展) | 数据库文件 AES-256 加密，用户密码解锁 |
 | 长列表 | **@tanstack/react-virtual** | 交易列表虚拟滚动（`VirtualTransactionList`） |
-| 图表 | **Recharts** | 收支统计、趋势可视化 |
+| 图表 | **ECharts 6** | 收支统计、趋势可视化（canvas 渲染） |
 | 金额格式化 | **自研 `utils/format.ts`** | 千分位、小数位、货币符号（金额计算仍在后端） |
 | 日期处理 | **date-fns** | 轻量、Tree-shakeable |
 

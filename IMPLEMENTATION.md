@@ -207,11 +207,13 @@
 
 | # | 任务 | 文件 | 说明 |
 |---|---|---|---|
-| RPT-UI-1 | 报表页面框架 | `src/pages/ReportsPage.tsx` | Tab 切换不同报表 |
-| RPT-UI-2 | 资产负债表组件 | `src/components/reports/BalanceSheet.tsx` | 资产 = 负债 + 权益 |
-| RPT-UI-3 | 收支趋势图 | `src/components/reports/IncomeExpenseChart.tsx` | Recharts 折线+柱状组合图 |
-| RPT-UI-4 | 分类占比图 | `src/components/reports/CategoryPieChart.tsx` | Recharts 环形图 |
-| RPT-UI-5 | 概览页数据卡片 | `src/pages/DashboardPage.tsx` | 本月收支、账户余额、最近交易 |
+| RPT-UI-1 | 报表页面框架 | `src/pages/ReportsPage.tsx` | 左栏报表目录 + 页级筛选（状态在 URL） |
+| RPT-UI-2 | 现金流 | `src/components/reports/CashflowReport.tsx` | 收入/支出/结余/储蓄率 + 时序图 + 环比 |
+| RPT-UI-3 | 分类构成 | `src/components/reports/CategoryBreakdownReport.tsx` | ECharts 环形图 + 占比明细 |
+| RPT-UI-4 | 净资产归因 | `src/components/reports/NetWorthAttributionReport.tsx` | 期初→期末，按账户拆分变动 |
+| RPT-UI-5 | 资产负债表 | `src/components/reports/BalanceSheetReport.tsx` | 单轴分布图 + 资产负债明细 |
+| RPT-UI-6 | 账户明细 | `src/components/reports/AccountDetailReport.tsx` | 余额走势 + 流水明细 |
+| RPT-UI-7 | 预算执行 | `src/components/reports/BudgetExecutionReport.tsx` | 预算轨道 vs 已支出，超支标 signal |
 
 ### Phase 4 验收标准
 

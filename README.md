@@ -31,7 +31,7 @@
 | UI       | shadcn/ui + Tailwind CSS 4 |
 | 数据库   | SQLCipher（加密 SQLite）   |
 | 状态管理 | Zustand + React Query      |
-| 图表     | Recharts                   |
+| 图表     | ECharts 6（按需注册）       |
 | 国际化   | i18next                    |
 
 ## 开发方式

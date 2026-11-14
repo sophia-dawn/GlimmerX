@@ -42,6 +42,7 @@
 | [21-double-entry-upgrade](design/21-double-entry-upgrade.md)       | schema v2：分类账户 1:1、对账、储蓄目标、单币种、硬删除 | 实施 v2 能力升级       |
 | [22-visual-system](design/22-visual-system.md)                     | 视觉系统：令牌层、字体、语义色、图表色板、密度与首页结构 | 改 UI 前必读           |
 | [23-tech-surface-research](design/23-tech-surface-research.md)  | 科技感调研、六维审查、Calibrated Instrument 与落地记录 | 改首页/材质前必读     |
+| [24-reports](design/24-reports.md)  | 报表 9→6 的取舍、URL 筛选、ECharts 迁移、两张新报表的口径 | 改报表/图表前必读 |
 
 ---
 
@@ -109,5 +110,5 @@
 > - CAT-1 分类管理 ✅ 已实现
 > - BUD-1~BUD-4 预算管理 ✅ P0/P1 已实现（含预算执行报告）
 > - DASH-1~DASH-15 概览模块 ✅ P0/P1 已实现，P2 预留
-> - RPT 报表分析 ✅ P0/P1/P2 已实现（9 个报表）
+> - RPT 报表分析 ✅ 6 张报表（2026-11-14 由 9 张合并而来，审计移入设置）
 > - DATA 数据管理 ✅ 仅保留数据库备份（导入导出已于 2026-11-13 下线）

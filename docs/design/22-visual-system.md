@@ -121,7 +121,7 @@
 - chroma 压在 0.09–0.16。高饱和分类色会让六个扇区看起来像荧光笔。
 - **`--chart-grid` 独立于 `--color-border`**：边框用发丝线够了，网格线要再淡一档才不抢数据。
 
-色值由 `src/utils/chartColors.ts::useChartColors()` 读取，**不是直接写 CSS**。原因是 Recharts 把 `fill` / `stroke` 写成 SVG **presentation attribute**，这些属性不解析 `var()`。所以颜色从 computed style 读出后喂给 JS，并在 `effectiveTheme` / `preset` 变化时重算。
+色值由 `src/utils/chartColors.ts::useChartColors()` 读取，**不是直接写 CSS**。原因是 ECharts 把图画进 `<canvas>`，canvas 既不解析 `var()` 也不认 CSS 类。所以颜色从 computed style 读出后喂给 JS，并在 `effectiveTheme` / `preset` 变化时重算。
 
 ## 5. 密度
 
@@ -157,5 +157,5 @@
 - **面板内滚动是刻意的不便**。三栏同高意味着矮窗口里列表在栏内滚，而不是整页往下长。仪表盘这样做是对的（一眼看全），但窗口高度小于约 700px 时右栏三块会挤，只能滚。报告页不走这套，仍然是整页滚动。
 - **浅色态是"冷纸"不是反色**。`--s-base` 带一点蓝（hue 250, chroma 0.006），配白色卡片。深色态不是它的反转，两套是分别调的。
 - **`¥-50.00` 已废弃**，负数写作 `-¥50.00`（符号在货币符号前）。`formatAmount` 已改，测试锁住。
-- **打印不是导出 PDF**。仓库里没有 jsPDF / html2canvas，`@media print` 是给 WebView2 的 Ctrl+P 用的：翻成纸张令牌（纯白底、`--line` 0.6）、隐藏侧栏与按钮、卡片 `break-inside: avoid`、表头 `table-header-group`、图表给定 60mm 高度（`auto` 容器会让 Recharts 印成空白）。真要"导出 PDF"按钮，得另做一条链路。
+- **打印不是导出 PDF**。仓库里没有 jsPDF / html2canvas，`@media print` 是给 WebView2 的 Ctrl+P 用的：翻成纸张令牌（纯白底、`--line` 0.6）、隐藏侧栏与按钮、卡片 `break-inside: avoid`、表头 `table-header-group`、图表给定 60mm 高度（`auto` 容器会让 canvas 印成空白，`EChart` 在 `beforeprint` 时按纸张尺寸重绘）。真要"导出 PDF"按钮，得另做一条链路。
 - **`--radius` 无前缀别名只放在 `:root`**。Tailwind 会裁掉 `@theme` 里没被工具类引用的变量，而 sonner 的 toast 用 `var(--radius)` 取值——写进 `@theme` 会在某次重构后突然变 0。
