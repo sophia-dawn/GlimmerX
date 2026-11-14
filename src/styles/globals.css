@@ -91,15 +91,18 @@
   --color-chart-5: oklch(var(--s-muted) var(--chroma) var(--hue));
 
   /* ── Shape ────────────────────────────────────────────────────────────────
-     Instruments do not have rounded corners. 2 px reads as "machined", 4 px as
-     "software"; anything above that starts to look like a consumer app. */
-  --radius-xs: 1px;
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 3px;
-  --radius-xl: 4px;
-  --radius-2xl: 6px;
-  --radius-3xl: 8px;
+     Restrained rounding, not zero rounding. 2 px on a 32 px control read as a
+     table cell — every button looked sliced off — so controls sit at 6 px and
+     cards one step above at 10 px, which keeps nesting legible without a
+     shadow to carry it. Nothing here is a pill: `rounded-full` stays reserved
+     for switches and dots. */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 14px;
+  --radius-3xl: 18px;
 
   /* ── Depth ────────────────────────────────────────────────────────────────
      No shadows anywhere. Overlays separate by border + backdrop, not by
@@ -149,6 +152,11 @@
 /* ── Light: cool paper ────────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
+
+  /* Unprefixed alias for libraries that ask for one default radius instead of
+     a token (sonner's toast does). A `@theme` entry would be pruned as soon as
+     no utility referenced it, so it lives here where it is always emitted. */
+  --radius: 6px;
 
   --s-base: 0.958;
   --s-card: 1;

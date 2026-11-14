@@ -303,7 +303,7 @@ export function TransactionForm({
                     <li>{t("transactions.help.rule2")}</li>
                     <li>{t("transactions.help.rule3")}</li>
                   </ul>
-                  <div className="mt-2 p-2 rounded bg-background/50">
+                  <div className="mt-2 rounded-md bg-background/50 p-2">
                     <p className="font-medium text-xs mb-1">
                       {t("transactions.help.exampleTitle")}
                     </p>

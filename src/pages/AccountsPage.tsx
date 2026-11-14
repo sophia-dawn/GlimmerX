@@ -345,7 +345,7 @@ function AccountRow({
     >
       {/* Type and subtype badges */}
       <div className="flex items-center gap-1">
-        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+        <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
           {t(`accounts.types.${account.account_type}`)}
         </span>
         {(() => {
@@ -355,7 +355,7 @@ function AccountRow({
             account.meta?.find((m) => m.key === "liability_type")?.value ?? "";
           const subtypeValue = accountRole || liabilityType;
           return subtypeValue ? (
-            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
+            <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
               {t(`accounts.subtypes.${subtypeValue}`)}
             </span>
           ) : null;
