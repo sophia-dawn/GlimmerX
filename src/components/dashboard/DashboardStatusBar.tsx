@@ -1,29 +1,21 @@
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { formatAmount, formatAmountWithSign } from "@/utils/format";
-import { cn } from "@/lib/utils";
-
-interface StatusItem {
-  key: string;
-  label: string;
-  value: string;
-  colorClass: string;
-  hint?: ReactNode;
-}
+import { ActivityCalendar } from "./ActivityCalendar";
 
 /**
- * The four figures that answer "where do I stand" before any scrolling.
+ * Conclusion layer: one number, then its components.
  *
- * Cards were the wrong shape for this. Four borders, four headings and four
- * icons to read four numbers — each of which also started on its own baseline,
- * so the amounts could not be compared without moving the eye up and down. One
- * rule-separated strip puts them on a single line: the numbers share a baseline,
- * a column width and a font, which is the only arrangement where a glance works.
+ * The strip used to be four equally sized figures — net worth, income, expense,
+ * balance — each 20 px on its own baseline. Four peers cannot have a focus, and
+ * a glance at a ledger should answer "where do I stand" before anything else.
+ * Net worth now owns the display step and the rest become 11 px annotations on
+ * one line. The right half is the 90-day activity calendar, which shares the
+ * page's 32 px/week substrate and is the reason that grid earns its ink.
  *
- * Net worth carries the asset/liability split underneath it rather than taking
- * two more cells, because those are already its components — showing them apart
- * from it invites adding them twice.
+ * `data-elevation="raise"` puts this on the same beveled surface as the panels
+ * below, so the whole page reads as one instrument rather than a strip pasted
+ * on top of a set of cards.
  */
 export function DashboardStatusBar() {
   const { t } = useTranslation();
@@ -42,66 +34,58 @@ export function DashboardStatusBar() {
   const netWorth = summary?.net_worth ?? 0;
   const balance = income - expense;
 
-  const items: StatusItem[] = [
-    {
-      key: "netWorth",
-      label: t("dashboard.netWorth"),
-      value: formatAmount(netWorth),
-      colorClass: netWorth >= 0 ? "text-income" : "text-expense",
-      hint: (
-        <>
-          {t("dashboard.assetsShort")}{" "}
-          <span className="font-mono text-foreground">
-            {formatAmount(summary?.total_assets ?? 0)}
-          </span>
-          <span className="mx-1.5">·</span>
-          {t("dashboard.liabilitiesShort")}{" "}
-          <span className="font-mono text-foreground">
-            {formatAmount(summary?.total_liabilities ?? 0)}
-          </span>
-        </>
-      ),
-    },
-    {
-      key: "monthIncome",
-      label: t("dashboard.monthIncome"),
-      value: formatAmountWithSign(income),
-      colorClass: "text-income",
-    },
-    {
-      key: "monthExpense",
-      label: t("dashboard.monthExpense"),
-      value: formatAmountWithSign(-expense),
-      colorClass: "text-expense",
-    },
-    {
-      key: "monthBalance",
-      label: t("dashboard.monthBalance"),
-      value: formatAmountWithSign(balance),
-      colorClass: balance >= 0 ? "text-income" : "text-expense",
-    },
-  ];
-
   return (
-    <dl className="flex flex-col divide-y divide-border border-y border-border bg-card sm:flex-row sm:divide-x sm:divide-y-0">
-      {items.map((item) => (
-        <div key={item.key} className="min-w-0 flex-1 px-4 py-3">
-          <dt className="text-xs text-muted-foreground">{item.label}</dt>
-          <dd
-            className={cn(
-              "mt-1 font-mono text-xl font-medium",
-              item.colorClass,
-            )}
-          >
-            {isLoading ? "--" : item.value}
-          </dd>
-          {item.hint && (
-            <div className="mt-0.5 truncate text-xs text-muted-foreground">
-              {item.hint}
-            </div>
-          )}
+    <div
+      data-elevation="raise"
+      className="flex shrink-0 flex-col gap-3 rounded-xl border bg-card px-4 py-3 sm:flex-row sm:items-stretch sm:gap-4"
+    >
+      <div className="flex min-w-0 flex-col justify-center sm:basis-[42%]">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>{t("dashboard.netWorth")}</span>
+          <span className="inline-flex items-center gap-1">
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal"
+            />
+            {t("dashboard.live")}
+          </span>
         </div>
-      ))}
-    </dl>
+
+        {/* Deliberately not `cn()`: tailwind-merge reads an unknown `text-*`
+            class as a text colour, so it would drop `text-display` in favour
+            of `text-foreground` and silently shrink the number back to 13 px. */}
+        <div
+          className={`mt-1 font-mono text-display font-medium tracking-tight ${
+            !isLoading && netWorth < 0 ? "text-expense" : "text-foreground"
+          }`}
+        >
+          {isLoading ? "--" : formatAmount(netWorth)}
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span className="font-mono text-income">
+            {isLoading ? "--" : formatAmountWithSign(balance)}
+          </span>
+          <span>{t("dashboard.monthBalance")}</span>
+          <span aria-hidden>·</span>
+          <span>
+            {t("dashboard.assetsShort")}{" "}
+            <b className="font-mono font-normal text-foreground">
+              {formatAmount(summary?.total_assets ?? 0)}
+            </b>
+          </span>
+          <span>
+            {t("dashboard.liabilitiesShort")}{" "}
+            <b className="font-mono font-normal text-expense">
+              {formatAmount(summary?.total_liabilities ?? 0)}
+            </b>
+          </span>
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-1 border-t border-border pt-3 sm:border-t-0 sm:border-l sm:pl-4 sm:pt-0">
+        <ActivityCalendar />
+      </div>
+    </div>
   );
 }

@@ -109,7 +109,17 @@
     "budgetOverview": "预算概览",
     "viewAllBudgets": "查看全部预算",
     "noBudgetsSet": "尚未设置预算",
-    "moreBudgets": "还有 {{n}} 个预算"
+    "moreBudgets": "还有 {{n}} 个预算",
+    "live": "实时",
+    "activityCalendar": "每日记账活动 · 90 天",
+    "activityLess": "少",
+    "activityMore": "多",
+    "activitySummary": "近 {{days}} 天共 {{entries}} 笔",
+    "attention": "需要我注意",
+    "attentionOverBudget": "超预算分类",
+    "attentionStale": "久未记账",
+    "attentionDays": "{{days}} 天",
+    "attentionClear": "账目已齐，没有待处理项"
   },
   "accounts": {
     "title": "账户",

@@ -109,7 +109,17 @@
     "budgetOverview": "Budget Overview",
     "viewAllBudgets": "View All Budgets",
     "noBudgetsSet": "No budgets set",
-    "moreBudgets": "{{n}} more"
+    "moreBudgets": "{{n}} more",
+    "live": "Live",
+    "activityCalendar": "Daily activity · 90 days",
+    "activityLess": "Less",
+    "activityMore": "More",
+    "activitySummary": "{{entries}} entries over the last {{days}} days",
+    "attention": "Needs attention",
+    "attentionOverBudget": "Over budget",
+    "attentionStale": "No entries for",
+    "attentionDays": "{{days}} days",
+    "attentionClear": "All clear, nothing waiting"
   },
   "accounts": {
     "title": "Accounts",

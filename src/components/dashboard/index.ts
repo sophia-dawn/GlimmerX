@@ -1,4 +1,6 @@
 export { DashboardStatusBar } from "./DashboardStatusBar";
+export { AttentionBar } from "./AttentionBar";
+export { ActivityCalendar } from "./ActivityCalendar";
 export { MonthlyIncomeExpenseChart } from "./MonthlyIncomeExpenseChart";
 export { CategoryBreakdownChart } from "./CategoryBreakdownChart";
 export { TopExpensesList } from "./TopExpensesList";
