@@ -2,8 +2,8 @@ use tauri::State;
 
 use crate::db::reports::{
     self, AccountBalanceTrendReportDto, AccountTransactionsReportDto, AuditReportDto,
-    BalanceSheetReportDto, CategoryBreakdownReportDto, MonthComparisonReportDto, ReportFilter,
-    StandardReportDto, TrendReportDto, YearSummaryReportDto,
+    BalanceSheetReportDto, CategoryBreakdownReportDto, ReportFilter, StandardReportDto,
+    TrendReportDto,
 };
 use crate::AppState;
 
@@ -19,21 +19,6 @@ pub async fn report_standard(
     let conn = db.get_conn().map_err(crate::errors::from_error)?;
 
     reports::get_standard_report(&conn, &filter).map_err(crate::errors::from_error)
-}
-
-#[tauri::command]
-pub async fn report_month_comparison(
-    month1: String,
-    month2: String,
-    state: State<'_, AppState>,
-) -> Result<MonthComparisonReportDto, String> {
-    let db_state = state.database.lock().map_err(crate::errors::from_error)?;
-    let db = db_state
-        .as_ref()
-        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
-    let conn = db.get_conn().map_err(crate::errors::from_error)?;
-
-    reports::get_month_comparison(&conn, &month1, &month2).map_err(crate::errors::from_error)
 }
 
 #[tauri::command]
@@ -78,20 +63,6 @@ pub async fn report_trend(
     let conn = db.get_conn().map_err(crate::errors::from_error)?;
 
     reports::get_trend_report(&conn, &filter).map_err(crate::errors::from_error)
-}
-
-#[tauri::command]
-pub async fn report_year_summary(
-    year: i32,
-    state: State<'_, AppState>,
-) -> Result<YearSummaryReportDto, String> {
-    let db_state = state.database.lock().map_err(crate::errors::from_error)?;
-    let db = db_state
-        .as_ref()
-        .ok_or_else(|| crate::errors::message("errors.databaseLocked").to_string())?;
-    let conn = db.get_conn().map_err(crate::errors::from_error)?;
-
-    reports::get_year_summary_report(&conn, year).map_err(crate::errors::from_error)
 }
 
 #[tauri::command]
@@ -151,11 +122,9 @@ mod ipc_tests {
 
     const ALL_COMMANDS: &[&str] = &[
         "report_standard",
-        "report_month_comparison",
         "report_category_breakdown",
         "report_balance_sheet",
         "report_trend",
-        "report_year_summary",
         "report_account_transactions",
         "report_account_balance_trend",
         "report_audit",
@@ -171,11 +140,9 @@ mod ipc_tests {
             .manage(state)
             .invoke_handler(tauri::generate_handler![
                 report_standard,
-                report_month_comparison,
                 report_category_breakdown,
                 report_balance_sheet,
                 report_trend,
-                report_year_summary,
                 report_account_transactions,
                 report_account_balance_trend,
                 report_audit,
@@ -349,16 +316,6 @@ mod ipc_tests {
         assert_eq!(standard["periodExpense"], serde_json::json!(12700));
         assert_eq!(standard["accountChanges"].as_array().unwrap().len(), 2);
 
-        let comparison = invoke(
-            &webview,
-            "report_month_comparison",
-            serde_json::json!({ "month1": "2024-01", "month2": "2024-02" }),
-        )
-        .expect("report_month_comparison should succeed");
-        assert_eq!(comparison["month1Income"], serde_json::json!(100000));
-        assert_eq!(comparison["month1Expense"], serde_json::json!(12700));
-        assert_eq!(comparison["month2Expense"], serde_json::json!(5000));
-
         let breakdown = invoke(
             &webview,
             "report_category_breakdown",
@@ -389,15 +346,6 @@ mod ipc_tests {
         .expect("report_trend should succeed");
         assert_eq!(trend["totalIncome"], serde_json::json!(100000));
         assert_eq!(trend["totalExpense"], serde_json::json!(12700));
-
-        let year_summary = invoke(
-            &webview,
-            "report_year_summary",
-            serde_json::json!({ "year": 2024 }),
-        )
-        .expect("report_year_summary should succeed");
-        assert_eq!(year_summary["totalIncome"], serde_json::json!(100000));
-        assert_eq!(year_summary["totalExpense"], serde_json::json!(17700));
 
         let account_txns = invoke(
             &webview,
@@ -450,10 +398,6 @@ mod ipc_tests {
                 serde_json::json!({ "filter": filter_json() }),
             ),
             (
-                "report_month_comparison",
-                serde_json::json!({ "month1": "2024-01", "month2": "2024-02" }),
-            ),
-            (
                 "report_category_breakdown",
                 serde_json::json!({ "filter": filter_json(), "incomeOrExpense": "expense" }),
             ),
@@ -465,7 +409,6 @@ mod ipc_tests {
                 "report_trend",
                 serde_json::json!({ "filter": filter_json() }),
             ),
-            ("report_year_summary", serde_json::json!({ "year": 2024 })),
             (
                 "report_account_transactions",
                 serde_json::json!({

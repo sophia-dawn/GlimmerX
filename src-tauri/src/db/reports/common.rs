@@ -138,16 +138,3 @@ pub(in crate::db::reports) fn get_prev_period_bounds(preset: &DateRangePreset) -
 fn month_bounds(year: i32, month: u32) -> (String, String) {
     (month_start(year, month), month_end(year, month))
 }
-
-pub(in crate::db::reports) fn parse_month_bounds(month: &str) -> Result<(String, String), String> {
-    let parts: Vec<&str> = month.split('-').collect();
-    if parts.len() != 2 {
-        return Err("Invalid month format, expected YYYY-MM".to_string());
-    }
-    let year: i32 = parts[0].parse().map_err(|_| "Invalid year".to_string())?;
-    let month_num: u32 = parts[1].parse().map_err(|_| "Invalid month".to_string())?;
-    if !(1..=12).contains(&month_num) {
-        return Err("Invalid month number, must be 1-12".to_string());
-    }
-    Ok((month_start(year, month_num), month_end(year, month_num)))
-}

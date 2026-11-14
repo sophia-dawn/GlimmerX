@@ -1,6 +1,6 @@
 //! Tests for every report query.
 
-use super::common::{get_period_format, parse_month_bounds, resolve_date_range};
+use super::common::{get_period_format, resolve_date_range};
 
 use super::*;
 use crate::db::accounts::{create_account_with_path, CreateAccountFullInput};
@@ -62,33 +62,6 @@ fn test_get_standard_report_empty_db() {
     let dto = result.unwrap();
     assert_eq!(dto.period_income, 0);
     assert_eq!(dto.period_expense, 0);
-}
-
-#[test]
-fn test_parse_month_bounds() {
-    let bounds = parse_month_bounds("2024-01");
-    assert!(bounds.is_ok());
-    let (start, end) = bounds.unwrap();
-    assert_eq!(start, "2024-01-01");
-    assert_eq!(end, "2024-01-31");
-}
-
-#[test]
-fn test_parse_month_bounds_invalid_month() {
-    let result = parse_month_bounds("2024-13");
-    assert!(result.is_err());
-    assert!(result.unwrap_err().contains("1-12"));
-}
-
-#[test]
-fn test_get_month_comparison_empty_db() {
-    let conn = setup_test_db();
-    let result = get_month_comparison(&conn, "2024-01", "2024-02");
-    assert!(result.is_ok());
-    let dto = result.unwrap();
-    assert_eq!(dto.month1_income, 0);
-    assert_eq!(dto.month1_expense, 0);
-    assert_eq!(dto.category_comparison.len(), 0);
 }
 
 #[test]
@@ -501,59 +474,6 @@ fn test_get_standard_report_current_month_change_pct() {
 }
 
 #[test]
-fn test_get_month_comparison_with_data() {
-    let conn = setup_test_db();
-    seed_data(&conn);
-
-    let dto = get_month_comparison(&conn, "2024-01", "2024-02").unwrap();
-    assert_eq!(dto.month1_income, 100000);
-    assert_eq!(dto.month1_expense, 12700);
-    assert_eq!(dto.month2_income, 0);
-    assert_eq!(dto.month2_expense, 5000);
-    assert_eq!(dto.income_diff, -100000);
-    assert_eq!(dto.expense_diff, -7700);
-    assert!((dto.income_change_pct - -100.0).abs() < 0.001);
-    assert!((dto.expense_change_pct - (-7700.0 / 12700.0 * 100.0)).abs() < 0.001);
-    assert_eq!(dto.category_comparison.len(), 2);
-    let food = dto
-        .category_comparison
-        .iter()
-        .find(|c| c.category_name == "Food")
-        .unwrap();
-    assert_eq!(food.month1_amount, 11500);
-    assert_eq!(food.month2_amount, 5000);
-    let transport = dto
-        .category_comparison
-        .iter()
-        .find(|c| c.category_name == "Transport")
-        .unwrap();
-    assert_eq!(transport.change_pct, -100.0);
-}
-
-#[test]
-fn test_get_month_comparison_new_data_branches() {
-    let conn = setup_test_db();
-    seed_data(&conn);
-
-    // month1 has no data, month2 introduces income/expense -> 100.0%
-    let dto = get_month_comparison(&conn, "2024-03", "2024-01").unwrap();
-    assert_eq!(dto.income_change_pct, 100.0);
-    assert_eq!(dto.expense_change_pct, 100.0);
-
-    // both months empty -> 0.0%
-    let dto = get_month_comparison(&conn, "2024-03", "2024-04").unwrap();
-    assert_eq!(dto.income_change_pct, 0.0);
-    assert_eq!(dto.expense_change_pct, 0.0);
-}
-
-#[test]
-fn test_get_month_comparison_invalid_month() {
-    let conn = setup_test_db();
-    assert!(get_month_comparison(&conn, "2024", "2024-02").is_err());
-    assert!(get_month_comparison(&conn, "abcd-01", "2024-02").is_err());
-}
-
-#[test]
 fn test_get_trend_report_with_data() {
     let conn = setup_test_db();
     let seeded = seed_data(&conn);
@@ -636,30 +556,6 @@ fn test_get_balance_sheet_report_with_data() {
     assert_eq!(dto.total_assets, 95400);
     assert_eq!(dto.total_liabilities, -8000);
     assert_eq!(dto.net_worth, 87400);
-}
-
-#[test]
-fn test_get_year_summary_report_with_data() {
-    let conn = setup_test_db();
-    seed_data(&conn);
-
-    let dto = get_year_summary_report(&conn, 2024).unwrap();
-    assert_eq!(dto.year, 2024);
-    assert_eq!(dto.total_income, 100000);
-    assert_eq!(dto.total_expense, 17700);
-    assert_eq!(dto.net, 82300);
-    assert_eq!(dto.monthly_breakdown.len(), 12);
-    assert_eq!(dto.monthly_breakdown[0].month, 1);
-    assert_eq!(dto.monthly_breakdown[0].income, 100000);
-    assert_eq!(dto.monthly_breakdown[0].expense, 12700);
-    assert_eq!(dto.monthly_breakdown[1].expense, 5000);
-    assert_eq!(dto.top_income_categories.len(), 1);
-    assert_eq!(dto.top_income_categories[0].category_name, "Salary");
-    assert_eq!(dto.top_income_categories[0].percentage, 100.0);
-    assert_eq!(dto.top_expense_categories.len(), 2);
-    assert_eq!(dto.top_expense_categories[0].category_name, "Food");
-    assert_eq!(dto.top_expense_categories[0].amount, 16500);
-    assert_eq!(dto.top_expense_categories[1].category_name, "Transport");
 }
 
 #[test]

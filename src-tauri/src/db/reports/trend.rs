@@ -1,19 +1,13 @@
-//! Trend, category breakdown, balance sheet and year summary reports.
-
-use std::collections::HashMap;
+//! Trend, category breakdown and balance sheet reports.
 
 use rusqlite::{params, Connection};
 
 use crate::constants::account_type;
-use crate::utils::time::year_bounds;
 
-use super::common::{
-    get_expense_sum, get_income_sum, get_period_format, net_worth_accounts, resolve_date_range,
-};
+use super::common::{get_period_format, net_worth_accounts, resolve_date_range};
 use super::types::{
-    BalanceSheetItem, BalanceSheetReportDto, CategoryAmount, CategoryBreakdownItem,
-    CategoryBreakdownReportDto, MonthlySummary, ReportFilter, TrendPoint, TrendReportDto,
-    YearSummaryReportDto,
+    BalanceSheetItem, BalanceSheetReportDto, CategoryBreakdownItem, CategoryBreakdownReportDto,
+    ReportFilter, TrendPoint, TrendReportDto,
 };
 
 /// Retrieves trend report showing income/expense patterns over time.
@@ -225,134 +219,4 @@ pub fn get_balance_sheet_report(
         total_liabilities,
         net_worth,
     })
-}
-
-/// Retrieves year summary report with monthly breakdown and top categories.
-pub fn get_year_summary_report(
-    conn: &Connection,
-    year: i32,
-) -> Result<YearSummaryReportDto, String> {
-    let (start_date, end_date) = year_bounds(year);
-
-    let total_income = get_income_sum(conn, &start_date, &end_date, None)?;
-    let total_expense = get_expense_sum(conn, &start_date, &end_date, None)?;
-
-    let monthly_sql = format!(
-        "
-        SELECT
-            CAST(strftime('%m', t.date) AS INTEGER) as month,
-            COALESCE(SUM(CASE WHEN a.type = '{}' AND p.amount < 0 THEN -p.amount ELSE 0 END), 0) as income,
-            COALESCE(SUM(CASE WHEN a.type = '{}' AND p.amount > 0 THEN p.amount ELSE 0 END), 0) as expense
-        FROM postings p
-        JOIN accounts a ON a.id = p.account_id
-        JOIN transactions t ON t.id = p.transaction_id
-        WHERE t.date >= ?1 AND t.date <= ?2
-        GROUP BY strftime('%m', t.date)
-        ORDER BY month
-    ",
-        account_type::INCOME, account_type::EXPENSE
-    );
-
-    let monthly_map: HashMap<u32, (i64, i64)> = conn
-        .prepare(&monthly_sql)
-        .map_err(|e| e.to_string())?
-        // A range, not `strftime('%Y', t.date) = ?`: wrapping the column in a
-        // function makes `idx_transactions_date` unusable and the year report —
-        // the one with the most data — scans the whole ledger.
-        .query_map(params![&start_date, &end_date], |row| {
-            Ok((
-                row.get::<_, u32>(0)?,
-                (row.get::<_, i64>(1)?, row.get::<_, i64>(2)?),
-            ))
-        })
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect();
-
-    let monthly_breakdown: Vec<MonthlySummary> = (1..=12)
-        .map(|month| {
-            let (income, expense) = monthly_map.get(&month).copied().unwrap_or((0, 0));
-            MonthlySummary {
-                month,
-                income,
-                expense,
-                net: income - expense,
-            }
-        })
-        .collect();
-
-    let top_income_sql = format!(
-        "
-        SELECT c.id, c.name, -SUM(p.amount) as amount
-        FROM postings p
-        JOIN transactions t ON t.id = p.transaction_id
-        JOIN categories c ON c.account_id = p.account_id AND c.type = '{}'
-        WHERE t.date >= ?1 AND t.date <= ?2 AND p.amount < 0
-        GROUP BY c.id
-        ORDER BY amount DESC
-        LIMIT 5
-    ",
-        account_type::INCOME
-    );
-    let top_income_categories =
-        get_top_categories(conn, &top_income_sql, &start_date, &end_date, total_income)?;
-
-    let top_expense_sql = format!(
-        "
-        SELECT c.id, c.name, SUM(p.amount) as amount
-        FROM postings p
-        JOIN transactions t ON t.id = p.transaction_id
-        JOIN categories c ON c.account_id = p.account_id AND c.type = '{}'
-        WHERE t.date >= ?1 AND t.date <= ?2 AND p.amount > 0
-        GROUP BY c.id
-        ORDER BY amount DESC
-        LIMIT 5
-    ",
-        account_type::EXPENSE
-    );
-    let top_expense_categories = get_top_categories(
-        conn,
-        &top_expense_sql,
-        &start_date,
-        &end_date,
-        total_expense,
-    )?;
-
-    Ok(YearSummaryReportDto {
-        year,
-        total_income,
-        total_expense,
-        net: total_income - total_expense,
-        monthly_breakdown,
-        top_income_categories,
-        top_expense_categories,
-    })
-}
-
-fn get_top_categories(
-    conn: &Connection,
-    sql: &str,
-    start: &str,
-    end: &str,
-    total: i64,
-) -> Result<Vec<CategoryAmount>, String> {
-    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
-    let items = stmt
-        .query_map(params![start, end], |row| {
-            let amount: i64 = row.get(2)?;
-            Ok(CategoryAmount {
-                category_id: row.get(0)?,
-                category_name: row.get(1)?,
-                amount,
-                percentage: if total > 0 {
-                    (amount as f64 / total as f64) * 100.0
-                } else {
-                    0.0
-                },
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    Ok(items)
 }

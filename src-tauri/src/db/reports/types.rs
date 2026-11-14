@@ -147,65 +147,6 @@ pub struct TrendPoint {
     pub net: i64,
 }
 
-/// Month comparison report comparing two months side-by-side.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MonthComparisonReportDto {
-    pub month1: String,
-    pub month2: String,
-    pub month1_income: i64,
-    pub month1_expense: i64,
-    pub month2_income: i64,
-    pub month2_expense: i64,
-    pub income_diff: i64,
-    pub expense_diff: i64,
-    pub income_change_pct: f64,
-    pub expense_change_pct: f64,
-    pub category_comparison: Vec<CategoryComparisonItem>,
-}
-
-/// Single category comparison between two months.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CategoryComparisonItem {
-    pub category_id: String,
-    pub category_name: String,
-    pub month1_amount: i64,
-    pub month2_amount: i64,
-    pub diff: i64,
-    pub change_pct: f64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct YearSummaryReportDto {
-    pub year: i32,
-    pub total_income: i64,
-    pub total_expense: i64,
-    pub net: i64,
-    pub monthly_breakdown: Vec<MonthlySummary>,
-    pub top_income_categories: Vec<CategoryAmount>,
-    pub top_expense_categories: Vec<CategoryAmount>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MonthlySummary {
-    pub month: u32,
-    pub income: i64,
-    pub expense: i64,
-    pub net: i64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CategoryAmount {
-    pub category_id: String,
-    pub category_name: String,
-    pub amount: i64,
-    pub percentage: f64,
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuditReportDto {
