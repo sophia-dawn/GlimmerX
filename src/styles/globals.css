@@ -543,6 +543,20 @@ body::before {
     --expense: oklch(0.38 0.15 25);
     --info: oklch(0.3 0.09 235);
     --chart-grid: oklch(0 0 0 / 0.25);
+    --bevel-hi: transparent;
+    --bevel-lo: transparent;
+    --bevel-well-lip: transparent;
+    --shadow-contact: none;
+    --shadow-float: none;
+    --shadow-well: none;
+    --surface-raise: none;
+    --surface-well: none;
+    --grid-line: transparent;
+    --grid-major: transparent;
+  }
+
+  body::before {
+    display: none;
   }
 
   @page {
@@ -580,14 +594,14 @@ body::before {
     max-height: none !important;
   }
 
-  /* The dashboard is three panes on screen and one document on paper: two
-     columns rather than three (three columns of A4 are 55 mm wide), every card
-     at its natural height, and nothing clipped to the viewport it was measured
-     in. */
+  /* The dashboard is three panes on screen and one document on paper. A grid
+     with three children forced into two columns is not stable here: the panes
+     are `flex-1` against a viewport height, and once that height is released
+     the auto-placed rows measure against each other and two cards land on top
+     of one another. A single column is the honest document order, and a card
+     already has `break-inside: avoid` so it never splits across a page. */
   [data-print="panes"] {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 4mm !important;
+    display: block !important;
     height: auto !important;
     overflow: visible !important;
   }
@@ -599,13 +613,10 @@ body::before {
     overflow: visible !important;
   }
 
-  [data-print="panes"] > * > * {
+  [data-print="panes"] [data-slot="card"] {
     height: auto !important;
     min-height: 0 !important;
-  }
-
-  [data-print="panes"] > * > * + * {
-    margin-top: 4mm;
+    margin-bottom: 4mm;
   }
 
   /* Charts are sized by a ResizeObserver against a pixel container. In print the
