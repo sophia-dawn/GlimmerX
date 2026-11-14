@@ -1,15 +1,15 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCategoryBreakdown } from "@/hooks/useCategoryBreakdown";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-} from "recharts";
+import { EChart } from "@/components/charts/EChart";
+import type { EChartsCoreOption } from "@/components/charts/echarts";
 import { useChartColors } from "@/utils/chartColors";
+import {
+  chartAnimation,
+  chartTextStyle,
+  chartTooltip,
+} from "@/utils/chartTheme";
 import { formatAmount } from "@/utils/format";
 
 /**
@@ -18,7 +18,8 @@ import { formatAmount } from "@/utils/format";
  * A solid pie with labels on the slices was the wrong chart here: with six or
  * more categories the labels collide, and the legend already names every one of
  * them — so the labels repeated the legend while obscuring the pie. The ring
- * keeps a hole for the eye to rest in and leaves the labelling to the legend.
+ * keeps a hole for the eye to rest in, the labels are turned off, and the hole
+ * is where the total goes — the one number every slice divides into.
  *
  * Colours come from the theme's eight-hue series rather than a hardcoded
  * "dashboard palette", so the chart belongs to the same system as everything
@@ -29,28 +30,88 @@ export function CategoryBreakdownChart() {
   const colors = useChartColors();
   const { data, isLoading, error } = useCategoryBreakdown();
 
-  if (error) {
-    return (
-      <Card elevation="raise">
-        <CardHeader>
-          <CardTitle>{t("dashboard.categoryBreakdown")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-destructive text-sm">
-            {t("common.errorGeneric")}: {String(error)}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const chartData = useMemo(
+    () =>
+      data?.categories.map((cat) => ({
+        name: cat.category_name,
+        value: cat.amount / 100,
+        percentage: cat.percentage,
+      })) ?? [],
+    [data],
+  );
 
-  const chartData =
-    data?.categories.map((cat) => ({
-      name: cat.category_name,
-      value: cat.amount / 100,
-      percentage: cat.percentage,
-      icon: cat.icon,
-    })) ?? [];
+  const total = data?.total_amount ?? 0;
+
+  const option = useMemo<EChartsCoreOption>(
+    () => ({
+      ...chartAnimation(),
+      textStyle: chartTextStyle(colors),
+      color: colors.series,
+      title: {
+        text: formatAmount(total),
+        subtext: t("dashboard.categoryTotal"),
+        left: "center",
+        top: "30%",
+        textAlign: "center",
+        textStyle: {
+          color: colors.text,
+          fontSize: 15,
+          fontWeight: 500,
+          fontFamily: colors.mono,
+        },
+        subtextStyle: {
+          color: colors.neutral,
+          fontSize: 11,
+          fontFamily: colors.sans,
+        },
+        itemGap: 4,
+      },
+      legend: {
+        type: "scroll",
+        bottom: 0,
+        left: "center",
+        itemWidth: 8,
+        itemHeight: 8,
+        itemGap: 12,
+        icon: "roundRect",
+        textStyle: {
+          color: colors.neutral,
+          fontSize: 11,
+          fontFamily: colors.sans,
+        },
+        pageIconColor: colors.neutral,
+        pageIconInactiveColor: colors.grid,
+        pageTextStyle: { color: colors.neutral, fontSize: 10 },
+      },
+      tooltip: chartTooltip(colors, {
+        trigger: "item",
+        formatter: (raw) => {
+          const p = raw as {
+            marker: string;
+            name: string;
+            value: number;
+            percent: number;
+          };
+          return `${p.marker}${p.name}<br/>${formatAmount(Math.round(p.value * 100))}：${p.percent.toFixed(1)}%`;
+        },
+      }),
+      series: [
+        {
+          type: "pie",
+          radius: ["52%", "76%"],
+          center: ["50%", "42%"],
+          avoidLabelOverlap: true,
+          padAngle: 1,
+          itemStyle: { borderWidth: 0, borderRadius: 2 },
+          label: { show: false },
+          labelLine: { show: false },
+          emphasis: { scale: true, scaleSize: 4 },
+          data: chartData,
+        },
+      ],
+    }),
+    [chartData, colors, t, total],
+  );
 
   const hasData = chartData.length > 0;
 
@@ -60,7 +121,11 @@ export function CategoryBreakdownChart() {
         <CardTitle>{t("dashboard.categoryBreakdown")}</CardTitle>
       </CardHeader>
       <CardContent className="min-h-0 flex-1">
-        {isLoading ? (
+        {error ? (
+          <div className="text-destructive text-sm">
+            {t("common.errorGeneric")}: {String(error)}
+          </div>
+        ) : isLoading ? (
           <div className="flex h-full min-h-[180px] items-center justify-center">
             <p className="text-muted-foreground">{t("common.loading")}</p>
           </div>
@@ -69,56 +134,7 @@ export function CategoryBreakdownChart() {
             <p className="text-muted-foreground">{t("common.noRecords")}</p>
           </div>
         ) : (
-          <div className="relative h-full min-h-[196px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={62}
-                  outerRadius={98}
-                  paddingAngle={1}
-                  stroke="none"
-                  dataKey="value"
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${entry.name}`}
-                      fill={colors.series[index % colors.series.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "var(--color-popover)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "var(--radius)",
-                    fontSize: "12px",
-                  }}
-                  formatter={(value) => formatAmount((value as number) * 100)}
-                />
-                <Legend
-                  layout="horizontal"
-                  verticalAlign="bottom"
-                  align="center"
-                  iconSize={8}
-                  wrapperStyle={{ paddingTop: "8px", fontSize: "11px" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-
-            {/* The hole is where the total belongs: it is the one number every
-                slice divides into, and the legend below already names them. */}
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-11">
-              <span className="text-xs text-muted-foreground">
-                {t("dashboard.categoryTotal")}
-              </span>
-              <span className="font-mono text-base font-medium">
-                {formatAmount(data?.total_amount ?? 0)}
-              </span>
-            </div>
-          </div>
+          <EChart option={option} label={t("dashboard.categoryBreakdown")} />
         )}
       </CardContent>
     </Card>

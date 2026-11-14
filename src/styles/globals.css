@@ -619,11 +619,15 @@ body::before {
     margin-bottom: 4mm;
   }
 
-  /* Charts are sized by a ResizeObserver against a pixel container. In print the
-     container is `auto`, which resolves to nothing, so the chart needs a height
-     of its own or it prints blank. 60 mm is the smallest height that still fits
-     the ring's fixed radius plus its legend. */
-  [data-print="panes"] .recharts-responsive-container {
+  /* Charts are canvases: they are rasterised at the pixel size of their
+     container, and in print the container is `auto`, which resolves to nothing —
+     so the chart needs a height of its own or it prints blank. 60 mm is the
+     smallest height that still fits the ring plus its legend. The `EChart`
+     wrapper listens for `beforeprint` and repaints at this size, because a
+     canvas painted at screen width would otherwise be cropped by the paper
+     width rather than scaled into it. */
+  [data-print="panes"] .echart,
+  main .echart {
     height: 60mm !important;
   }
 
