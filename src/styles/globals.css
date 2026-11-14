@@ -378,3 +378,134 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Print: a page, not a window ────────────────────────────────────────────
+   Chromium does not print background colours by default, so the dark theme used
+   to come out as an empty white sheet: near-white text on white paper. The
+   tokens are flipped to a paper ladder here instead — darker than the screen's
+   light mode, because a laser printer at 600 dpi eats contrast that a display
+   does not, and `--line` is pushed to 0.6 so the hairlines survive greyscale.
+   Declared on `:root, .dark` because the mode classes are both on <html> and
+   this block has to win over either of them. */
+@media print {
+  :root,
+  .dark {
+    color-scheme: light;
+    --chroma: 0;
+    --s-base: 1;
+    --s-card: 1;
+    --s-hover: 1;
+    --s-float: 1;
+    --s-sunken: 1;
+    --s-ink: 0.15;
+    --s-muted: 0.32;
+    --line: 0.6;
+    --line-input: 0.6;
+    --signal-l: 0.45;
+    --signal-c: 0.16;
+    --signal-h: 65;
+    --signal-lift: 0;
+    --income: oklch(0.32 0.1 155);
+    --expense: oklch(0.38 0.15 25);
+    --info: oklch(0.3 0.09 235);
+    --chart-grid: oklch(0 0 0 / 0.25);
+  }
+
+  @page {
+    margin: 14mm;
+  }
+
+  /* Chrome. A button on paper is an instruction the reader cannot follow. */
+  [data-print="hide"],
+  button,
+  [role="dialog"],
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  /* The window frame: every `h-screen` / `overflow-hidden` in the shell has to
+     become "as tall as the content", or only the first screenful prints. */
+  [data-print="shell"],
+  [data-print="pane"] {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  [data-print="page"] {
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  /* Panes scroll on screen. On paper there is nothing to scroll to, so the
+     constraint is dropped and the pane prints at its natural height. */
+  main [class*="overflow-auto"],
+  main [class*="overflow-hidden"] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* The dashboard is three panes on screen and one document on paper: two
+     columns rather than three (three columns of A4 are 55 mm wide), every card
+     at its natural height, and nothing clipped to the viewport it was measured
+     in. */
+  [data-print="panes"] {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 4mm !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  [data-print="panes"] > * {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  [data-print="panes"] > * > * {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  [data-print="panes"] > * > * + * {
+    margin-top: 4mm;
+  }
+
+  /* Charts are sized by a ResizeObserver against a pixel container. In print the
+     container is `auto`, which resolves to nothing, so the chart needs a height
+     of its own or it prints blank. 60 mm is the smallest height that still fits
+     the ring's fixed radius plus its legend. */
+  [data-print="panes"] .recharts-responsive-container {
+    height: 60mm !important;
+  }
+
+  th {
+    position: static !important;
+  }
+
+  /* Structure. A card that breaks across two pages reads as two cards. */
+  [data-slot="card"] {
+    break-inside: avoid;
+    border-color: oklch(0 0 0 / 0.35);
+  }
+
+  table {
+    break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}

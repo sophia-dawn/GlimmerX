@@ -27,7 +27,10 @@ export function Header({ onQuickAdd, onAiInput }: HeaderProps) {
   const title = routeTitles[location.pathname] ?? "GlimmerX";
 
   return (
-    <header className="flex h-11 shrink-0 items-center justify-between border-b bg-card px-3">
+    <header
+      data-print="hide"
+      className="flex h-11 shrink-0 items-center justify-between border-b bg-card px-3"
+    >
       <h1 className="text-sm font-medium">{title}</h1>
       <div className="flex items-center gap-2">
         {actions}

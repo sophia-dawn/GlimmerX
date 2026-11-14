@@ -39,7 +39,12 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="flex h-screen w-52 shrink-0 flex-col border-r bg-card">
+    // The app is a window, but a printout is a page: navigation is hidden by
+    // `@media print` in globals.css, keyed on this attribute.
+    <aside
+      data-print="hide"
+      className="flex h-screen w-52 shrink-0 flex-col border-r bg-card"
+    >
       {/* Logo */}
       <div className="flex h-11 items-center border-b px-3">
         <span className="text-sm font-medium tracking-[0.02em]">

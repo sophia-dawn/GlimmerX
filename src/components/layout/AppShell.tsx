@@ -39,14 +39,17 @@ export function AppShell() {
 
   return (
     <HeaderProvider>
-      <div className="flex h-screen w-full overflow-hidden">
+      {/* `h-screen … overflow-hidden` is the window frame. Print cannot use a
+          frame — the page has to grow — so the three elements below carry
+          `data-print` for the rules in globals.css that unclip them. */}
+      <div data-print="shell" className="flex h-screen w-full overflow-hidden">
         <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div data-print="pane" className="flex flex-1 flex-col overflow-hidden">
           <Header
             onQuickAdd={() => setQuickAddOpen(true)}
             onAiInput={() => setAiInputOpen(true)}
           />
-          <main className="flex-1 overflow-auto p-3">
+          <main data-print="page" className="flex-1 overflow-auto p-3">
             <Outlet />
           </main>
         </div>
