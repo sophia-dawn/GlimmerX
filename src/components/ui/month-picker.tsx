@@ -24,6 +24,8 @@ interface MonthPickerProps {
   className?: string;
   fromYear?: number;
   toYear?: number;
+  /** The button size; a row of controls has to agree on its height. */
+  size?: React.ComponentProps<typeof Button>["size"];
 }
 
 export function MonthPicker({
@@ -34,6 +36,7 @@ export function MonthPicker({
   className,
   fromYear = 2020,
   toYear,
+  size = "default",
 }: MonthPickerProps) {
   const { t, i18n } = useTranslation();
   const locale = LOCALES[i18n.language] ?? enUS;
@@ -69,6 +72,7 @@ export function MonthPicker({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          size={size}
           disabled={disabled}
           className={cn(
             "w-full justify-start text-left font-normal",

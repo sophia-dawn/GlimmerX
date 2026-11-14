@@ -8,7 +8,14 @@ function getDateLocale() {
   return lng === "zh" ? zhCN : enUS;
 }
 
-function parseDateSafe(dateStr: string): Date {
+/**
+ * Parses a `YYYY-MM-DD` business date as **local** midnight.
+ *
+ * `new Date("2026-10-26")` is midnight UTC, which is the previous day
+ * anywhere west of Greenwich — a date picker built on it shows the day before
+ * the one that was stored.
+ */
+export function parseDateSafe(dateStr: string): Date {
   const datePart = dateStr.split("T")[0] ?? dateStr;
   const parts = datePart.split("-");
   const year = Number(parts[0] ?? "0");

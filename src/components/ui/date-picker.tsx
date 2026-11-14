@@ -10,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { formatDate, parseDateSafe } from "@/utils/date";
 
 const LOCALES: Record<string, Locale> = {
   en: enUS,
@@ -23,6 +24,11 @@ interface DatePickerProps {
   disabled?: boolean;
   className?: string;
   maxDate?: Date;
+  /**
+   * The button size. A control that sits in a row of small controls has to
+   * match their height, or the row looks assembled rather than designed.
+   */
+  size?: React.ComponentProps<typeof Button>["size"];
 }
 
 export function DatePicker({
@@ -32,10 +38,13 @@ export function DatePicker({
   disabled = false,
   className,
   maxDate = new Date(),
+  size = "default",
 }: DatePickerProps) {
   const { t, i18n } = useTranslation();
   const locale = LOCALES[i18n.language] ?? enUS;
-  const selectedDate = value ? new Date(value) : undefined;
+  // `new Date("2026-10-26")` would be midnight **UTC**: west of Greenwich that
+  // is the previous day, and the picker would offer a date it never meant to.
+  const selectedDate = value ? parseDateSafe(value) : undefined;
   const displayPlaceholder = placeholder ?? t("common.datePicker.placeholder");
 
   const handleSelect = (date: Date | undefined) => {
@@ -49,6 +58,7 @@ export function DatePicker({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          size={size}
           disabled={disabled}
           className={cn(
             "w-full justify-start text-left font-normal",
@@ -57,9 +67,7 @@ export function DatePicker({
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {value
-            ? format(selectedDate!, "PPP", { locale })
-            : displayPlaceholder}
+          {value ? formatDate(value) : displayPlaceholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

@@ -61,19 +61,21 @@ export function ReportFilterBar({
           </Select>
 
           {query.preset === "custom" && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <DatePicker
                 value={query.start || undefined}
                 onChange={(date) => controller.setCustomRange(date, query.end)}
-                className="w-[136px]"
+                size="sm"
+                className="w-auto min-w-[148px]"
               />
-              <span className="text-xs text-muted-foreground">~</span>
+              <span className="px-0.5 text-xs text-muted-foreground">~</span>
               <DatePicker
                 value={query.end || undefined}
                 onChange={(date) =>
                   controller.setCustomRange(query.start, date)
                 }
-                className="w-[136px]"
+                size="sm"
+                className="w-auto min-w-[148px]"
               />
             </div>
           )}
@@ -88,7 +90,8 @@ export function ReportFilterBar({
           <DatePicker
             value={query.anchor}
             onChange={controller.setAnchor}
-            className="w-[150px]"
+            size="sm"
+            className="w-auto min-w-[148px]"
           />
         </>
       )}
@@ -101,7 +104,8 @@ export function ReportFilterBar({
           <MonthPicker
             value={controller.anchorMonthValue}
             onChange={(month) => controller.setAnchor(`${month}-01`)}
-            className="w-[150px]"
+            size="sm"
+            className="w-auto min-w-[132px]"
           />
         </>
       )}
