@@ -96,6 +96,22 @@
   断言错误文案时照 zh.json 原文抄，不要意译（"已有一份对账单" ≠ "已对账"）。
 - Windows 上批量改文件必须 `newline="\n"`，否则 Python 会把整文件写成 CRLF。
 
+## 材质与图表（2026-11-14 起）
+
+- **图表库固定 `recharts ^3.8.1`，不换 ECharts**；图标是 `lucide-react ^1.8.0`。
+  只有出现 K线/地图/桑基/canvas 大数据量/dataZoom 之类 ECharts 独占需求才重估。
+  Recharts 的 `fill`/`stroke` 不解析 `var()`，任何新图表都要走 `useChartColors()`。
+- **表面三态**：`Card` 的 `elevation="raise | well | float"` → `data-elevation`，
+  CSS 在 `globals.css` 用属性选择器画；**默认不带 elevation**，首页之外暂保持平面。
+  光源唯一（左上 45°）；内容面板不透明，`float`（Acrylic）只给临时浮层。
+- 深度令牌写在 `:root` / `.dark`，**不要放 `@theme`**（没工具类引用会被 Tailwind 裁掉）。
+  `@media print` 里全部复位为 `transparent` / `none`。
+- `body::before` 是 32px/160px 校准网格（= 周 / 五周），不是壁纸；
+  90 日热力带与它共用 13 个周列。**打印时 `display: none`**。
+- **别用 `cn()` 包「未知自定义类 + 已知颜色类」**：tailwind-merge 会把
+  `text-display` 当 text-color 删掉。这类组合用模板字符串。
+- 首页打印是**单列文档流**：三栏 pane 强塞两列 grid 会重叠（`flex-1` + auto 高度）。
+
 ## 工具链坑
 
 - `cargo llvm-cov` 在 Git Bash 下会解析到 `/usr/bin/link` 并挂住，必须用 PowerShell 跑。

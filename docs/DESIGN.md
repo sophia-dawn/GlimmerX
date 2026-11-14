@@ -41,6 +41,7 @@
 | [18-transaction-detail-edit](design/18-transaction-detail-edit.md) | 交易详情与编辑设计（详情页、编辑表单、删除确认）        | 实现交易详情和编辑删除 |
 | [21-double-entry-upgrade](design/21-double-entry-upgrade.md)       | schema v2：分类账户 1:1、对账、储蓄目标、单币种、硬删除 | 实施 v2 能力升级       |
 | [22-visual-system](design/22-visual-system.md)                     | 视觉系统：令牌层、字体、语义色、图表色板、密度与首页结构 | 改 UI 前必读           |
+| [23-tech-surface-research](design/23-tech-surface-research.md)  | 科技感调研、六维审查、Calibrated Instrument 与落地记录 | 改首页/材质前必读     |
 
 ---
 
