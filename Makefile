@@ -124,7 +124,12 @@ coverage:
 # ── Check ─────────────────────────────────────────────────────
 check:
 	@echo "→ Error message table check..."
-	python tools/gen_error_messages.py --check
+	# 判断是 python or python3
+	if command -v python3 >/dev/null 2>&1; then \
+		python3 tools/gen_error_messages.py --check; \
+	else \
+		python tools/gen_error_messages.py --check; \
+	fi
 	@echo "→ TypeScript type check..."
 	npx tsc --noEmit
 	@echo "→ ESLint check..."
