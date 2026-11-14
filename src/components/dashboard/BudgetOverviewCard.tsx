@@ -15,7 +15,7 @@ export function BudgetOverviewCard() {
 
   if (error) {
     return (
-      <Card>
+      <Card elevation="raise">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{t("dashboard.budgetOverview")}</CardTitle>
         </CardHeader>
@@ -41,7 +41,7 @@ export function BudgetOverviewCard() {
   };
 
   return (
-    <Card className="flex min-h-[120px] flex-1 flex-col">
+    <Card elevation="raise" className="flex min-h-[120px] flex-1 flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{t("dashboard.budgetOverview")}</CardTitle>
         <Button variant="ghost" size="sm" asChild>

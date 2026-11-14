@@ -31,7 +31,7 @@ export function CategoryBreakdownChart() {
 
   if (error) {
     return (
-      <Card>
+      <Card elevation="raise">
         <CardHeader>
           <CardTitle>{t("dashboard.categoryBreakdown")}</CardTitle>
         </CardHeader>
@@ -55,7 +55,7 @@ export function CategoryBreakdownChart() {
   const hasData = chartData.length > 0;
 
   return (
-    <Card className="flex h-[300px] shrink-0 flex-col">
+    <Card elevation="raise" className="flex h-[300px] shrink-0 flex-col">
       <CardHeader>
         <CardTitle>{t("dashboard.categoryBreakdown")}</CardTitle>
       </CardHeader>

@@ -133,6 +133,11 @@
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.75rem;
   --text-3xl--line-height: 2.25rem;
+  /* One display step above the ladder, and one per page at most: the net-worth
+     readout. Everything else stays on 11/13/15/20 so the hierarchy is a size
+     difference, not a font change. */
+  --text-display: 2.875rem;
+  --text-display--line-height: 3rem;
 
   --font-sans:
     system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
@@ -155,6 +160,38 @@
 :root,
 [data-mode="light"] {
   color-scheme: light;
+
+  /* ── Depth: one light source, upper-left 45° ────────────────────────────────
+   A raised panel catches light on its top edge and goes dark on its bottom
+   edge; a well is the same pair inverted. The contact shadow stays tight:
+   Fluent calls this the key shadow and it defines an *edge*, while a blurred
+   24 px drop shadow only makes a panel float. These live in the mode blocks,
+   not in `@theme`, because Tailwind prunes theme variables no utility uses
+   and these are only ever read by attribute selectors below. */
+  --bevel-hi: oklch(1 0 0 / 0.95);
+  --bevel-lo: oklch(0.2 0.02 250 / 0.16);
+  --bevel-well-lip: oklch(1 0 0 / 0.95);
+  --shadow-contact:
+    0 1px 2px oklch(0.2 0.02 250 / 0.1),
+    0 10px 20px -12px oklch(0.2 0.02 250 / 0.3);
+  --shadow-float:
+    0 22px 44px -18px oklch(0.2 0.02 250 / 0.35),
+    0 2px 6px oklch(0.2 0.02 250 / 0.12);
+  --shadow-well:
+    inset 0 2px 5px oklch(0.2 0.02 250 / 0.13),
+    inset 0 1px 0 oklch(0.2 0.02 250 / 0.1);
+  --surface-raise: linear-gradient(
+    180deg,
+    oklch(1 0 0 / 0.55),
+    oklch(1 0 0 / 0)
+  );
+  --surface-well: linear-gradient(
+    180deg,
+    oklch(0.2 0.02 250 / 0.05),
+    oklch(0.2 0.02 250 / 0)
+  );
+  --grid-line: oklch(0.2 0.02 250 / 0.045);
+  --grid-major: oklch(0.2 0.02 250 / 0.085);
 
   /* Unprefixed alias for libraries that ask for one default radius instead of
      a token (sonner's toast does). A `@theme` entry would be pruned as soon as
@@ -212,6 +249,28 @@
 .dark,
 [data-mode="dark"] {
   color-scheme: dark;
+
+  --bevel-hi: oklch(1 0 0 / 0.2);
+  --bevel-lo: oklch(0 0 0 / 0.65);
+  --bevel-well-lip: oklch(1 0 0 / 0.09);
+  --shadow-contact:
+    0 1px 2px oklch(0 0 0 / 0.75), 0 14px 26px -14px oklch(0 0 0 / 1);
+  --shadow-float:
+    0 26px 50px -18px oklch(0 0 0 / 0.85), 0 2px 6px oklch(0 0 0 / 0.55);
+  --shadow-well:
+    inset 0 3px 9px oklch(0 0 0 / 0.9), inset 0 1px 0 oklch(0 0 0 / 0.8);
+  --surface-raise: linear-gradient(
+    180deg,
+    oklch(1 0 0 / 0.045),
+    oklch(1 0 0 / 0)
+  );
+  --surface-well: linear-gradient(
+    180deg,
+    oklch(0 0 0 / 0.22),
+    oklch(0 0 0 / 0)
+  );
+  --grid-line: oklch(1 0 0 / 0.055);
+  --grid-major: oklch(1 0 0 / 0.095);
 
   --s-base: 0.17;
   --s-card: 0.212;
@@ -377,6 +436,81 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── Calibrated substrate ───────────────────────────────────────────────────
+   Tufte would delete a decorative grid: it is ink that carries no data. Here
+   the grid is a scale — 32 px is a week, the 160 px major line is five weeks —
+   and the 90-day activity strip is aligned to it. Erase it and the reader
+   loses the time axis. The single warm wash in the upper left is the light
+   source every raised panel's bevel agrees with, not an ambient gradient. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(
+      760px 460px at 8% -12%,
+      color-mix(in srgb, var(--color-signal) 8%, transparent),
+      transparent 62%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      var(--grid-line) 0 1px,
+      transparent 1px 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--grid-line) 0 1px,
+      transparent 1px 32px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      var(--grid-major) 0 1px,
+      transparent 1px 160px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--grid-major) 0 1px,
+      transparent 1px 160px
+    );
+  mask-image: radial-gradient(125% 105% at 18% 0%, #000 45%, transparent 98%);
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* Three surfaces, one vocabulary. Content panels stay opaque: Fluent reserves
+   Acrylic for transient surfaces only, and a blurred panel behind a column of
+   amounts costs contrast for no information. */
+[data-elevation="raise"] {
+  background-image: var(--surface-raise);
+  border-top-color: var(--bevel-hi);
+  border-left-color: color-mix(in srgb, var(--bevel-hi) 45%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--bevel-hi),
+    inset 0 -1px 0 var(--bevel-lo),
+    var(--shadow-contact);
+}
+
+[data-elevation="well"] {
+  background-image: var(--surface-well);
+  box-shadow:
+    var(--shadow-well),
+    0 1px 0 var(--bevel-well-lip);
+}
+
+[data-elevation="float"] {
+  background: color-mix(in srgb, var(--color-popover) 78%, transparent);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border-top-color: var(--bevel-hi);
+  box-shadow:
+    var(--shadow-float),
+    inset 0 1px 0 var(--bevel-hi);
 }
 
 /* ── Print: a page, not a window ────────────────────────────────────────────

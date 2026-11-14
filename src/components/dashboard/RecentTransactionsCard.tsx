@@ -39,7 +39,7 @@ export function RecentTransactionsCard() {
 
   if (error) {
     return (
-      <Card>
+      <Card elevation="raise">
         <CardHeader>
           <CardTitle>{t("dashboard.recentTransactions")}</CardTitle>
         </CardHeader>
@@ -67,7 +67,7 @@ export function RecentTransactionsCard() {
         : "text-muted-foreground";
 
   return (
-    <Card className="flex min-h-0 flex-1 flex-col">
+    <Card elevation="raise" className="flex min-h-0 flex-1 flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{t("dashboard.recentTransactions")}</CardTitle>
         <Button variant="ghost" size="sm" asChild>

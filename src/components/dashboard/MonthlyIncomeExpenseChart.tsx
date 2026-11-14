@@ -21,7 +21,7 @@ export function MonthlyIncomeExpenseChart() {
 
   if (error) {
     return (
-      <Card>
+      <Card elevation="well">
         <CardHeader>
           <CardTitle>{t("dashboard.monthlyChart")}</CardTitle>
         </CardHeader>
@@ -51,7 +51,7 @@ export function MonthlyIncomeExpenseChart() {
   const formatTick = (value: number) => value.toLocaleString(i18n.language);
 
   return (
-    <Card className="flex min-h-[190px] flex-1 flex-col">
+    <Card elevation="well" className="flex min-h-[190px] flex-1 flex-col">
       <CardHeader>
         <CardTitle>{t("dashboard.monthlyChart")}</CardTitle>
       </CardHeader>

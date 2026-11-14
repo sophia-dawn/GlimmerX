@@ -2,10 +2,27 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * Surfaces follow one light source (upper-left). `raise` is a panel sitting on
+ * the substrate, `well` is a display recessed into it, and `float` is the only
+ * translucent one — reserved for transient overlays, per Fluent's material
+ * rules. Omitted means the flat border-only surface used outside the dashboard.
+ *
+ * The actual paint lives in `globals.css` as attribute selectors rather than
+ * Tailwind classes: the bevel tokens are mode-dependent and no utility refers
+ * to them, so putting them in `@theme` would get them pruned from the build.
+ */
+export type CardElevation = "raise" | "well" | "float";
+
+function Card({
+  className,
+  elevation,
+  ...props
+}: React.ComponentProps<"div"> & { elevation?: CardElevation }) {
   return (
     <div
       data-slot="card"
+      data-elevation={elevation}
       className={cn(
         "flex flex-col gap-4 rounded-xl border bg-card py-4 text-card-foreground",
         className,

@@ -17,7 +17,7 @@ export function TopExpensesList() {
 
   if (error) {
     return (
-      <Card>
+      <Card elevation="raise">
         <CardHeader>
           <CardTitle>{t("dashboard.topExpenses")}</CardTitle>
         </CardHeader>
@@ -33,7 +33,7 @@ export function TopExpensesList() {
   const expenses = data?.expenses ?? [];
 
   return (
-    <Card className="flex min-h-[120px] flex-1 flex-col">
+    <Card elevation="raise" className="flex min-h-[120px] flex-1 flex-col">
       <CardHeader>
         <CardTitle>{t("dashboard.topExpenses")}</CardTitle>
       </CardHeader>

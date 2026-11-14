@@ -87,7 +87,7 @@ export function AccountBalanceList() {
 
   if (error) {
     return (
-      <Card>
+      <Card elevation="raise">
         <CardHeader>
           <CardTitle>{t("dashboard.accountBalanceList")}</CardTitle>
         </CardHeader>
@@ -103,7 +103,7 @@ export function AccountBalanceList() {
   const hasAccounts = Object.keys(groupedAccounts).length > 0;
 
   return (
-    <Card className="flex min-h-[120px] flex-1 flex-col">
+    <Card elevation="raise" className="flex min-h-[120px] flex-1 flex-col">
       <CardHeader>
         <CardTitle>{t("dashboard.accountBalanceList")}</CardTitle>
       </CardHeader>
