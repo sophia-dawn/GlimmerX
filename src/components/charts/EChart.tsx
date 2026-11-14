@@ -60,11 +60,19 @@ export function EChart({
 
     paint();
 
-    const observer = new ResizeObserver(() => {
-      if (chartRef.current) chartRef.current.resize();
-      else paint();
-    });
-    observer.observe(host);
+    // `ResizeObserver` is present in every WebView2 / WKWebView the app runs in,
+    // but not in jsdom — and a chart that throws on mount takes the whole page
+    // down with it. Falling back to window resize keeps the component usable in
+    // tests instead of requiring every caller to stub the global.
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            if (chartRef.current) chartRef.current.resize();
+            else paint();
+          });
+    observer?.observe(host);
+    if (!observer) window.addEventListener("resize", paint);
 
     const repaint = () => {
       // Force the print layout before measuring, then repaint at paper size.
@@ -76,7 +84,8 @@ export function EChart({
     window.addEventListener("afterprint", repaint);
 
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
+      window.removeEventListener("resize", paint);
       window.removeEventListener("beforeprint", repaint);
       window.removeEventListener("afterprint", repaint);
       chartRef.current?.dispose();
