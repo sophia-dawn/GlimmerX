@@ -16,9 +16,11 @@ import {
  * health cards, then five more panels — which meant two and a half screens of
  * scrolling for what one screen could show. It now reads in four layers: one
  * net-worth figure with the 90-day activity calendar, a "needs my attention"
- * row, then the three columns of trends and detail. The cashflow chart is a
- * recessed well while the rest are raised panels; that one height difference
- * is the whole depth story — everywhere else stays flat so it registers.
+ * row, then the three columns of trends and detail. Every panel here is
+ * `elevation="raise"`: one panel with an inverted bevel reads as a broken
+ * border next to its neighbours, not as a different depth. The `well`
+ * surface still exists for a genuine recessed display, but a dashboard of
+ * peers is not the place to introduce it.
  *
  * Columns are sized by content weight rather than equally (`1.2fr / 1fr /
  * 0.9fr`): a time axis needs horizontal room, the table needs room for four
