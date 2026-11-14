@@ -17,8 +17,10 @@
 - **令牌只在 `src/styles/globals.css` 的 `@theme`**。表面阶梯是参数化的：
   `--s-base/--s-card/--s-hover/--s-float/--s-sunken` + `--hue/--chroma`，
   所以氛围主题只覆盖色相（每个一行），不要写第二份完整调色板。
-- **圆角 2px（控件）/ 4px（卡片），阴影全部为 none**（`--shadow-*: none`）。
-  层级靠表面亮度与 1px 发丝线，不靠 blur。
+- **圆角收敛但不清零**：控件 6px（`--radius-md`）/ 卡片 10px（`--radius-xl`）/ 弹窗 8px，
+  阴影全部为 none（`--shadow-*: none`）。层级靠表面亮度与 1px 发丝线，不靠 blur。
+  2026-11-13 曾压到 2px，32px 高的按钮看着像被削角，用户要求改回——**别再往下压**。
+  `rounded-full` 只给开关与圆点，不做药丸徽章。
 - **强调色只有一支** `--color-signal`（琥珀 `#FFA02F` / 浅色 `#8A5410`），
   只用在：关键数字、当前项、超支与待办。`--color-primary` 是墨色（近白/近黑），
   不是强调色——满屏琥珀按钮会让强调失效。
@@ -34,8 +36,14 @@
 - 动效 120ms `cubic-bezier(.2,0,0,1)`，无回弹；`prefers-reduced-motion` 全局降级。
 - 对比度按实测记账：深色底 `#7E8B9C` = 5.46:1 可做小字；**`#5B6675` 只有 3.24:1，
   只许用于非文字元素**（网格线、禁用态）。
-- 主题选择器仍是 18 强调色 × 7 氛围（只映射到 `--signal` 与 `--hue`），
-  收敛成 4 套预设是下一步，别名要保留以兼容 `localStorage` 里的老值。
+- **主题 = `mode`（light/dark/system）× `preset`（4 套）**，不是原来的 18 强调色 × 7 氛围。
+  预设用 `data-preset` 属性写在 `<html>`：`terminal` / `terminal-cool` / `paper` / `contrast`。
+  一个预设只给「色相 + **色度倍数** + 信号三元组（+ contrast 的发丝线）」；
+  色度是 `--chroma: calc(var(--chroma-base) * var(--chroma-scale))`，
+  **不要**让预设直接写 `--chroma`（浅色 0.006 / 深色 0.019，同一个值照顾不了两边）。
+  预设块必须排在 `.dark` 块**之后**（同权重靠顺序取胜）。老 localStorage
+  （`glimmerx:color`/`glimmerx:atmosphere`）在 `themeStore` 里映射成预设后删除，
+  不要再保留 18+7 个 CSS 别名类。设置页缩略图靠 `.preset-preview` 把预设套在子树上。
 - **数字按位置分三级**：页面级汇总 `text-xl font-mono font-medium`（20px）、
   卡片关键数字 `text-base font-mono`（15px）、表格与列表 `text-sm font-mono`（13px）。
   全站已无 `text-2xl`/`text-3xl`/`font-bold`；中文最强只到 `font-medium`（600 会合成糊块）。
