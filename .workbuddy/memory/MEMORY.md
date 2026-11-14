@@ -48,8 +48,8 @@
   卡片关键数字 `text-base font-mono`（15px）、表格与列表 `text-sm font-mono`（13px）。
   全站已无 `text-2xl`/`text-3xl`/`font-bold`；中文最强只到 `font-medium`（600 会合成糊块）。
 - **图表颜色从主题读，不要写死 hex**：`src/utils/chartColors.ts::useChartColors()`。
-  Recharts 的 `fill`/`stroke` 是 SVG presentation attribute，**不解析 `var()`**，
-  所以必须取 computed style 后在 JS 里给值，并依赖主题三元组重算。
+  ECharts 画进 `<canvas>`，**既不解析 `var()` 也不认 CSS 类**，所以必须取 computed style
+  后在 JS 里给值，并依赖主题三元组重算。
   分类色板是 `--chart-1..8`（chroma 压在 0.09–0.16），网格线单独一支 `--chart-grid`
   （比 `--color-border` 更淡，否则抢数据）。已删掉 `CHART_COLORS` / `CATEGORY_COLORS` /
   `REPORT_CHART_COLORS` / `REPORT_CATEGORY_COLORS` 四份硬编码常量。
@@ -98,9 +98,19 @@
 
 ## 材质与图表（2026-11-14 起）
 
-- **图表库固定 `recharts ^3.8.1`，不换 ECharts**；图标是 `lucide-react ^1.8.0`。
-  只有出现 K线/地图/桑基/canvas 大数据量/dataZoom 之类 ECharts 独占需求才重估。
-  Recharts 的 `fill`/`stroke` 不解析 `var()`，任何新图表都要走 `useChartColors()`。
+- **图表库是 `echarts ^6.1.0`（2026-11-14 换掉 recharts）**；图标是 `lucide-react ^1.8.0`。
+  按需注册在 `src/components/charts/echarts.ts`（3 种图 + 4 个组件 + canvas），
+  **不要 `import * as echarts`**——包要塞进 Tauri 二进制，不上 CDN，map/geo/dataZoom 全是白重。
+  图上样式一律走 `src/utils/chartTheme.ts`（轴/网格/tooltip/图例），不要逐图手写。
+- **`EChart` 三个必需细节**（`components/charts/EChart.tsx`）：容器 0×0 时延迟 `init`
+  （flex 子项首帧没高度）；`setOption(..., { notMerge: true })`（区间变短时旧序列会残留）；
+  `beforeprint` 重绘（canvas 是位图，不会缩放）。`ResizeObserver` 缺失时降级到 window resize。
+- **报表 6 张**（现金流/分类构成/净资产归因/资产负债表/账户明细/预算执行），
+  状态在 URL（`?r=&p=&g=&d=&s=&e=&a=`），见 `useReportQuery` + `docs/design/24-reports.md`。
+  四个旧报表（standard/trend/monthComparison/yearSummary）与两个账户报表已合并删除，
+  后端 `report_month_comparison` / `report_year_summary` 一并移除——**不要加回来**。
+- **审计在设置 → 数据体检**（`components/settings/AuditPanel.tsx`，弹窗展出），不在报表页。
+- **`budgets` 表没有历史快照**：预算执行报表用今天的预算定义算旧月份，必须在 scope 行写明。
 - **表面三态**：`Card` 的 `elevation="raise | well | float"` → `data-elevation`，
   CSS 在 `globals.css` 用属性选择器画；**默认不带 elevation**，首页之外暂保持平面。
   光源唯一（左上 45°）；内容面板不透明，`float`（Acrylic）只给临时浮层。
