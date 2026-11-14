@@ -27,6 +27,7 @@ import {
 } from "@/utils/chartTheme";
 import { formatAmount } from "@/utils/format";
 import type { AccountTransactionItem, BalancePoint } from "@/types/report";
+import { ChartScaleSelect } from "./ChartScaleSelect";
 import {
   ReportFrame,
   ReportPanel,
@@ -218,6 +219,13 @@ export function AccountDetailReport({
       <ReportPanel
         title={t("reports.accounts.balanceTrend")}
         hint={trend.data ? trend.data.accountName : undefined}
+        action={
+          <ChartScaleSelect
+            value={controller.granularity}
+            options={controller.granularityOptions}
+            onChange={controller.setGranularity}
+          />
+        }
       >
         {points.length > 0 ? (
           <EChart

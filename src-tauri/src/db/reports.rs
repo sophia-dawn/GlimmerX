@@ -28,7 +28,7 @@ pub use types::{
     AccountBalanceTrendReportDto, AccountChange, AccountTransactionItem,
     AccountTransactionsReportDto, AccountUsageStat, AuditReportDto, BalanceCheckResult,
     BalancePoint, BalanceSheetItem, BalanceSheetReportDto, CategoryBreakdownItem,
-    CategoryBreakdownReportDto, CategoryCheckResult, DateRangePreset, NetWorthPoint,
+    CategoryBreakdownReportDto, CategoryCheckResult, CompareMode, DateRangePreset, NetWorthPoint,
     PeriodGranularity, ReportFilter, StandardReportDto, TrendPoint, TrendReportDto,
     UnbalancedTransaction, UncategorizedTransaction,
 };

@@ -23,6 +23,7 @@ fn test_resolve_date_range_current_month() {
         start_date: None,
         end_date: None,
         period_granularity: PeriodGranularity::Monthly,
+        compare: CompareMode::PreviousPeriod,
         account_ids: None,
         category_ids: None,
     };
@@ -38,6 +39,7 @@ fn test_resolve_date_range_custom() {
         start_date: Some("2024-01-01".to_string()),
         end_date: Some("2024-01-31".to_string()),
         period_granularity: PeriodGranularity::Monthly,
+        compare: CompareMode::PreviousPeriod,
         account_ids: None,
         category_ids: None,
     };
@@ -54,6 +56,7 @@ fn test_get_standard_report_empty_db() {
         start_date: None,
         end_date: None,
         period_granularity: PeriodGranularity::Monthly,
+        compare: CompareMode::PreviousPeriod,
         account_ids: None,
         category_ids: None,
     };
@@ -72,6 +75,7 @@ fn test_get_trend_report_empty_db() {
         start_date: None,
         end_date: None,
         period_granularity: PeriodGranularity::Monthly,
+        compare: CompareMode::PreviousPeriod,
         account_ids: None,
         category_ids: None,
     };
@@ -90,6 +94,7 @@ fn test_get_category_breakdown_report_empty_db() {
         start_date: None,
         end_date: None,
         period_granularity: PeriodGranularity::Monthly,
+        compare: CompareMode::PreviousPeriod,
         account_ids: None,
         category_ids: None,
     };
@@ -254,6 +259,7 @@ fn custom_filter(start: &str, end: &str) -> ReportFilter {
         start_date: Some(start.to_string()),
         end_date: Some(end.to_string()),
         period_granularity: PeriodGranularity::Daily,
+        compare: CompareMode::PreviousPeriod,
         account_ids: None,
         category_ids: None,
     }
@@ -289,6 +295,7 @@ fn test_resolve_date_range_all_presets() {
             start_date: None,
             end_date: None,
             period_granularity: PeriodGranularity::Monthly,
+            compare: CompareMode::PreviousPeriod,
             account_ids: None,
             category_ids: None,
         };
@@ -372,6 +379,7 @@ fn test_get_standard_report_all_presets() {
             start_date: Some("2024-01-01".to_string()),
             end_date: Some("2024-01-31".to_string()),
             period_granularity: PeriodGranularity::Monthly,
+            compare: CompareMode::PreviousPeriod,
             account_ids: None,
             category_ids: None,
         };
@@ -461,6 +469,7 @@ fn test_get_standard_report_current_month_change_pct() {
         start_date: None,
         end_date: None,
         period_granularity: PeriodGranularity::Monthly,
+        compare: CompareMode::PreviousPeriod,
         account_ids: None,
         category_ids: None,
     };
@@ -815,4 +824,118 @@ fn test_split_transaction_splits_across_categories() {
     let trend = get_trend_report(&conn, &by_category).unwrap();
     assert_eq!(trend.total_expense, 20000);
     assert_eq!(trend.total_income, 0);
+}
+
+/// The comparison window has to be the same length as the current one.
+///
+/// The old rule took "N months ago to today" as the previous window of a
+/// rolling preset, which is twice as long and swallows the current window, so
+/// the reported change was a statement about the size of the window rather
+/// than about the money.
+#[test]
+fn test_prev_period_bounds_rolling_window_has_the_same_length() {
+    use super::common::get_prev_period_bounds;
+
+    for preset in [
+        DateRangePreset::Last3Months,
+        DateRangePreset::Last6Months,
+        DateRangePreset::Last12Months,
+    ] {
+        let filter = ReportFilter {
+            date_range_preset: preset.clone(),
+            start_date: None,
+            end_date: None,
+            period_granularity: PeriodGranularity::Monthly,
+            compare: CompareMode::PreviousPeriod,
+            account_ids: None,
+            category_ids: None,
+        };
+        let (start, end) = resolve_date_range(&filter);
+        let (prev_start, prev_end) = get_prev_period_bounds(&preset, &start, &end);
+
+        assert_eq!(
+            days_inclusive(&prev_start, &prev_end),
+            days_inclusive(&start, &end),
+            "the previous window must be as long as the current one"
+        );
+        assert_eq!(
+            prev_end,
+            shift_days(&start, -1),
+            "the previous window must end the day before the current one starts"
+        );
+        assert!(
+            prev_end < start,
+            "the previous window must not overlap the current one"
+        );
+    }
+}
+
+#[test]
+fn test_prev_period_bounds_custom_window_has_the_same_length() {
+    use super::common::get_prev_period_bounds;
+
+    let filter = custom_filter("2024-03-10", "2024-04-20");
+    let (start, end) = resolve_date_range(&filter);
+    let (prev_start, prev_end) = get_prev_period_bounds(&DateRangePreset::Custom, &start, &end);
+
+    assert_eq!(days_inclusive(&prev_start, &prev_end), 42);
+    assert_eq!(prev_end, "2024-03-09");
+    assert_eq!(prev_start, "2024-01-28");
+}
+
+#[test]
+fn test_prev_period_bounds_calendar_periods_use_their_neighbour() {
+    use super::common::get_prev_period_bounds;
+
+    let (start, end) = resolve_date_range(&ReportFilter {
+        date_range_preset: DateRangePreset::CurrentMonth,
+        start_date: None,
+        end_date: None,
+        period_granularity: PeriodGranularity::Monthly,
+        compare: CompareMode::PreviousPeriod,
+        account_ids: None,
+        category_ids: None,
+    });
+    let (prev_start, prev_end) =
+        get_prev_period_bounds(&DateRangePreset::CurrentMonth, &start, &end);
+    assert_eq!((prev_start, prev_end), last_month_bounds());
+}
+
+#[test]
+fn test_comparison_bounds_last_year_is_the_same_stretch_a_year_earlier() {
+    use super::common::get_comparison_bounds;
+
+    let (start, end) = ("2026-11-01".to_string(), "2026-11-30".to_string());
+    let (prev_start, prev_end) = get_comparison_bounds(
+        CompareMode::LastYear,
+        &DateRangePreset::CurrentMonth,
+        &start,
+        &end,
+    )
+    .expect("last year always compares");
+    assert_eq!(prev_start, "2025-11-01");
+    assert_eq!(prev_end, "2025-11-30");
+}
+
+#[test]
+fn test_comparison_bounds_none_has_no_window() {
+    use super::common::get_comparison_bounds;
+
+    assert!(get_comparison_bounds(
+        CompareMode::None,
+        &DateRangePreset::CurrentMonth,
+        "2026-11-01",
+        "2026-11-30",
+    )
+    .is_none());
+}
+
+#[test]
+fn test_standard_report_without_a_comparison_reports_no_previous_totals() {
+    let conn = setup_test_db();
+    let mut filter = custom_filter("2024-01-01", "2024-01-31");
+    filter.compare = CompareMode::None;
+    let dto = get_standard_report(&conn, &filter).unwrap();
+    assert_eq!(dto.prev_income, 0);
+    assert_eq!(dto.prev_expense, 0);
 }

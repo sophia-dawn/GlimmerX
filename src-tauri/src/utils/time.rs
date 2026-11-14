@@ -111,6 +111,45 @@ pub fn last_year_bounds() -> (String, String) {
     year_bounds(current_year() - 1)
 }
 
+/// Parses a `YYYY-MM-DD` business date.
+pub fn parse_date(value: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()
+}
+
+/// Inclusive day count: `2026-01-01`..`2026-01-01` is one day, not zero.
+pub fn days_inclusive(start: &str, end: &str) -> i64 {
+    match (parse_date(start), parse_date(end)) {
+        (Some(s), Some(e)) => (e - s).num_days() + 1,
+        _ => 0,
+    }
+}
+
+/// Moves a business date by `days`; a negative count goes back.
+pub fn shift_days(date: &str, days: i64) -> String {
+    match parse_date(date) {
+        Some(d) => (d + chrono::Duration::days(days))
+            .format("%Y-%m-%d")
+            .to_string(),
+        None => date.to_string(),
+    }
+}
+
+/// Moves a business date by whole years; a negative count goes back.
+///
+/// 29 February in a year that is not a leap year lands on the 28th rather
+/// than on nothing.
+pub fn shift_years(date: &str, years: i64) -> String {
+    let Some(d) = parse_date(date) else {
+        return date.to_string();
+    };
+    let target_year = d.year() + years as i32;
+    NaiveDate::from_ymd_opt(target_year, d.month(), d.day())
+        .or_else(|| NaiveDate::from_ymd_opt(target_year, d.month(), 28))
+        .unwrap_or(d)
+        .format("%Y-%m-%d")
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

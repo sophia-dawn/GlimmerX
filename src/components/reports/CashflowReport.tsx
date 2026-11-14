@@ -1,5 +1,14 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { COMPARE_OPTIONS } from "@/constants/report";
+import type { CompareMode } from "@/types/report";
 import type { ReportQueryController } from "@/hooks/useReportQuery";
 import { useStandardReport } from "@/hooks/useStandardReport";
 import { useTrendReport } from "@/hooks/useTrendReport";
@@ -17,6 +26,7 @@ import {
   yuanTick,
 } from "@/utils/chartTheme";
 import { formatAmount, formatAmountWithSign } from "@/utils/format";
+import { ChartScaleSelect } from "./ChartScaleSelect";
 import {
   Amount,
   ReportFrame,
@@ -88,6 +98,26 @@ export function CashflowReport({
   const trend = useTrendReport(controller.filter);
 
   const monthName = (month: number) => t(`reports.monthNames.${month}`);
+
+  /**
+   * What the numbers are compared against.
+   *
+   * "Previous period" and "the same stretch a year ago" answer different
+   * questions — one says whether the month got worse, the other whether the
+   * year is going badly — and the reader is the one who knows which they are
+   * asking. With no comparison there is nothing to compare against, so the
+   * comparison table and the change figures are not shown at all.
+   */
+  const compare = controller.query.compare;
+  const comparing = compare !== "none";
+  const previousLabel =
+    compare === "lastYear"
+      ? t("reports.cashflow.previousYear")
+      : t("reports.cashflow.previous");
+  const versusKey =
+    compare === "lastYear"
+      ? "reports.cashflow.vsLastYear"
+      : "reports.cashflow.vsPrevious";
 
   const points = trend.data?.dataPoints ?? [];
   const income = standard.data?.periodIncome ?? 0;
@@ -199,7 +229,7 @@ export function CashflowReport({
       cell: (row) => <Amount value={row.current} tone="plain" />,
     },
     {
-      header: t("reports.cashflow.previous"),
+      header: previousLabel,
       align: "right",
       cell: (row) => <Amount value={row.previous} tone="plain" />,
     },
@@ -238,6 +268,30 @@ export function CashflowReport({
       isLoading={standard.isLoading || trend.isLoading}
       error={standard.error ?? trend.error ?? null}
       isEmpty={points.length === 0}
+      toolbar={
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {t("reports.compare.label")}
+          </span>
+          <Select
+            value={compare}
+            onValueChange={(value) =>
+              controller.setCompare(value as CompareMode)
+            }
+          >
+            <SelectTrigger size="sm" className="w-[124px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COMPARE_OPTIONS.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {t(option.labelKey)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      }
     >
       <ReportStats
         items={[
@@ -245,25 +299,31 @@ export function CashflowReport({
             label: t("reports.cashflow.stats.income"),
             value: formatAmount(income),
             tone: "income",
-            hint: t("reports.cashflow.vsPrevious", {
-              value: signedPercent(standard.data?.incomeChangePct ?? 0),
-            }),
+            hint: comparing
+              ? t(versusKey, {
+                  value: signedPercent(standard.data?.incomeChangePct ?? 0),
+                })
+              : undefined,
           },
           {
             label: t("reports.cashflow.stats.expense"),
             value: formatAmount(expense),
             tone: "expense",
-            hint: t("reports.cashflow.vsPrevious", {
-              value: signedPercent(standard.data?.expenseChangePct ?? 0),
-            }),
+            hint: comparing
+              ? t(versusKey, {
+                  value: signedPercent(standard.data?.expenseChangePct ?? 0),
+                })
+              : undefined,
           },
           {
             label: t("reports.cashflow.stats.net"),
             value: formatAmount(net),
             tone: net >= 0 ? "income" : "expense",
-            hint: t("reports.cashflow.vsPrevious", {
-              value: formatAmountWithSign(net - previousNet),
-            }),
+            hint: comparing
+              ? t(versusKey, {
+                  value: formatAmountWithSign(net - previousNet),
+                })
+              : undefined,
           },
           {
             label: t("reports.cashflow.stats.savingsRate"),
@@ -274,7 +334,16 @@ export function CashflowReport({
         ]}
       />
 
-      <ReportPanel title={t("reports.cashflow.chart")}>
+      <ReportPanel
+        title={t("reports.cashflow.chart")}
+        action={
+          <ChartScaleSelect
+            value={controller.granularity}
+            options={controller.granularityOptions}
+            onChange={controller.setGranularity}
+          />
+        }
+      >
         <EChart
           option={option}
           height={260}
@@ -282,9 +351,21 @@ export function CashflowReport({
         />
       </ReportPanel>
 
-      <ReportPanel title={t("reports.cashflow.comparison")}>
-        <ReportTable columns={columns} rows={rows} rowKey={(row) => row.key} />
-      </ReportPanel>
+      {comparing && (
+        <ReportPanel
+          title={
+            compare === "lastYear"
+              ? t("reports.cashflow.comparisonLastYear")
+              : t("reports.cashflow.comparison")
+          }
+        >
+          <ReportTable
+            columns={columns}
+            rows={rows}
+            rowKey={(row) => row.key}
+          />
+        </ReportPanel>
+      )}
     </ReportFrame>
   );
 }

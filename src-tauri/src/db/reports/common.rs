@@ -5,7 +5,7 @@ use rusqlite::{params, Connection};
 use crate::constants::account_type;
 use crate::utils::time::*;
 
-use super::types::{DateRangePreset, PeriodGranularity, ReportFilter};
+use super::types::{CompareMode, DateRangePreset, PeriodGranularity, ReportFilter};
 
 /// Resolves a date range preset to actual start and end dates.
 pub fn resolve_date_range(filter: &ReportFilter) -> (String, String) {
@@ -111,8 +111,43 @@ pub(in crate::db::reports) fn get_expense_sum(
         .map_err(|e| e.to_string())
 }
 
+/// The window the current period is compared against.
+///
+/// `None` means the report compares nothing: the reader asked for the numbers
+/// on their own, and a percentage against a period they did not choose is a
+/// number they did not ask for.
+pub(in crate::db::reports) fn get_comparison_bounds(
+    compare: CompareMode,
+    preset: &DateRangePreset,
+    start_date: &str,
+    end_date: &str,
+) -> Option<(String, String)> {
+    match compare {
+        CompareMode::None => None,
+        CompareMode::PreviousPeriod => Some(get_prev_period_bounds(preset, start_date, end_date)),
+        CompareMode::LastYear => Some((shift_years(start_date, -1), shift_years(end_date, -1))),
+    }
+}
+
 /// Returns the bounds of the previous period for comparison.
-pub(in crate::db::reports) fn get_prev_period_bounds(preset: &DateRangePreset) -> (String, String) {
+///
+/// A comparison is only meaningful between windows of the same length, so the
+/// rule is: calendar periods compare with their calendar neighbour (this month
+/// against last month, this year against last year), and everything else — the
+/// rolling presets and a custom range — compares with the equally long
+/// stretch immediately before it.
+///
+/// The old rule reached for "N months ago to today" as the previous window.
+/// For a rolling preset that is *twice* as long as the current one and it
+/// swallows it entirely, so the reported change was a statement about the size
+/// of the window rather than about the money: "last 3 months" (107 days) was
+/// compared against "the 200 days that ended today", and every percentage came
+/// out around minus half.
+pub(in crate::db::reports) fn get_prev_period_bounds(
+    preset: &DateRangePreset,
+    start_date: &str,
+    end_date: &str,
+) -> (String, String) {
     match preset {
         DateRangePreset::CurrentMonth => last_month_bounds(),
         DateRangePreset::LastMonth => {
@@ -127,10 +162,12 @@ pub(in crate::db::reports) fn get_prev_period_bounds(preset: &DateRangePreset) -
         }
         DateRangePreset::CurrentYear => year_bounds(current_year() - 1),
         DateRangePreset::LastYear => year_bounds(current_year() - 2),
-        DateRangePreset::Last3Months => last_n_months_bounds(6),
-        DateRangePreset::Last6Months => last_n_months_bounds(12),
-        DateRangePreset::Last12Months => last_n_months_bounds(24),
-        DateRangePreset::Custom => last_month_bounds(),
+        _ => {
+            let length = days_inclusive(start_date, end_date).max(1);
+            let prev_end = shift_days(start_date, -1);
+            let prev_start = shift_days(&prev_end, -(length - 1));
+            (prev_start, prev_end)
+        }
     }
 }
 

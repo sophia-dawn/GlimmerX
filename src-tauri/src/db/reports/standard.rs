@@ -3,7 +3,7 @@
 use rusqlite::{params, Connection};
 
 use super::common::{
-    get_expense_sum, get_income_sum, get_prev_period_bounds, net_worth_accounts, resolve_date_range,
+    get_comparison_bounds, get_expense_sum, get_income_sum, net_worth_accounts, resolve_date_range,
 };
 use super::types::{AccountChange, NetWorthPoint, ReportFilter, StandardReportDto};
 
@@ -21,19 +21,21 @@ pub fn get_standard_report(
     let period_expense =
         get_expense_sum(conn, &start_date, &end_date, account_ids_json.as_deref())?;
 
-    let prev_bounds = get_prev_period_bounds(&filter.date_range_preset);
-    let prev_income = get_income_sum(
-        conn,
-        &prev_bounds.0,
-        &prev_bounds.1,
-        account_ids_json.as_deref(),
-    )?;
-    let prev_expense = get_expense_sum(
-        conn,
-        &prev_bounds.0,
-        &prev_bounds.1,
-        account_ids_json.as_deref(),
-    )?;
+    // The window the totals are compared against, chosen by the reader. With no
+    // comparison there is no previous period, so the change is zero rather
+    // than a percentage against nothing.
+    let (prev_income, prev_expense) = match get_comparison_bounds(
+        filter.compare,
+        &filter.date_range_preset,
+        &start_date,
+        &end_date,
+    ) {
+        Some((prev_start, prev_end)) => (
+            get_income_sum(conn, &prev_start, &prev_end, account_ids_json.as_deref())?,
+            get_expense_sum(conn, &prev_start, &prev_end, account_ids_json.as_deref())?,
+        ),
+        None => (0, 0),
+    };
 
     let income_diff = period_income - prev_income;
     let income_change_pct = if prev_income > 0 {

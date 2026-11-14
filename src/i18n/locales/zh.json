@@ -674,9 +674,15 @@
       "reset": "重置",
       "print": "打印",
       "dateRange": "日期范围",
-      "granularity": "时间粒度",
+      "displayAs": "显示为",
       "expandDetails": "展开详情",
       "collapseDetails": "收起详情"
+    },
+    "compare": {
+      "label": "对比",
+      "previousPeriod": "较上期",
+      "lastYear": "较去年同期",
+      "none": "不对比"
     },
     "tableHeaders": {
       "date": "日期",
@@ -724,7 +730,10 @@
         "income": "收入",
         "expense": "支出",
         "net": "结余"
-      }
+      },
+      "previousYear": "去年同期",
+      "vsLastYear": "较去年同期 {{value}}",
+      "comparisonLastYear": "本期与去年同期"
     },
     "categoryBreakdown": {
       "expenseTotal": "支出总额",

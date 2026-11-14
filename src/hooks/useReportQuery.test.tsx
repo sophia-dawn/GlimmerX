@@ -24,10 +24,55 @@ describe("useReportQuery", () => {
     const { result } = renderAt("/reports");
     expect(result.current.query.report).toBe("cashflow");
     expect(result.current.query.preset).toBe("currentMonth");
-    expect(result.current.query.granularity).toBe("monthly");
+    // No tick size of its own: the month implies a daily axis.
+    expect(result.current.query.granularity).toBeNull();
+    expect(result.current.granularity).toBe("daily");
     expect(result.current.definition.dateControl).toBe("range");
     expect(result.current.range.startDate).toBeTruthy();
     expect(result.current.range.endDate).toBeTruthy();
+  });
+
+  it("lets the range decide the tick size", () => {
+    const { result } = renderAt("/reports?p=last12Months");
+    expect(result.current.query.granularity).toBeNull();
+    expect(result.current.granularity).toBe("monthly");
+  });
+
+  it("keeps a tick size the range can show", () => {
+    const { result } = renderAt("/reports?p=last12Months&g=weekly");
+    expect(result.current.query.granularity).toBe("weekly");
+    expect(result.current.granularity).toBe("weekly");
+  });
+
+  it("replaces a tick size the range cannot show", () => {
+    // Yearly over one month is a single column, which reads as no data.
+    const { result } = renderAt("/reports?p=currentMonth&g=yearly");
+    expect(result.current.granularity).toBe("daily");
+    expect(result.current.granularityOptions).toEqual(["daily"]);
+  });
+
+  it("records a chosen tick size in the URL", () => {
+    const { result } = renderAt("/reports?p=last12Months");
+    act(() => result.current.setGranularity("weekly"));
+    expect(result.current.query.granularity).toBe("weekly");
+  });
+
+  it("compares against the previous period by default", () => {
+    const { result } = renderAt("/reports");
+    expect(result.current.query.compare).toBe("previousPeriod");
+    expect(result.current.filter.compare).toBe("previousPeriod");
+  });
+
+  it("reads the comparison basis from the URL", () => {
+    const { result } = renderAt("/reports?c=lastYear");
+    expect(result.current.query.compare).toBe("lastYear");
+    expect(result.current.filter.compare).toBe("lastYear");
+  });
+
+  it("records a chosen comparison basis", () => {
+    const { result } = renderAt("/reports");
+    act(() => result.current.setCompare("none"));
+    expect(result.current.query.compare).toBe("none");
   });
 
   it("ignores an unknown report id instead of rendering nothing", () => {

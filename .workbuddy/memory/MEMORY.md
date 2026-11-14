@@ -11,6 +11,15 @@
   `autoLockMinutes`（空闲计时，默认 5 分钟，0 = 关闭）。
   `glimmerx:security:lockOnBlur` 这个 localStorage 键在 store 初始化时清掉。
   （2026-11-14）
+- **报表页的时间控件只有两个**：**区间**（页级，URL `p`/`s`/`e`）与
+  **对比基期**（`c`：较上期 / 较去年同期 / 不对比）。**时间粒度不是筛选，是刻度**：
+  由区间跨度推导（≤45 天按日 / ≤120 天按周 / 更长按月），用户只能在"这个区间
+  画得出来"的刻度里挑，控件长在**图表面板**上（`ChartScaleSelect`），只有一个
+  可选刻度时不出现。URL 的 `g` 只记录用户改过的刻度。（2026-11-14）
+- **对比期必须与本期等长**：自然月/自然年按自然邻期，其余（滚动区间 + 自定义）
+  取"紧挨着本期之前、长度相同"的一段。旧算法对滚动区间取"N 个月前的 1 号 → 今天"，
+  那段长一倍还包住本期，"近 3 个月"跟"到今天的 200 天"比 → 环比恒为负。
+  `common.rs::get_prev_period_bounds` 有回归测试锁住这条不变量。（2026-11-14）
 - **没有全局快捷键**：不做"任意应用里按一下唤起快速记账"。`useGlobalShortcut` /
   `ShortcutRecorder` / `utils/shortcut.ts` / `tauri-plugin-global-shortcut` 插件与权限
   全部移除，`glimmerx:security:quickAddShortcut` 键一并清掉。

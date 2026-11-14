@@ -674,9 +674,15 @@
       "reset": "Reset",
       "print": "Print",
       "dateRange": "Period",
-      "granularity": "Group by",
+      "displayAs": "Display as",
       "expandDetails": "Show details",
       "collapseDetails": "Hide details"
+    },
+    "compare": {
+      "label": "Compare with",
+      "previousPeriod": "Previous period",
+      "lastYear": "Same period last year",
+      "none": "No comparison"
     },
     "tableHeaders": {
       "date": "Date",
@@ -724,7 +730,10 @@
         "income": "Income",
         "expense": "Expense",
         "net": "Net"
-      }
+      },
+      "previousYear": "Same period last year",
+      "vsLastYear": "{{value}} vs last year",
+      "comparisonLastYear": "This period vs last year"
     },
     "categoryBreakdown": {
       "expenseTotal": "Total expense",

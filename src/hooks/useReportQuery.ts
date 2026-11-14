@@ -8,11 +8,13 @@ import {
   type ReportId,
 } from "@/constants/report";
 import type {
+  CompareMode,
   DateRangePreset,
   PeriodGranularity,
   ReportFilter,
 } from "@/types/report";
 import { getDefaultRangePresetDates, todayLocalDate } from "@/utils/date";
+import { resolveGranularity } from "@/utils/reportGranularity";
 
 /**
  * Report page state, held in the URL.
@@ -27,10 +29,15 @@ import { getDefaultRangePresetDates, todayLocalDate } from "@/utils/date";
  *
  * Only non-default values are written, so a fresh visit stays at a bare
  * `/reports` instead of a six-parameter URL.
+ *
+ * The tick size (`g`) is the exception to "only non-default values": it has no
+ * default of its own, it is *derived* from the range (see
+ * `utils/reportGranularity`), and the URL only records the tick size when the
+ * user overrides that derivation.
  */
 
 const DEFAULT_PRESET: DateRangePreset = "currentMonth";
-const DEFAULT_GRANULARITY: PeriodGranularity = "monthly";
+const DEFAULT_COMPARE: CompareMode = "previousPeriod";
 
 export interface ReportQuery {
   report: ReportId;
@@ -38,13 +45,46 @@ export interface ReportQuery {
   /** Custom range endpoints; only meaningful when `preset === "custom"`. */
   start: string;
   end: string;
-  granularity: PeriodGranularity;
+  /**
+   * The tick size the user asked for, or null when they have not overridden
+   * the one the range implies.
+   */
+  granularity: PeriodGranularity | null;
+  /**
+   * What the totals are compared against: the previous period, the same
+   * stretch a year ago, or nothing at all.
+   */
+  compare: CompareMode;
   /**
    * The point in time a report is anchored to: a snapshot date for the balance
    * sheet, `YYYY-MM` for budgets. Reports that take a range ignore it.
    */
   anchor: string;
   accountId: string;
+}
+
+/**
+ * The concrete dates a preset resolves to.
+ *
+ * "Custom" with one end empty is a half-finished choice, not a request for
+ * the whole ledger: it falls back to the default period until both dates
+ * exist.
+ */
+export function resolveRange(
+  preset: DateRangePreset,
+  start: string,
+  end: string,
+): { startDate: string; endDate: string } {
+  if (preset === "custom" && start && end) {
+    // The backend swaps a reversed range as well; doing it here keeps the scope
+    // line and the tick size honest about which stretch is being shown.
+    return start > end
+      ? { startDate: end, endDate: start }
+      : { startDate: start, endDate: end };
+  }
+  return getDefaultRangePresetDates(
+    preset === "custom" ? "currentMonth" : preset,
+  );
 }
 
 function parsePreset(value: string | null): DateRangePreset {
@@ -63,10 +103,17 @@ function parsePreset(value: string | null): DateRangePreset {
     : DEFAULT_PRESET;
 }
 
-function parseGranularity(value: string | null): PeriodGranularity {
-  return value === "daily" || value === "weekly" || value === "yearly"
+function parseGranularity(value: string | null): PeriodGranularity | null {
+  return value === "daily" ||
+    value === "weekly" ||
+    value === "monthly" ||
+    value === "yearly"
     ? value
-    : DEFAULT_GRANULARITY;
+    : null;
+}
+
+function parseCompare(value: string | null): CompareMode {
+  return value === "lastYear" || value === "none" ? value : DEFAULT_COMPARE;
 }
 
 function parseReport(value: string | null): ReportId {
@@ -102,6 +149,7 @@ export function useReportQuery() {
       start: params.get("s") ?? "",
       end: params.get("e") ?? "",
       granularity: parseGranularity(params.get("g")),
+      compare: parseCompare(params.get("c")),
       anchor: normalizeAnchor(params.get("d") ?? "", dateControl),
       accountId: params.get("a") ?? "",
     };
@@ -119,7 +167,11 @@ export function useReportQuery() {
           };
           set("r", merged.report, DEFAULT_REPORT);
           set("p", merged.preset, DEFAULT_PRESET);
-          set("g", merged.granularity, DEFAULT_GRANULARITY);
+          // The tick size has no default of its own — it is derived from the
+          // range — so the URL only records it when the user overrode that.
+          if (merged.granularity) next.set("g", merged.granularity);
+          else next.delete("g");
+          set("c", merged.compare, DEFAULT_COMPARE);
           // `anchor` defaults to today, which changes daily — comparing against
           // it keeps a bare URL bare, but a date the user picked is written.
           set("d", merged.anchor === todayLocalDate() ? "" : merged.anchor, "");
@@ -142,25 +194,39 @@ export function useReportQuery() {
   const definition = findReport(query.report);
 
   /** The concrete `startDate`/`endDate` the backend will be asked for. */
-  const range = useMemo(() => {
-    // "Custom" with one end empty is a half-finished choice, not a request for
-    // the whole ledger: fall back to the default period until both dates exist.
-    if (query.preset === "custom" && query.start && query.end) {
-      return { startDate: query.start, endDate: query.end };
-    }
-    return getDefaultRangePresetDates(
-      query.preset === "custom" ? "currentMonth" : query.preset,
-    );
-  }, [query.preset, query.start, query.end]);
+  const range = useMemo(
+    () => resolveRange(query.preset, query.start, query.end),
+    [query.preset, query.start, query.end],
+  );
+
+  /**
+   * The tick size of the time axis, and the ones worth offering.
+   *
+   * The tick size follows the range unless the user says otherwise, and a
+   * request the range cannot show is replaced by the nearest sensible one —
+   * a chart with a single column is a worse answer than a chart that draws
+   * something else.
+   */
+  const scale = useMemo(
+    () => resolveGranularity(query.granularity, range.startDate, range.endDate),
+    [query.granularity, range.startDate, range.endDate],
+  );
 
   const filter = useMemo<ReportFilter>(
     () => ({
       dateRangePreset: query.preset,
       startDate: range.startDate,
       endDate: range.endDate,
-      periodGranularity: query.granularity,
+      periodGranularity: scale.granularity,
+      compare: query.compare,
     }),
-    [query.preset, query.granularity, range.startDate, range.endDate],
+    [
+      query.preset,
+      query.compare,
+      scale.granularity,
+      range.startDate,
+      range.endDate,
+    ],
   );
 
   /** `YYYY` and `MM` for the budget report, both from the same anchor. */
@@ -174,6 +240,10 @@ export function useReportQuery() {
     definition,
     range,
     filter,
+    /** The tick size the charts are drawn with. */
+    granularity: scale.granularity,
+    /** The tick sizes the current range can show; one means no choice to make. */
+    granularityOptions: scale.options,
     anchorYear,
     anchorMonth,
     /** Budgets anchor on a month, so they never carry a day. */
@@ -182,12 +252,15 @@ export function useReportQuery() {
     setPreset: (preset: DateRangePreset) => update({ preset }),
     setCustomRange: (start: string, end: string) => update({ start, end }),
     setGranularity: (granularity: PeriodGranularity) => update({ granularity }),
+    setCompare: (compare: CompareMode) => update({ compare }),
     setAnchor: (anchor: string) => update({ anchor }),
     setAccount: (accountId: string) => update({ accountId }),
     reset: () =>
       update({
         preset: DEFAULT_PRESET,
-        granularity: DEFAULT_GRANULARITY,
+        // No tick size: the range implies one again.
+        granularity: null,
+        compare: DEFAULT_COMPARE,
         start: "",
         end: "",
         anchor: todayLocalDate(),

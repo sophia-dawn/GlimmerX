@@ -35,8 +35,6 @@ export interface ReportDefinition {
   /** Shown under the report title: what the numbers count, in one line. */
   scopeKey: string;
   dateControl: ReportDateControl;
-  /** Only cash-flow and account-detail reports care about period length. */
-  granularity: boolean;
 }
 
 export const REPORT_LIST = [
@@ -45,42 +43,36 @@ export const REPORT_LIST = [
     nameKey: "reports.names.cashflow",
     scopeKey: "reports.scope.cashflow",
     dateControl: "range",
-    granularity: true,
   },
   {
     id: "categories",
     nameKey: "reports.names.categories",
     scopeKey: "reports.scope.categories",
     dateControl: "range",
-    granularity: false,
   },
   {
     id: "netWorth",
     nameKey: "reports.names.netWorth",
     scopeKey: "reports.scope.netWorth",
     dateControl: "range",
-    granularity: false,
   },
   {
     id: "balanceSheet",
     nameKey: "reports.names.balanceSheet",
     scopeKey: "reports.scope.balanceSheet",
     dateControl: "snapshot",
-    granularity: false,
   },
   {
     id: "accounts",
     nameKey: "reports.names.accounts",
     scopeKey: "reports.scope.accounts",
     dateControl: "range",
-    granularity: true,
   },
   {
     id: "budgets",
     nameKey: "reports.names.budgets",
     scopeKey: "reports.scope.budgets",
     dateControl: "month",
-    granularity: false,
   },
 ] as const satisfies readonly ReportDefinition[];
 
@@ -108,4 +100,11 @@ export const GRANULARITY_OPTIONS = [
   { id: "weekly", labelKey: "reports.granularity.weekly" },
   { id: "monthly", labelKey: "reports.granularity.monthly" },
   { id: "yearly", labelKey: "reports.granularity.yearly" },
+] as const;
+
+// 对比基期：跟谁比
+export const COMPARE_OPTIONS = [
+  { id: "previousPeriod", labelKey: "reports.compare.previousPeriod" },
+  { id: "lastYear", labelKey: "reports.compare.lastYear" },
+  { id: "none", labelKey: "reports.compare.none" },
 ] as const;

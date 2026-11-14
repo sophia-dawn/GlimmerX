@@ -12,6 +12,27 @@ pub struct ReportFilter {
     pub period_granularity: PeriodGranularity,
     pub account_ids: Option<Vec<String>>,
     pub category_ids: Option<Vec<String>>,
+    /// What the period totals are compared against. Reports that compare
+    /// nothing ignore it.
+    #[serde(default)]
+    pub compare: CompareMode,
+}
+
+/// What a report's totals are compared against.
+///
+/// The choice belongs to the reader, not to the report: "was this month worse
+/// than last month" and "was this year worse than last year" are different
+/// questions, and only one of them can be the default.
+#[derive(Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum CompareMode {
+    /// The equally long stretch right before the current one.
+    #[default]
+    PreviousPeriod,
+    /// The same stretch one year earlier.
+    LastYear,
+    /// No comparison at all.
+    None,
 }
 
 /// Preset date ranges for report filtering.

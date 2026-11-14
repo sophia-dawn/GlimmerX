@@ -10,9 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DATE_RANGE_PRESETS, GRANULARITY_OPTIONS } from "@/constants/report";
+import { DATE_RANGE_PRESETS } from "@/constants/report";
 import type { ReportQueryController } from "@/hooks/useReportQuery";
-import type { DateRangePreset, PeriodGranularity } from "@/types/report";
+import type { DateRangePreset } from "@/types/report";
 
 /**
  * The one filter bar.
@@ -22,6 +22,9 @@ import type { DateRangePreset, PeriodGranularity } from "@/types/report";
  * balance sheet; a month for budgets. Offering a range where the data is a
  * point is how the old page ended up with four copies of a date picker that
  * three of them did not need.
+ *
+ * The tick size of a chart's axis is not here: it is not a property of the
+ * report but of the chart, so it sits on the chart (see `ChartScaleSelect`).
  *
  * The state lives in the URL (see `useReportQuery`), so the reset button is
  * really "go back to the default period" rather than "clear local state".
@@ -36,8 +39,6 @@ export function ReportFilterBar({
 
   const onPreset = (value: string) =>
     controller.setPreset(value as DateRangePreset);
-  const onGranularity = (value: string) =>
-    controller.setGranularity(value as PeriodGranularity);
 
   return (
     <div
@@ -74,26 +75,6 @@ export function ReportFilterBar({
                 }
                 className="w-[136px]"
               />
-            </div>
-          )}
-
-          {definition.granularity && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {t("reports.common.granularity")}
-              </span>
-              <Select value={query.granularity} onValueChange={onGranularity}>
-                <SelectTrigger size="sm" className="w-[92px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GRANULARITY_OPTIONS.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {t(option.labelKey)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           )}
         </>

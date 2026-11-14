@@ -14,6 +14,9 @@ export type DateRangePreset =
 
 export type PeriodGranularity = "daily" | "weekly" | "monthly" | "yearly";
 
+/** What a report's totals are compared against. */
+export type CompareMode = "previousPeriod" | "lastYear" | "none";
+
 export interface ReportFilter {
   dateRangePreset: DateRangePreset;
   startDate?: string;
@@ -21,6 +24,8 @@ export interface ReportFilter {
   periodGranularity: PeriodGranularity;
   accountIds?: string[];
   categoryIds?: string[];
+  /** What the totals are compared against; reports that compare nothing ignore it. */
+  compare: CompareMode;
 }
 
 export interface NetWorthPoint {
