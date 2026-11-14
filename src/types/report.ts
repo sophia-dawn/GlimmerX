@@ -94,53 +94,6 @@ export interface TrendReportDto {
   totalNet: number;
 }
 
-export interface CategoryComparisonItem {
-  categoryId: string;
-  categoryName: string;
-  month1Amount: number;
-  month2Amount: number;
-  diff: number;
-  changePct: number; // -1.0 indicates "new category" (no previous month data)
-}
-
-export interface MonthComparisonReportDto {
-  month1: string;
-  month2: string;
-  month1Income: number;
-  month1Expense: number;
-  month2Income: number;
-  month2Expense: number;
-  incomeDiff: number;
-  expenseDiff: number;
-  incomeChangePct: number;
-  expenseChangePct: number;
-  categoryComparison: CategoryComparisonItem[];
-}
-
-export interface MonthlySummary {
-  month: number;
-  income: number;
-  expense: number;
-  net: number;
-}
-
-export interface ReportCategoryAmount {
-  categoryId: string;
-  categoryName: string;
-  amount: number;
-  percentage: number;
-}
-
-export interface YearSummaryReportDto {
-  year: number;
-  totalIncome: number;
-  totalExpense: number;
-  net: number;
-  monthlyBreakdown: MonthlySummary[];
-  topIncomeCategories: ReportCategoryAmount[];
-  topExpenseCategories: ReportCategoryAmount[];
-}
-
 export interface AccountTransactionItem {
   transactionId: string;
   date: string;

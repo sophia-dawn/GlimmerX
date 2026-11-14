@@ -1,268 +1,229 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { DatePicker } from "@/components/ui/date-picker";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Legend,
-  Tooltip,
-} from "recharts";
-import { AlertCircle, Loader2, RotateCcw } from "lucide-react";
-import { useCategoryBreakdownReport } from "@/hooks/useCategoryBreakdownReport";
-import { formatAmount } from "@/utils/format";
-import { DATE_RANGE_PRESETS } from "@/constants";
-import { getDefaultRangePresetDates } from "@/utils/date";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ReportFilter, DateRangePreset } from "@/types/report";
+import { Button } from "@/components/ui/button";
+import type { ReportQueryController } from "@/hooks/useReportQuery";
+import { useCategoryBreakdownReport } from "@/hooks/useCategoryBreakdownReport";
+import { EChart } from "@/components/charts/EChart";
+import type { EChartsCoreOption } from "@/components/charts/echarts";
 import { useChartColors } from "@/utils/chartColors";
+import {
+  chartAnimation,
+  chartTextStyle,
+  chartTooltip,
+} from "@/utils/chartTheme";
+import { formatAmount } from "@/utils/format";
+import type { CategoryBreakdownItem } from "@/types/report";
+import {
+  ReportFrame,
+  ReportPanel,
+  ReportStats,
+  ReportTable,
+  type ReportColumn,
+} from "./ReportFrame";
 
-export function CategoryBreakdownReport() {
+/**
+ * Where the money went, by category.
+ *
+ * The period comes from the page filter, not from a second date picker inside
+ * the report — that duplication was the reason two reports could be showing
+ * two different ranges at the same time. The only control here is the one that
+ * is genuinely report-specific: whether to look at spending or at income.
+ *
+ * The ring carries no slice labels. With six or more categories they collide,
+ * and the table below already names every one with its amount and share, so the
+ * labels would repeat the table while covering the chart.
+ */
+export function CategoryBreakdownReport({
+  controller,
+}: {
+  controller: ReportQueryController;
+}) {
   const { t } = useTranslation();
   const colors = useChartColors();
-  const [incomeOrExpense, setIncomeOrExpense] = useState<"income" | "expense">(
-    "expense",
-  );
-  const [preset, setPreset] = useState<DateRangePreset>("currentMonth");
-  const [customStart, setCustomStart] = useState<string>("");
-  const [customEnd, setCustomEnd] = useState<string>("");
-
-  const range =
-    preset === "custom"
-      ? { startDate: customStart, endDate: customEnd }
-      : getDefaultRangePresetDates(preset);
-
-  const filter: ReportFilter = {
-    dateRangePreset: preset,
-    startDate: range.startDate,
-    endDate: range.endDate,
-    periodGranularity: "monthly",
-  };
+  const [kind, setKind] = useState<"expense" | "income">("expense");
 
   const { data, isLoading, error } = useCategoryBreakdownReport(
-    filter,
-    incomeOrExpense,
+    controller.filter,
+    kind,
   );
 
-  const resetFilter = () => {
-    setPreset("currentMonth");
-    setCustomStart("");
-    setCustomEnd("");
-    setIncomeOrExpense("expense");
-  };
+  const categories = useMemo<CategoryBreakdownItem[]>(
+    () => data?.categories ?? [],
+    [data],
+  );
 
-  const chartData =
-    data?.categories?.map((cat, idx) => ({
-      name: cat.categoryName,
-      value: cat.amount,
-      percentage: cat.percentage,
-      fill: colors.series[idx % colors.series.length],
-    })) ?? [];
+  const option = useMemo<EChartsCoreOption>(
+    () => ({
+      ...chartAnimation(),
+      textStyle: chartTextStyle(colors),
+      color: colors.series,
+      legend: {
+        type: "scroll",
+        bottom: 0,
+        left: "center",
+        itemWidth: 8,
+        itemHeight: 8,
+        itemGap: 14,
+        icon: "roundRect",
+        textStyle: {
+          color: colors.neutral,
+          fontSize: 11,
+          fontFamily: colors.sans,
+        },
+        pageIconColor: colors.neutral,
+        pageIconInactiveColor: colors.grid,
+        pageTextStyle: { color: colors.neutral, fontSize: 10 },
+      },
+      tooltip: chartTooltip(colors, {
+        trigger: "item",
+        formatter: (raw) => {
+          const p = raw as {
+            marker: string;
+            name: string;
+            value: number;
+            percent: number;
+          };
+          return `${p.marker}${p.name}<br/>${formatAmount(Math.round(p.value * 100))}：${p.percent.toFixed(1)}%`;
+        },
+      }),
+      series: [
+        {
+          type: "pie",
+          // A ring, not a disc: the hole gives the eye a place to rest and
+          // stops a wide slice from reading as the whole chart.
+          radius: ["46%", "72%"],
+          center: ["50%", "44%"],
+          padAngle: 1,
+          itemStyle: { borderWidth: 0, borderRadius: 2 },
+          label: { show: false },
+          labelLine: { show: false },
+          emphasis: { scale: true, scaleSize: 5 },
+          data: categories.map((category) => ({
+            name: category.categoryName,
+            value: category.amount / 100,
+          })),
+        },
+      ],
+    }),
+    [categories, colors],
+  );
+
+  const total = data?.totalAmount ?? 0;
+  const largest = categories[0];
+
+  const columns: ReportColumn<CategoryBreakdownItem>[] = [
+    {
+      header: t("reports.tableHeaders.category"),
+      cell: (row) => row.categoryName,
+    },
+    {
+      header: t("reports.tableHeaders.amount"),
+      align: "right",
+      cell: (row) => formatAmount(row.amount),
+    },
+    {
+      header: t("reports.tableHeaders.percentage"),
+      align: "right",
+      cell: (row) => (
+        <span className="inline-flex items-center justify-end gap-2">
+          {/* A share bar in the cell: four rows of "31.2%" are hard to rank by
+              eye, one bar tells you which is biggest before you read it. */}
+          <span
+            aria-hidden
+            className="h-1.5 rounded-full bg-info/60"
+            style={{ width: `${Math.max(2, row.percentage)}%`, maxWidth: 64 }}
+          />
+          <span className="w-11 text-right text-muted-foreground">
+            {row.percentage.toFixed(1)}%
+          </span>
+        </span>
+      ),
+    },
+    {
+      header: t("reports.tableHeaders.transactions"),
+      align: "right",
+      cell: (row) => (
+        <span className="text-muted-foreground">{row.transactionCount}</span>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-4 pb-4">
-        <div className="flex flex-col gap-1.5">
-          <Label>{t("reports.common.dateRange")}</Label>
-          <Select
-            value={preset}
-            onValueChange={(v) => setPreset(v as DateRangePreset)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DATE_RANGE_PRESETS.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {t(p.labelKey)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <ReportFrame
+      title={t("reports.names.categories")}
+      scope={t("reports.scope.categories", {
+        start: controller.range.startDate,
+        end: controller.range.endDate,
+      })}
+      isLoading={isLoading}
+      error={error}
+      isEmpty={categories.length === 0}
+      emptyHint={t("reports.categoryBreakdown.noCategoryData")}
+      toolbar={
+        <div className="flex items-center gap-1 rounded-xl border bg-card px-2 py-1.5">
+          {(["expense", "income"] as const).map((value) => (
+            <Button
+              key={value}
+              variant={kind === value ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setKind(value)}
+              className="h-6 px-2.5 text-xs"
+            >
+              {t(
+                value === "expense"
+                  ? "categories.typeExpense"
+                  : "categories.typeIncome",
+              )}
+            </Button>
+          ))}
         </div>
+      }
+    >
+      <ReportStats
+        items={[
+          {
+            label:
+              kind === "expense"
+                ? t("reports.categoryBreakdown.expenseTotal")
+                : t("reports.categoryBreakdown.incomeTotal"),
+            value: formatAmount(total),
+            tone: kind === "expense" ? "expense" : "income",
+          },
+          {
+            label: t("reports.categoryBreakdown.categoriesCount"),
+            value: String(categories.length),
+          },
+          {
+            label: t("reports.categoryBreakdown.topShare"),
+            value: largest ? `${largest.percentage.toFixed(1)}%` : "—",
+            hint: largest?.categoryName,
+          },
+          {
+            label: t("reports.categoryBreakdown.averageShare"),
+            value:
+              categories.length > 0
+                ? `${(100 / categories.length).toFixed(1)}%`
+                : "—",
+            hint: t("reports.categoryBreakdown.averageShareHint"),
+          },
+        ]}
+      />
 
-        {preset === "custom" && (
-          <>
-            <div className="flex flex-col gap-1.5">
-              <Label>{t("reports.dateRange.startDate")}</Label>
-              <DatePicker
-                value={customStart}
-                onChange={setCustomStart}
-                placeholder={t("reports.dateRange.startDate")}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>{t("reports.dateRange.endDate")}</Label>
-              <DatePicker
-                value={customEnd}
-                onChange={setCustomEnd}
-                placeholder={t("reports.dateRange.endDate")}
-              />
-            </div>
-          </>
-        )}
+      <ReportPanel title={t("reports.categoryBreakdown.categoryDistribution")}>
+        <EChart
+          option={option}
+          height={300}
+          label={t("reports.categoryBreakdown.categoryDistribution")}
+        />
+      </ReportPanel>
 
-        <Button variant="outline" size="sm" onClick={resetFilter}>
-          <RotateCcw className="h-4 w-4 mr-2" />
-          {t("reports.common.reset")}
-        </Button>
-      </div>
-
-      <div className="flex gap-4">
-        <Select
-          value={incomeOrExpense}
-          onValueChange={(v) => setIncomeOrExpense(v as "income" | "expense")}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="expense">
-              {t("categories.typeExpense")}
-            </SelectItem>
-            <SelectItem value="income">{t("categories.typeIncome")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isLoading && (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      )}
-
-      {error && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-8 text-destructive">
-            <AlertCircle className="h-12 w-12 mb-4" />
-            <p className="text-lg">{t("reports.common.error")}</p>
-            <p className="text-sm mt-1">{error.message}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isLoading && !error && (!data || data.categories.length === 0) && (
-        <Card>
-          <CardContent className="text-center py-8 text-muted-foreground">
-            <AlertCircle className="h-12 w-12 mb-4 opacity-50 mx-auto" />
-            <p>{t("reports.categoryBreakdown.noCategoryData")}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isLoading && !error && data && data.categories.length > 0 && (
-        <>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">
-                {incomeOrExpense === "expense"
-                  ? t("reports.categoryBreakdown.expenseTotal")
-                  : t("reports.categoryBreakdown.incomeTotal")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-mono font-medium">
-                {formatAmount(data.totalAmount)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {t("reports.categoryBreakdown.categoryDistribution")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={({ name, payload }) =>
-                      `${name}: ${(payload?.percentage ?? 0).toFixed(1)}%`
-                    }
-                  >
-                    {chartData.map((entry, idx) => (
-                      <Cell key={idx} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => {
-                      if (value === undefined) return "";
-                      return formatAmount(Number(value));
-                    }}
-                  />
-                  <Legend
-                    layout="horizontal"
-                    verticalAlign="bottom"
-                    align="center"
-                    wrapperStyle={{ paddingTop: "12px", fontSize: "12px" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {t("reports.categoryBreakdown.categoryDetails")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="px-3 py-2 text-left">
-                      {t("reports.tableHeaders.category")}
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      {t("reports.tableHeaders.amount")}
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      {t("reports.tableHeaders.percentage")}
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      {t("reports.tableHeaders.transactions")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.categories.map((cat) => (
-                    <tr key={cat.categoryId} className="border-b">
-                      <td className="px-3 py-2">{cat.categoryName}</td>
-                      <td className="font-mono px-3 py-2 text-right">
-                        {formatAmount(cat.amount)}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {cat.percentage.toFixed(1)}%
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {cat.transactionCount}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </>
-      )}
-    </div>
+      <ReportPanel title={t("reports.categoryBreakdown.categoryDetails")}>
+        <ReportTable
+          columns={columns}
+          rows={categories}
+          rowKey={(row) => row.categoryId}
+        />
+      </ReportPanel>
+    </ReportFrame>
   );
 }

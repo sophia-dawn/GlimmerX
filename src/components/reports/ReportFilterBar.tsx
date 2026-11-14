@@ -1,5 +1,8 @@
+import { RotateCcw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
+import { MonthPicker } from "@/components/ui/month-picker";
 import {
   Select,
   SelectContent,
@@ -7,109 +10,80 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DatePicker } from "@/components/ui/date-picker";
-import { MultiSelectButton } from "./MultiSelectButton";
 import { DATE_RANGE_PRESETS, GRANULARITY_OPTIONS } from "@/constants/report";
-import type { ReportFilter } from "@/types/report";
+import type { ReportQueryController } from "@/hooks/useReportQuery";
 import type { DateRangePreset, PeriodGranularity } from "@/types/report";
-import { useAccountList } from "@/hooks/useAccountList";
-import { useCategoryList } from "@/hooks/useCategoryList";
-import { useTranslation } from "react-i18next";
 
-interface ReportFilterBarProps {
-  filter: ReportFilter;
-  setDateRangePreset: (preset: DateRangePreset) => void;
-  setStartDate: (date: string | undefined) => void;
-  setEndDate: (date: string | undefined) => void;
-  setPeriodGranularity?: (granularity: PeriodGranularity) => void;
-  setAccountIds?: (ids: string[] | undefined) => void;
-  setCategoryIds?: (ids: string[] | undefined) => void;
-  resetFilter?: () => void;
-  onExport?: () => void;
-  showAccountFilter?: boolean;
-  showCategoryFilter?: boolean;
-}
-
+/**
+ * The one filter bar.
+ *
+ * What it offers is decided by the report, not by the user's patience: a range
+ * for cash flow, categories, net worth and accounts; a single date for the
+ * balance sheet; a month for budgets. Offering a range where the data is a
+ * point is how the old page ended up with four copies of a date picker that
+ * three of them did not need.
+ *
+ * The state lives in the URL (see `useReportQuery`), so the reset button is
+ * really "go back to the default period" rather than "clear local state".
+ */
 export function ReportFilterBar({
-  filter,
-  setDateRangePreset,
-  setStartDate,
-  setEndDate,
-  setPeriodGranularity,
-  setAccountIds,
-  setCategoryIds,
-  resetFilter,
-  onExport,
-  showAccountFilter = false,
-  showCategoryFilter = false,
-}: ReportFilterBarProps) {
+  controller,
+}: {
+  controller: ReportQueryController;
+}) {
   const { t } = useTranslation();
-  const { data: accounts } = useAccountList();
-  const { data: categories } = useCategoryList();
+  const { query, definition } = controller;
 
-  const accountOptions = (accounts ?? []).map((a) => ({
-    id: a.id,
-    name: a.name,
-  }));
-
-  const categoryOptions = (categories ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-  }));
+  const onPreset = (value: string) =>
+    controller.setPreset(value as DateRangePreset);
+  const onGranularity = (value: string) =>
+    controller.setGranularity(value as PeriodGranularity);
 
   return (
-    <div className="px-4 py-3 border-b bg-muted/20">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs whitespace-nowrap">
-              {t("reports.common.dateRange")}
-            </Label>
-            <Select
-              value={filter.dateRangePreset}
-              onValueChange={(v) => setDateRangePreset(v as DateRangePreset)}
-            >
-              <SelectTrigger className="w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DATE_RANGE_PRESETS.map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id}>
-                    {t(preset.labelKey)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+    <div
+      data-print="hide"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-card px-4 py-2.5"
+    >
+      {definition.dateControl === "range" && (
+        <>
+          <Select value={query.preset} onValueChange={onPreset}>
+            <SelectTrigger size="sm" className="w-[124px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DATE_RANGE_PRESETS.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id}>
+                  {t(preset.labelKey)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          {filter.dateRangePreset === "custom" && (
-            <div className="flex items-center gap-2">
+          {query.preset === "custom" && (
+            <div className="flex items-center gap-1.5">
               <DatePicker
-                value={filter.startDate}
-                onChange={(d) => setStartDate(d)}
-                className="w-[130px]"
+                value={query.start || undefined}
+                onChange={(date) => controller.setCustomRange(date, query.end)}
+                className="w-[136px]"
               />
-              <span className="text-muted-foreground">~</span>
+              <span className="text-xs text-muted-foreground">~</span>
               <DatePicker
-                value={filter.endDate}
-                onChange={(d) => setEndDate(d)}
-                className="w-[130px]"
+                value={query.end || undefined}
+                onChange={(date) =>
+                  controller.setCustomRange(query.start, date)
+                }
+                className="w-[136px]"
               />
             </div>
           )}
 
-          {setPeriodGranularity && (
+          {definition.granularity && (
             <div className="flex items-center gap-2">
-              <Label className="text-xs whitespace-nowrap">
+              <span className="text-xs text-muted-foreground">
                 {t("reports.common.granularity")}
-              </Label>
-              <Select
-                value={filter.periodGranularity}
-                onValueChange={(v) =>
-                  setPeriodGranularity(v as PeriodGranularity)
-                }
-              >
-                <SelectTrigger className="w-[90px]">
+              </span>
+              <Select value={query.granularity} onValueChange={onGranularity}>
+                <SelectTrigger size="sm" className="w-[92px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -122,41 +96,45 @@ export function ReportFilterBar({
               </Select>
             </div>
           )}
-        </div>
+        </>
+      )}
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {showAccountFilter && setAccountIds && (
-            <MultiSelectButton
-              label={t("reports.common.accounts")}
-              options={accountOptions}
-              selected={filter.accountIds}
-              onSelect={setAccountIds}
-              className="w-[160px]"
-            />
-          )}
+      {definition.dateControl === "snapshot" && (
+        <>
+          <span className="text-xs text-muted-foreground">
+            {t("reports.balanceSheet.snapshotDate")}
+          </span>
+          <DatePicker
+            value={query.anchor}
+            onChange={controller.setAnchor}
+            className="w-[150px]"
+          />
+        </>
+      )}
 
-          {showCategoryFilter && setCategoryIds && (
-            <MultiSelectButton
-              label={t("reports.common.categories")}
-              options={categoryOptions}
-              selected={filter.categoryIds}
-              onSelect={setCategoryIds}
-              className="w-[160px]"
-            />
-          )}
+      {definition.dateControl === "month" && (
+        <>
+          <span className="text-xs text-muted-foreground">
+            {t("reports.budgets.monthLabel")}
+          </span>
+          <MonthPicker
+            value={controller.anchorMonthValue}
+            onChange={(month) => controller.setAnchor(`${month}-01`)}
+            className="w-[150px]"
+          />
+        </>
+      )}
 
-          {resetFilter && (
-            <Button variant="outline" size="sm" onClick={resetFilter}>
-              {t("reports.common.reset")}
-            </Button>
-          )}
-
-          {onExport && (
-            <Button variant="default" size="sm" onClick={onExport}>
-              {t("reports.common.export")}
-            </Button>
-          )}
-        </div>
+      <div className="ml-auto">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={controller.reset}
+          className="text-muted-foreground"
+        >
+          <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+          {t("reports.common.reset")}
+        </Button>
       </div>
     </div>
   );

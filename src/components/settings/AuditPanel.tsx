@@ -12,7 +12,7 @@ import type {
   AccountUsageStat,
 } from "@/types/report";
 
-export function AuditReport() {
+export function AuditPanel() {
   const { t } = useTranslation();
   const { data, isLoading, error } = useAuditReport();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);

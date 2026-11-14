@@ -58,7 +58,7 @@ The dashboard (概览) module displays aggregated financial data on the home pag
 |-----------|---------|
 | `DashboardSummaryCards` | 4-card grid: monthly/yearly income/expense |
 | `FinancialHealthCards` | 3-card grid: assets, debt, net worth |
-| `MonthlyIncomeExpenseChart` | Daily income/expense line chart (Recharts) |
+| `MonthlyIncomeExpenseChart` | Daily income/expense line chart (ECharts) |
 | `CategoryBreakdownChart` | Pie chart of expense by category |
 | `TopExpensesList` | Top 10 expense transactions with links |
 | `RecentTransactionsCard` | Recent 8 transactions with links |
@@ -86,5 +86,5 @@ individual hooks — only spread `QUERY_CONFIG.STATIC` for immutable metadata.
 - `clsx` + `tailwind-merge` — Class name utilities
 - `lucide-react` — Icon components
 - `date-fns` — Date formatting (local timezone aware)
-- `recharts` — Dashboard charts
+- `echarts` — every chart, registered on demand in `components/charts/echarts.ts`
 - `react-i18next` — Internationalization

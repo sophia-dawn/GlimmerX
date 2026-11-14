@@ -1,48 +1,104 @@
 /**
- * Report 模块常量配置
+ * Report catalogue and filter vocabulary.
+ *
+ * Six reports, each answering a question the previous nine did not: the old list
+ * had four overlapping ways to look at cash flow (standard / trend / month
+ * comparison / year summary) and two overlapping ways to look at one account
+ * (transactions / balance trend), which is why the reports page read as a pile
+ * rather than an index. What is left is one entry per question, and the
+ * questions are ordered the way someone reads their own finances: what came in
+ * and went out, where it went, what it did to net worth, what is owed, one
+ * account in detail, and what the plan was.
  */
 
-// 报表列表
-export const REPORT_LIST = [
-  { id: "standard", nameKey: "reports.names.standard", group: "P0" },
-  { id: "category", nameKey: "reports.names.category", group: "P0" },
-  { id: "balanceSheet", nameKey: "reports.names.balanceSheet", group: "P0" },
-  { id: "trend", nameKey: "reports.names.trend", group: "P0" },
-  {
-    id: "monthComparison",
-    nameKey: "reports.names.monthComparison",
-    group: "P1",
-  },
-  { id: "yearSummary", nameKey: "reports.names.yearSummary", group: "P1" },
-  {
-    id: "accountTransactions",
-    nameKey: "reports.names.accountTransactions",
-    group: "P1",
-  },
-  {
-    id: "accountBalanceTrend",
-    nameKey: "reports.names.accountBalanceTrend",
-    group: "P1",
-  },
-  { id: "audit", nameKey: "reports.names.audit", group: "P2" },
+export const REPORT_IDS = [
+  "cashflow",
+  "categories",
+  "netWorth",
+  "balanceSheet",
+  "accounts",
+  "budgets",
 ] as const;
 
-// 报表分组
-export const REPORT_GROUP_LABELS = {
-  P0: "reports.groups.p0",
-  P1: "reports.groups.p1",
-  P2: "reports.groups.p2",
-} as const;
+export type ReportId = (typeof REPORT_IDS)[number];
+
+/**
+ * Which date control a report needs. Not every report takes a range: a balance
+ * sheet is a snapshot and a budget is a month, and offering a range where the
+ * data is a point makes the filter look broken.
+ */
+export type ReportDateControl = "range" | "snapshot" | "month";
+
+export interface ReportDefinition {
+  id: ReportId;
+  nameKey: string;
+  /** Shown under the report title: what the numbers count, in one line. */
+  scopeKey: string;
+  dateControl: ReportDateControl;
+  /** Only cash-flow and account-detail reports care about period length. */
+  granularity: boolean;
+}
+
+export const REPORT_LIST = [
+  {
+    id: "cashflow",
+    nameKey: "reports.names.cashflow",
+    scopeKey: "reports.scope.cashflow",
+    dateControl: "range",
+    granularity: true,
+  },
+  {
+    id: "categories",
+    nameKey: "reports.names.categories",
+    scopeKey: "reports.scope.categories",
+    dateControl: "range",
+    granularity: false,
+  },
+  {
+    id: "netWorth",
+    nameKey: "reports.names.netWorth",
+    scopeKey: "reports.scope.netWorth",
+    dateControl: "range",
+    granularity: false,
+  },
+  {
+    id: "balanceSheet",
+    nameKey: "reports.names.balanceSheet",
+    scopeKey: "reports.scope.balanceSheet",
+    dateControl: "snapshot",
+    granularity: false,
+  },
+  {
+    id: "accounts",
+    nameKey: "reports.names.accounts",
+    scopeKey: "reports.scope.accounts",
+    dateControl: "range",
+    granularity: true,
+  },
+  {
+    id: "budgets",
+    nameKey: "reports.names.budgets",
+    scopeKey: "reports.scope.budgets",
+    dateControl: "month",
+    granularity: false,
+  },
+] as const satisfies readonly ReportDefinition[];
+
+export const DEFAULT_REPORT: ReportId = "cashflow";
+
+export function findReport(id: string | null): ReportDefinition {
+  return REPORT_LIST.find((report) => report.id === id) ?? REPORT_LIST[0];
+}
 
 // 日期范围预设
 export const DATE_RANGE_PRESETS = [
   { id: "currentMonth", labelKey: "reports.dateRange.currentMonth" },
   { id: "lastMonth", labelKey: "reports.dateRange.lastMonth" },
-  { id: "currentYear", labelKey: "reports.dateRange.currentYear" },
-  { id: "lastYear", labelKey: "reports.dateRange.lastYear" },
   { id: "last3Months", labelKey: "reports.dateRange.last3Months" },
   { id: "last6Months", labelKey: "reports.dateRange.last6Months" },
   { id: "last12Months", labelKey: "reports.dateRange.last12Months" },
+  { id: "currentYear", labelKey: "reports.dateRange.currentYear" },
+  { id: "lastYear", labelKey: "reports.dateRange.lastYear" },
   { id: "custom", labelKey: "reports.dateRange.custom" },
 ] as const;
 

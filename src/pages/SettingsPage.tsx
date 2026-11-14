@@ -16,6 +16,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { DataManagementSection } from "@/components/DataManagementSection";
 import { AiSettingsSection } from "@/components/settings/AiSettingsSection";
+import { AuditPanel } from "@/components/settings/AuditPanel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { SupportedLanguage } from "@/i18n";
 import {
   Select,
@@ -25,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { Sun, Moon, Monitor, Check } from "lucide-react";
+import { Sun, Moon, Monitor, Check, Stethoscope } from "lucide-react";
 
 const THEME_ITEMS: { value: ThemeMode; icon: typeof Sun }[] = [
   { value: "light", icon: Sun },
@@ -110,6 +118,7 @@ export function SettingsPage() {
     setQuickAddShortcut,
   } = useSecurityStore();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   return (
     <div className="h-full overflow-auto">
@@ -261,6 +270,26 @@ export function SettingsPage() {
           </button>
         </div>
 
+        {/* Data health. The audit is a diagnostic, not a report: it answers
+            "is the ledger internally consistent", which belongs next to the
+            backup and the password rather than beside the cash-flow charts. */}
+        <div className="space-y-3">
+          <label className="text-sm font-medium">
+            {t("settings.dataAudit")}
+          </label>
+          <p className="text-xs text-muted-foreground">
+            {t("settings.dataAuditDesc")}
+          </p>
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            <Stethoscope className="size-3.5" strokeWidth={1.75} />
+            {t("settings.runAudit")}
+          </button>
+        </div>
+
         {/* AI Bookkeeping */}
         <div className="space-y-3">
           <AiSettingsSection />
@@ -276,6 +305,16 @@ export function SettingsPage() {
         open={passwordDialogOpen}
         onOpenChange={setPasswordDialogOpen}
       />
+
+      <Dialog open={auditOpen} onOpenChange={setAuditOpen}>
+        <DialogContent className="max-h-[80vh] max-w-2xl overflow-auto">
+          <DialogHeader>
+            <DialogTitle>{t("reports.audit.title")}</DialogTitle>
+            <DialogDescription>{t("settings.dataAuditDesc")}</DialogDescription>
+          </DialogHeader>
+          <AuditPanel />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

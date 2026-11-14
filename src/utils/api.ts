@@ -45,8 +45,6 @@ import type {
   CategoryBreakdownReportDto,
   BalanceSheetReportDto,
   TrendReportDto,
-  MonthComparisonReportDto,
-  YearSummaryReportDto,
   AccountTransactionsReportDto,
   AccountBalanceTrendReportDto,
   AuditReportDto,
@@ -555,22 +553,6 @@ export async function reportTrend(
   filter: ReportFilter,
 ): Promise<TrendReportDto> {
   return invokeCommand<TrendReportDto>("report_trend", { filter });
-}
-
-export async function reportMonthComparison(
-  month1: string,
-  month2: string,
-): Promise<MonthComparisonReportDto> {
-  return invokeCommand<MonthComparisonReportDto>("report_month_comparison", {
-    month1,
-    month2,
-  });
-}
-
-export async function reportYearSummary(
-  year: number,
-): Promise<YearSummaryReportDto> {
-  return invokeCommand<YearSummaryReportDto>("report_year_summary", { year });
 }
 
 export async function reportAccountTransactions(
