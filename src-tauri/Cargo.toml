@@ -56,3 +56,6 @@ hex = "0.4"
 sha2 = "0.10"
 tempfile = "3"
 tauri = { version = "2", features = ["test"] }
+# `start_paused` lets the approval-timeout test advance the clock instead of
+# waiting out APPROVAL_TIMEOUT.
+tokio = { version = "1", features = ["test-util"] }

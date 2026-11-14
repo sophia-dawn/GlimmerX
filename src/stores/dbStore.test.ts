@@ -57,9 +57,12 @@ describe("dbStore", () => {
   });
 
   it("handles check error gracefully", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockDbCheckAnyExists.mockRejectedValue(new Error("network error"));
     await useDbStore.getState().checkExistingDb();
     expect(useDbStore.getState().hasExistingDb).toBe(false);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("loads recent databases", async () => {
@@ -72,8 +75,11 @@ describe("dbStore", () => {
   });
 
   it("handles loadRecentDbs error gracefully", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockDbListRecent.mockRejectedValue(new Error("failed"));
     await useDbStore.getState().loadRecentDbs();
     expect(useDbStore.getState().recentDbs).toEqual([]);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

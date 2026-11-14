@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 import { McpApprovalDialog } from "./McpApprovalDialog";
 
 // listen must exist: the dialog registers the backend event handler.
@@ -59,7 +65,9 @@ describe("McpApprovalDialog", () => {
   it("shows the request verbatim when the event fires", async () => {
     render(<McpApprovalDialog />);
     expect(capturedListener).not.toBeNull();
-    capturedListener!({ payload: transactionRequest });
+    act(() => {
+      capturedListener!({ payload: transactionRequest });
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/¥18\.50/)).toBeInTheDocument();
@@ -72,7 +80,9 @@ describe("McpApprovalDialog", () => {
 
   it("approving resolves the request id with true", async () => {
     render(<McpApprovalDialog />);
-    capturedListener!({ payload: transactionRequest });
+    act(() => {
+      capturedListener!({ payload: transactionRequest });
+    });
 
     const approve = await screen.findByRole("button", {
       name: /确认写入|Approve/i,
@@ -86,7 +96,9 @@ describe("McpApprovalDialog", () => {
 
   it("rejecting resolves the request id with false", async () => {
     render(<McpApprovalDialog />);
-    capturedListener!({ payload: transactionRequest });
+    act(() => {
+      capturedListener!({ payload: transactionRequest });
+    });
 
     const reject = await screen.findByRole("button", { name: /拒绝|Reject/i });
     fireEvent.click(reject);
@@ -98,16 +110,18 @@ describe("McpApprovalDialog", () => {
 
   it("renders create_account requests with the path and opening balance", async () => {
     render(<McpApprovalDialog />);
-    capturedListener!({
-      payload: {
-        requestId: "req-2",
-        tool: "create_account",
-        request: {
-          path: "Assets/Alipay",
-          openingBalanceCents: 10000,
+    act(() => {
+      capturedListener!({
+        payload: {
+          requestId: "req-2",
+          tool: "create_account",
+          request: {
+            path: "Assets/Alipay",
+            openingBalanceCents: 10000,
+          },
+          createdAt: "2026-11-14T12:00:00Z",
         },
-        createdAt: "2026-11-14T12:00:00Z",
-      },
+      });
     });
 
     await waitFor(() => {

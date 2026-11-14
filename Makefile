@@ -112,7 +112,7 @@ coverage-install:
 	cargo install cargo-llvm-cov --locked
 
 # Excluded: entry points (never exercised by tests) and the generated message
-# table. Measured baseline after exclusions: 94.39% lines (2026-11-13), so the
+# table. Measured baseline after exclusions: 94.08% lines (2026-11-14), so the
 # gate sits just below it as a no-regression floor — raise it as coverage grows
 # (same policy as the frontend coverage gate).
 COVERAGE_IGNORE = src[\\/](lib|main)\.rs|src[\\/]errors[\\/]messages\.rs

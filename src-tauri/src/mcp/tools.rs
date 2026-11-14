@@ -366,3 +366,384 @@ impl LedgerTools {
     instructions = "GlimmerX double-entry ledger. Amounts are integer cents; dates are YYYY-MM-DD. List accounts/categories before writing; account names must match exactly or uniquely. Writes are gated by the trust mode: read-only rejects, confirm asks the user (timeout), trust writes directly."
 )]
 impl rmcp::ServerHandler for LedgerTools {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::sync::Mutex;
+
+    use tauri::async_runtime::JoinHandle;
+
+    use crate::db::Database;
+    use crate::mcp::approval::ApprovalSlot;
+    use crate::mcp::settings::McpConfig;
+    use crate::mcp::McpRuntimeStatus;
+
+    /// What the fake host hands to `with_db`.
+    enum Backing {
+        /// Real schema: ledger calls can succeed.
+        Db {
+            db: Database,
+            _dir: tempfile::TempDir,
+        },
+        /// No schema at all: settings and ledger reads fail.
+        Bare,
+        /// Locked ledger: `with_db` fails before the closure runs.
+        Locked,
+    }
+
+    /// Test double for the app handle — only the parts the tools touch.
+    /// Runtime-task plumbing is a no-op; approvals go through a real slot so
+    /// the single-slot semantics are exercised for real.
+    struct FakeHost {
+        backing: Backing,
+        trust: Result<TrustMode, String>,
+        path: Option<String>,
+        slot: ApprovalSlot,
+        emitted: Mutex<u32>,
+    }
+
+    impl FakeHost {
+        fn with(
+            backing: Backing,
+            trust: Result<TrustMode, String>,
+            path: Option<String>,
+        ) -> Arc<Self> {
+            Arc::new(Self {
+                backing,
+                trust,
+                path,
+                slot: ApprovalSlot::new(),
+                emitted: Mutex::new(0),
+            })
+        }
+
+        /// Unlocked ledger with the real schema and one asset account.
+        fn ledger(trust: TrustMode) -> Arc<Self> {
+            let dir = tempfile::tempdir().unwrap();
+            let db = Database::create(&dir.path().join("t.db"), "pw").unwrap();
+            {
+                let conn = db.get_conn().unwrap();
+                crate::db::accounts::create_account_with_path(&conn, "Assets/Cash", None).unwrap();
+                // Keep the settings table and the fake host in agreement:
+                // ledger_status reads the trust tier from the database.
+                crate::mcp::settings::save_trust(&conn, trust.as_str()).unwrap();
+            }
+            Self::with(
+                Backing::Db { db, _dir: dir },
+                Ok(trust),
+                Some("/tmp/glimmerx.db".to_string()),
+            )
+        }
+
+        /// Unlocked but without a schema: every query fails.
+        fn bare() -> Arc<Self> {
+            Self::with(Backing::Bare, Ok(TrustMode::Trust), None)
+        }
+
+        /// Locked ledger.
+        fn locked() -> Arc<Self> {
+            Self::with(Backing::Locked, Ok(TrustMode::Trust), None)
+        }
+
+        /// Settings unreadable, so even the trust tier cannot be resolved.
+        fn config_unreadable() -> Arc<Self> {
+            Self::with(Backing::Bare, Err("settings unreadable".to_string()), None)
+        }
+    }
+
+    impl McpHost for FakeHost {
+        fn with_db(&self, f: DbFn) -> Result<serde_json::Value, String> {
+            match &self.backing {
+                Backing::Db { db, .. } => {
+                    let conn = db.get_conn().map_err(|e| e.to_string())?;
+                    f(&conn).map_err(|e| e.to_string())
+                }
+                Backing::Bare => {
+                    let conn = rusqlite::Connection::open_in_memory().map_err(|e| e.to_string())?;
+                    f(&conn).map_err(|e| e.to_string())
+                }
+                Backing::Locked => Err("errors.databaseLocked".to_string()),
+            }
+        }
+
+        fn db_path(&self) -> Option<String> {
+            self.path.clone()
+        }
+
+        fn mcp_config(&self) -> Result<McpConfig, String> {
+            self.trust.clone().map(|trust| McpConfig {
+                enabled: true,
+                port: 17823,
+                token: "test-token".to_string(),
+                trust,
+            })
+        }
+
+        fn try_stage_approval(&self, request: ApprovalRequest) -> StageOutcome {
+            self.slot.try_insert(request)
+        }
+
+        fn emit_approval(&self, _request: &ApprovalRequest) {
+            *self.emitted.lock().unwrap() += 1;
+        }
+
+        fn set_runtime_task(&self, _task: JoinHandle<()>, _port: u16) {}
+
+        fn set_runtime_port(&self, _port: u16) {}
+
+        fn abort_runtime(&self) {}
+
+        fn mark_runtime_stopped(&self) {}
+
+        fn runtime_status(&self) -> McpRuntimeStatus {
+            McpRuntimeStatus {
+                running: false,
+                port: None,
+            }
+        }
+    }
+
+    fn text_of(result: &CallToolResult) -> String {
+        match result.content.first() {
+            Some(ContentBlock::Text(text)) => text.text.clone(),
+            other => panic!("expected text content, got {other:?}"),
+        }
+    }
+
+    fn failed(result: &CallToolResult) -> bool {
+        result.is_error.unwrap_or(false)
+    }
+
+    /// An expense on the fake ledger's Cash account.
+    fn expense_args() -> RecordTransactionParams {
+        RecordTransactionParams {
+            kind: "expense".to_string(),
+            amount_cents: 1850,
+            date: Some("2026-11-14".to_string()),
+            description: Some("coffee".to_string()),
+            source_account: Some("Cash".to_string()),
+            destination_account: None,
+            category: Some("餐饮".to_string()),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ledger_status_reports_trust_and_path() {
+        let tools = LedgerTools::new(FakeHost::ledger(TrustMode::Trust));
+        let result = tools.ledger_status().await.unwrap();
+        let text = text_of(&result);
+        assert!(text.contains("\"trust\""), "trust mode: {text}");
+        // dbPath lives in the host, not the database: it must be merged in.
+        assert!(text.contains("/tmp/glimmerx.db"), "db path merged: {text}");
+    }
+
+    #[tokio::test]
+    async fn test_ledger_status_surfaces_unreadable_settings() {
+        let tools = LedgerTools::new(FakeHost::bare());
+        let result = tools.ledger_status().await.unwrap();
+        assert!(failed(&result), "a failed read is a tool error");
+        // A localized, user-facing message, not an empty result.
+        assert!(!text_of(&result).is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_tools_return_ledger_views() {
+        let tools = LedgerTools::new(FakeHost::ledger(TrustMode::ReadOnly));
+
+        let accounts = text_of(&tools.list_accounts().await.unwrap());
+        assert!(accounts.contains("Cash"), "accounts: {accounts}");
+
+        let categories = text_of(&tools.list_categories().await.unwrap());
+        assert!(categories.starts_with('['), "categories: {categories}");
+
+        let balances = text_of(&tools.get_balances().await.unwrap());
+        assert!(balances.contains("Cash"), "balances: {balances}");
+
+        let summary = text_of(
+            &tools
+                .summary(Parameters(SummaryParams {
+                    from: "2026-11-01".to_string(),
+                    to: "2026-11-30".to_string(),
+                }))
+                .await
+                .unwrap(),
+        );
+        assert!(summary.contains("netCents"), "summary: {summary}");
+    }
+
+    #[tokio::test]
+    async fn test_query_transactions_passes_filters_and_clamps_limit() {
+        let tools = LedgerTools::new(FakeHost::ledger(TrustMode::ReadOnly));
+        // limit 0 clamps up to 1 instead of returning nothing.
+        let page = text_of(
+            &tools
+                .query_transactions(Parameters(QueryTransactionsParams {
+                    from_date: Some("2026-11-01".to_string()),
+                    to_date: Some("2026-11-30".to_string()),
+                    account_id: None,
+                    category_id: None,
+                    keyword: Some("coffee".to_string()),
+                    limit: Some(0),
+                }))
+                .await
+                .unwrap(),
+        );
+        assert_eq!(page.trim(), "[]", "no matching transactions yet");
+    }
+
+    #[tokio::test]
+    async fn test_record_transaction_rejects_unknown_kind() {
+        let tools = LedgerTools::new(FakeHost::ledger(TrustMode::Trust));
+        let result = tools
+            .record_transaction(Parameters(RecordTransactionParams {
+                kind: "borrow".to_string(),
+                amount_cents: 100,
+                date: None,
+                description: None,
+                source_account: None,
+                destination_account: None,
+                category: None,
+            }))
+            .await
+            .unwrap();
+        assert!(failed(&result));
+        assert!(
+            text_of(&result).contains("expense, income or transfer"),
+            "{}",
+            text_of(&result)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_readonly_mode_rejects_every_write() {
+        let tools = LedgerTools::new(FakeHost::ledger(TrustMode::ReadOnly));
+
+        let record = tools
+            .record_transaction(Parameters(expense_args()))
+            .await
+            .unwrap();
+        assert!(failed(&record));
+        assert!(text_of(&record).contains("read-only"));
+
+        let create = tools
+            .create_account(Parameters(CreateAccountParams {
+                path: "Assets/Alipay".to_string(),
+                description: None,
+                opening_balance_cents: None,
+                opening_balance_date: None,
+            }))
+            .await
+            .unwrap();
+        assert!(failed(&create));
+        assert!(text_of(&create).contains("read-only"));
+    }
+
+    #[tokio::test]
+    async fn test_write_is_denied_when_settings_are_unreadable() {
+        let tools = LedgerTools::new(FakeHost::config_unreadable());
+        let result = tools
+            .record_transaction(Parameters(expense_args()))
+            .await
+            .unwrap();
+        assert!(failed(&result));
+        assert!(text_of(&result).contains("settings unreadable"));
+    }
+
+    #[tokio::test]
+    async fn test_trust_mode_writes_without_asking() {
+        let host = FakeHost::ledger(TrustMode::Trust);
+        let tools = LedgerTools::new(host.clone());
+
+        let record = tools
+            .record_transaction(Parameters(expense_args()))
+            .await
+            .unwrap();
+        assert!(!failed(&record), "{}", text_of(&record));
+        assert!(text_of(&record).contains("transactionId"));
+
+        let create = tools
+            .create_account(Parameters(CreateAccountParams {
+                path: "Assets/Alipay".to_string(),
+                description: Some("wallet".to_string()),
+                opening_balance_cents: Some(10_000),
+                opening_balance_date: Some("2026-11-14".to_string()),
+            }))
+            .await
+            .unwrap();
+        assert!(!failed(&create), "{}", text_of(&create));
+        assert!(text_of(&create).contains("accountId"));
+
+        assert_eq!(*host.emitted.lock().unwrap(), 0, "trust never asks");
+    }
+
+    #[tokio::test]
+    async fn test_confirm_mode_reports_the_busy_slot() {
+        let host = FakeHost::ledger(TrustMode::Confirm);
+        // Single slot by design: a second write is an actionable error.
+        let staged = host.slot.try_insert(ApprovalRequest {
+            request_id: "pending-1".to_string(),
+            tool: "record_transaction".to_string(),
+            request: serde_json::json!({}),
+            created_at: "2026-11-14T00:00:00Z".to_string(),
+        });
+        assert!(matches!(staged, StageOutcome::Waiting(_)));
+
+        let result = LedgerTools::new(host)
+            .record_transaction(Parameters(expense_args()))
+            .await
+            .unwrap();
+        let text = text_of(&result);
+        assert!(failed(&result));
+        assert!(text.contains("pending-1"), "blocking id named: {text}");
+    }
+
+    #[tokio::test]
+    async fn test_confirm_mode_writes_after_approval() {
+        let host = FakeHost::ledger(TrustMode::Confirm);
+        let tools = LedgerTools::new(host.clone());
+        let call = tokio::spawn(async move {
+            tools
+                .record_transaction(Parameters(expense_args()))
+                .await
+                .unwrap()
+        });
+
+        let mut request_id = None;
+        for _ in 0..200 {
+            if let Some(pending) = host.slot.current() {
+                request_id = Some(pending.request_id.clone());
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        let request_id = request_id.expect("approval never staged");
+        assert_eq!(*host.emitted.lock().unwrap(), 1, "webview told once");
+        assert!(host.slot.resolve(&request_id, true));
+
+        let result = call.await.unwrap();
+        assert!(!failed(&result), "{}", text_of(&result));
+        assert!(text_of(&result).contains("transactionId"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_confirm_mode_times_out_without_an_answer() {
+        // Nobody is there to approve: the write is cancelled, not left hanging.
+        let tools = LedgerTools::new(FakeHost::ledger(TrustMode::Confirm));
+        let result = tools
+            .record_transaction(Parameters(expense_args()))
+            .await
+            .unwrap();
+        assert!(failed(&result));
+        assert!(text_of(&result).contains("Timed out"));
+    }
+
+    #[tokio::test]
+    async fn test_locked_ledger_fails_every_tool() {
+        let tools = LedgerTools::new(FakeHost::locked());
+        let result = tools.list_accounts().await.unwrap();
+        assert!(failed(&result));
+        assert!(text_of(&result).contains("databaseLocked"));
+    }
+}

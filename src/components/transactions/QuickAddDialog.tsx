@@ -321,6 +321,7 @@ export function QuickAddDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="sm:max-w-md"
+        aria-describedby={undefined}
         onInteractOutside={handleDialogInteractOutside}
       >
         <DialogHeader>
