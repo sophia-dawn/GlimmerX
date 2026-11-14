@@ -284,8 +284,8 @@ const QUICK_ADD_DEFAULTS = {
 | **P1** | 账户激活验证 | 检查 `is_active == 1`        | ✅ 已实现 | 验证账户状态，阻止使用已关闭账户 |
 | **P2** | 未来日期限制 | DatePicker 禁用未来日期      | ✅ 已实现 | UI 层面阻止，前端日期选择器      |
 
-> **注**: 全局快捷键功能因 Wayland 安全限制无法实现。Wayland 不允许应用程序注册全局快捷键，
-> 仅窗口级快捷键可用（Ctrl+Shift+N），需要窗口获得焦点。
+> **注**: 全局快捷键功能已于 2026-11-14 下线（Wayland 不允许注册全局快捷键只是原因之一，
+> 更要命的是全局注册常被别的应用占用，失败时用户只看到「按了没反应」）。
 
 ---
 
@@ -371,4 +371,4 @@ create_transaction(conn, input)
 | **P1** | 权益账户限制 | 后端 `validate_no_equity_accounts()` 验证     |
 | **P1** | 账户激活验证 | 后端 `validate_accounts_active()` 验证        |
 | **P2** | 未来日期限制 | DatePicker 默认 `maxDate = new Date()`        |
-| **P2** | 快捷键       | 窗口级 Ctrl+Shift+N（Wayland 限制全局快捷键） |
+| ~~**P2**~~ | ~~快捷键~~   | ~~窗口级 Ctrl+Shift+N~~ — 已实现，后按决策下线 |

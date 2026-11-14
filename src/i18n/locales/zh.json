@@ -473,11 +473,6 @@
     "autoLockDesc": "超过设定时间没有任何操作时自动锁定账本。输入、点击、滚动都会重新计时。",
     "autoLockOff": "关闭",
     "autoLockMinutes": "{{count}} 分钟",
-    "quickAddShortcut": "快速记账快捷键",
-    "quickAddShortcutDesc": "在任意应用中按下即可唤起快速记账窗口。修改后立即生效。",
-    "shortcutRecording": "按下快捷键…",
-    "shortcutReset": "恢复默认",
-    "shortcutRegisterFailed": "快捷键 {{accelerator}} 注册失败，可能已被其他应用占用",
     "dataAudit": "数据体检",
     "dataAuditDesc": "检查分录是否平衡、是否有未分类的流水，以及各账户的使用情况。",
     "runAudit": "运行体检"

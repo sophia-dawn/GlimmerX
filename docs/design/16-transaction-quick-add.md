@@ -854,7 +854,10 @@ export function QuickAddDialog({ open, onClose, onSuccess }: QuickAddDialogProps
 }
 ```
 
-### 8.2 全局快捷键
+### 8.2 全局快捷键（已下线）
+
+> 2026-11-14 移除：全局注册常被其他应用占用，失败时用户只看到「按了没反应」，
+> 而常驻一个系统级钩子不值得。下面的代码是当时的设计，留作记录。
 
 ```typescript
 // src/App.tsx 或 src/hooks/useGlobalShortcuts.ts
@@ -1114,7 +1117,7 @@ mod tests {
 | **默认账户机制**     | 用户未指定资金账户时，使用设置中的默认账户或第一个 asset 账户  |
 | **分类可替代账户**   | expense/income 时，提供 category_id 即可，系统自动推导账户     |
 | **类型严格验证**     | 确保账户类型与记账模式匹配（expense → expense 分类）           |
-| **全局快捷键**       | Ctrl/Cmd + N 触发弹窗，提升录入效率                            |
+| ~~**全局快捷键**~~   | ~~Ctrl/Cmd + N 触发弹窗，提升录入效率~~ — 已实现，后按决策下线 |
 
 ---
 

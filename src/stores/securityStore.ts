@@ -1,25 +1,31 @@
 import { create } from "zustand";
 
 /**
- * Security preferences: idle auto-lock and the global quick-add shortcut.
+ * Security preferences: the idle auto-lock.
  *
  * Stored in localStorage rather than the encrypted `settings` table on purpose —
- * these are *device* behaviours, not ledger data. Keeping them out of the DB
- * also means the idle timer can start before (or without) an unlock, and that
+ * this is a *device* behaviour, not ledger data. Keeping it out of the DB also
+ * means the idle timer can start before (or without) an unlock, and that
  * opening a different ledger does not silently change how this machine locks.
  */
 
 const AUTO_LOCK_KEY = "glimmerx:security:autoLockMinutes";
-const SHORTCUT_KEY = "glimmerx:security:quickAddShortcut";
 
 /**
- * The window-focus lock is gone; its key goes with it rather than lingering in
- * every profile that ever turned it on.
+ * Keys of features that are gone. They go with the feature rather than
+ * lingering in every profile that ever turned them on.
  */
-localStorage.removeItem("glimmerx:security:lockOnBlur");
+const REMOVED_KEYS = [
+  "glimmerx:security:lockOnBlur",
+  "glimmerx:security:quickAddShortcut",
+];
+
+export function clearRemovedSecurityKeys() {
+  for (const key of REMOVED_KEYS) localStorage.removeItem(key);
+}
+clearRemovedSecurityKeys();
 
 export const DEFAULT_AUTO_LOCK_MINUTES = 5;
-export const DEFAULT_QUICK_ADD_SHORTCUT = "CommandOrControl+Shift+A";
 
 /** 0 disables the timer; everything else is minutes. */
 export const AUTO_LOCK_CHOICES = [0, 1, 5, 15, 30] as const;
@@ -35,25 +41,15 @@ function readMinutes(): number {
 interface SecurityState {
   /** Idle minutes before locking; 0 = never lock automatically. */
   autoLockMinutes: number;
-  /** Accelerator for "open quick add", e.g. `CommandOrControl+Shift+A`. */
-  quickAddShortcut: string;
   setAutoLockMinutes: (minutes: number) => void;
-  setQuickAddShortcut: (accelerator: string) => void;
 }
 
 export const useSecurityStore = create<SecurityState>((set) => ({
   autoLockMinutes: readMinutes(),
-  quickAddShortcut:
-    localStorage.getItem(SHORTCUT_KEY) ?? DEFAULT_QUICK_ADD_SHORTCUT,
 
   setAutoLockMinutes: (minutes: number) => {
     const normalized = Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
     localStorage.setItem(AUTO_LOCK_KEY, String(normalized));
     set({ autoLockMinutes: normalized });
-  },
-
-  setQuickAddShortcut: (accelerator: string) => {
-    localStorage.setItem(SHORTCUT_KEY, accelerator);
-    set({ quickAddShortcut: accelerator });
   },
 }));

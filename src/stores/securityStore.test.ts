@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   useSecurityStore,
   DEFAULT_AUTO_LOCK_MINUTES,
-  DEFAULT_QUICK_ADD_SHORTCUT,
+  clearRemovedSecurityKeys,
 } from "@/stores/securityStore";
 
 describe("securityStore", () => {
@@ -10,14 +10,11 @@ describe("securityStore", () => {
     localStorage.clear();
     useSecurityStore.setState({
       autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES,
-      quickAddShortcut: DEFAULT_QUICK_ADD_SHORTCUT,
     });
   });
 
   it("defaults to a 5 minute timeout", () => {
-    const state = useSecurityStore.getState();
-    expect(state.autoLockMinutes).toBe(5);
-    expect(state.quickAddShortcut).toBe("CommandOrControl+Shift+A");
+    expect(useSecurityStore.getState().autoLockMinutes).toBe(5);
   });
 
   it("persists the timeout and accepts 0 as 'off'", () => {
@@ -33,11 +30,21 @@ describe("securityStore", () => {
     expect(useSecurityStore.getState().autoLockMinutes).toBe(0);
   });
 
-  it("persists a custom shortcut", () => {
-    useSecurityStore.getState().setQuickAddShortcut("Control+Alt+J");
-    expect(useSecurityStore.getState().quickAddShortcut).toBe("Control+Alt+J");
-    expect(localStorage.getItem("glimmerx:security:quickAddShortcut")).toBe(
-      "Control+Alt+J",
+  it("clears the keys of features that are gone", () => {
+    // The window-focus lock and the quick-add accelerator were both removed;
+    // a profile that still carries either key is carrying a preference for a
+    // setting that no longer exists.
+    localStorage.setItem("glimmerx:security:lockOnBlur", "true");
+    localStorage.setItem(
+      "glimmerx:security:quickAddShortcut",
+      "CommandOrControl+Shift+A",
     );
+
+    clearRemovedSecurityKeys();
+
+    expect(localStorage.getItem("glimmerx:security:lockOnBlur")).toBeNull();
+    expect(
+      localStorage.getItem("glimmerx:security:quickAddShortcut"),
+    ).toBeNull();
   });
 });

@@ -8,9 +8,14 @@
   分类与损益账户按 1:1 绑定（`categories.account_id`），账本真相唯一定义在 posting 的账户上。
 - **硬删除**：不做回收站、不做软删除、不做撤销。删除即 `DELETE`，恢复只能靠数据库备份。
 - **锁定只有「自动锁定」一种**：没有"离开窗口即锁定"。`securityStore` 只剩
-  `autoLockMinutes`（空闲计时，默认 5 分钟，0 = 关闭）与全局快捷键；
+  `autoLockMinutes`（空闲计时，默认 5 分钟，0 = 关闭）。
   `glimmerx:security:lockOnBlur` 这个 localStorage 键在 store 初始化时清掉。
   （2026-11-14）
+- **没有全局快捷键**：不做"任意应用里按一下唤起快速记账"。`useGlobalShortcut` /
+  `ShortcutRecorder` / `utils/shortcut.ts` / `tauri-plugin-global-shortcut` 插件与权限
+  全部移除，`glimmerx:security:quickAddShortcut` 键一并清掉。
+  **快速记账功能本身保留**（顶栏按钮），`Ctrl+Shift+I` 的 AI 记账也保留。
+  理由：全局注册常被别的应用占用，失败时用户只看到"按了没反应"。（2026-11-14）
 - **导入导出暂时下线**：CSV / Beancount / CSV 导入已删除，不要再加回来。
   数据库备份（`db_backup`）保留，属于安全兜底。
 

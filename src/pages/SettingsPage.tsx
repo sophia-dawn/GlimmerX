@@ -6,12 +6,7 @@ import {
   type ThemePreset,
 } from "@/stores/themeStore";
 import { useLanguageStore } from "@/stores/languageStore";
-import {
-  useSecurityStore,
-  AUTO_LOCK_CHOICES,
-  DEFAULT_QUICK_ADD_SHORTCUT,
-} from "@/stores/securityStore";
-import { ShortcutRecorder } from "@/components/settings/ShortcutRecorder";
+import { useSecurityStore, AUTO_LOCK_CHOICES } from "@/stores/securityStore";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { DataManagementSection } from "@/components/DataManagementSection";
 import { AiSettingsSection } from "@/components/settings/AiSettingsSection";
@@ -108,12 +103,7 @@ export function SettingsPage() {
   const { t } = useTranslation();
   const { mode, setMode, preset, setPreset } = useThemeStore();
   const { language, setLanguage } = useLanguageStore();
-  const {
-    autoLockMinutes,
-    setAutoLockMinutes,
-    quickAddShortcut,
-    setQuickAddShortcut,
-  } = useSecurityStore();
+  const { autoLockMinutes, setAutoLockMinutes } = useSecurityStore();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
 
@@ -228,18 +218,6 @@ export function SettingsPage() {
             </Select>
             <p className="text-xs text-muted-foreground">
               {t("settings.autoLockDesc")}
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm">{t("settings.quickAddShortcut")}</label>
-            <ShortcutRecorder
-              value={quickAddShortcut}
-              onChange={setQuickAddShortcut}
-              onReset={() => setQuickAddShortcut(DEFAULT_QUICK_ADD_SHORTCUT)}
-            />
-            <p className="text-xs text-muted-foreground">
-              {t("settings.quickAddShortcutDesc")}
             </p>
           </div>
 

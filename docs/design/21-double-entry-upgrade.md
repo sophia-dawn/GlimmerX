@@ -15,10 +15,9 @@
 | 2 | 保留支出账户 | 分类 ↔ 损益账户 **1:1 绑定**，账本真相唯一定义在 posting | A + v2 | 是 |
 | 3 | 完善对账 | `postings.cleared` + `reconciliations`，对账粒度下沉到分录，**首版带自动匹配** | v2 | 是 |
 | 4 | 封禁导入导出 | 删代码、命令、依赖、UI、i18n、文档 | A | 是（drop 表） |
-| 5 | 自动锁定 | 空闲计时 + 失焦锁定 + 清空查询缓存 | A | 否 |
+| 5 | 自动锁定 | 空闲计时 + 清空查询缓存 | A | 否 |
 | 6 | 储蓄目标 | `savings_goals`，以专用资产账户为载体 | v2 | 是 |
 | 7 | 只做硬删除 | 移除 `deleted_at` 软删语义与残留过滤 | v2 | 是（drop 列） |
-| 8 | 全局快捷键 | 接线已有 `useGlobalShortcut` → 唤起快速记账 | A | 否 |
 
 ---
 
@@ -260,24 +259,15 @@ CREATE TABLE IF NOT EXISTS savings_goals (
 
 ---
 
-## 5. 全局快捷键
+## 5. 全局快捷键（已下线）
 
-`tauri-plugin-global-shortcut` 已在 `lib.rs` 注册，`capabilities/default.json` 已放行，
-`useGlobalShortcut` 已写好但**没有任何调用点**。
+2026-11-14 全部移除：`useGlobalShortcut`、`ShortcutRecorder`、`utils/shortcut.ts`、
+`tauri-plugin-global-shortcut` 插件与对应权限、设置页的快捷键录制项，以及
+`glimmerx:security:quickAddShortcut`。
 
-已实现（批 A）：
-
-- 默认 `CommandOrControl+Shift+A`，存 `glimmerx:security:quickAddShortcut`（localStorage）；
-- 注册在 `App.tsx` 的 `GlobalQuickAddShortcut` —— 位于路由之上，因此**未解锁时也生效**：
-  先 `unminimize/show/setFocus` 把窗口带到前台，已解锁才打开快速记账弹窗。
-  快捷键的最小用途是「把最小化的应用叫回来」，锁屏状态下这恰恰是最需要的；
-- 快速记账的开关状态从 `AppShell` 局部 state 提到 `uiStore`，否则路由之上的快捷键无法打开它；
-- 注册失败（被其他应用占用）→ toast「快捷键 X 注册失败」；
-- 设置页 `ShortcutRecorder`：点击进入录制 → 捕获阶段拦截按键（`preventDefault` +
-  `stopPropagation`，避免录制时立刻触发旧快捷键）→ 只接受带修饰键的组合；
-- `utils/shortcut.ts` 提供 `matchesAccelerator`，让**同一个**配置在窗口内也能命中
-  （全局注册失败或浏览器调试时的兜底）。原先写死的 `Ctrl+Shift+N` 已删除 ——
-  两个不同组合做同一件事必然对不上。
+两条理由：全局注册会被别的应用抢走，注册失败是常态，而失败时用户只看到
+「按了没反应」；其次它要求常驻一个系统级钩子，为一个记账弹窗不值得。
+**快速记账功能本身保留**（顶栏按钮；`Ctrl+Shift+I` 的 AI 记账也保留）。
 
 ---
 

@@ -16,58 +16,8 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import { ReportsPage } from "@/pages/ReportsPage";
 import { ToasterProvider } from "@/components/ui/ToasterProvider";
 import { useDbStore } from "@/stores/dbStore";
-import { useSecurityStore } from "@/stores/securityStore";
-import { useUiStore } from "@/stores/uiStore";
 import { useAutoLock } from "@/hooks/useAutoLock";
-import { useGlobalShortcut } from "@/hooks/useGlobalShortcut";
 import { queryClient } from "@/lib/queryClient";
-import { displayAccelerator } from "@/utils/shortcut";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { toast } from "sonner";
-
-/**
- * System-wide "open quick add" binding.
- *
- * Rendered above the routes so it exists on the unlock screen too: pressing the
- * shortcut there should bring the window forward, which is exactly what a user
- * who minimised the app expects.
- */
-function GlobalQuickAddShortcut() {
-  const { t } = useTranslation();
-  const isUnlocked = useDbStore((state) => state.isUnlocked);
-  const accelerator = useSecurityStore((state) => state.quickAddShortcut);
-  const openQuickAdd = useUiStore((state) => state.openQuickAdd);
-  // Outside a Tauri runtime (vite dev in a browser) there is nothing to bind.
-  const inTauri =
-    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-  useGlobalShortcut(
-    accelerator,
-    () => {
-      void (async () => {
-        try {
-          const win = getCurrentWindow();
-          await win.unminimize();
-          await win.show();
-          await win.setFocus();
-        } catch (err) {
-          console.error("[Shortcut] could not focus window:", err);
-        }
-        // Locked: bringing the unlock screen forward is the whole point.
-        if (isUnlocked) openQuickAdd();
-      })();
-    },
-    inTauri,
-    () =>
-      toast.error(
-        t("settings.shortcutRegisterFailed", {
-          accelerator: displayAccelerator(accelerator),
-        }),
-      ),
-  );
-
-  return null;
-}
 
 function AppRoutes() {
   const { isUnlocked } = useDbStore();
@@ -132,7 +82,6 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AppRoutes />
-        <GlobalQuickAddShortcut />
         <ToasterProvider />
       </BrowserRouter>
     </QueryClientProvider>
